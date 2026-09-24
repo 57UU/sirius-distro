@@ -1,0 +1,19 @@
+# 构建产物与本地垃圾，不进库（走 GitHub Releases / 本地归档）
+*.ext4
+*.simg
+*.tar.zst
+*.img
+*.tgz
+*.log
+*.deb
+build/
+phone-dist/
+incoming-tmp*
+overlay-merge/
+overlay-sync-tmp/
+overlay-tmp*/
+.tmp/
+tmp/Image.gz
+kernel-dtb
+initrd.cpio.gz
+*.dtb

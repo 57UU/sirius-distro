@@ -1,0 +1,67 @@
+#!/bin/sh
+# sirius-screen: panel backlight switch for sirius (Orbital is the UI).
+# off: save brightness, backlight 0, bl_power 1.
+# on/pon: restore brightness, bl_power 0.
+# toggle/status as usual. SoC/WiFi/BT/SSH unaffected. No suspend.
+set -e
+RUNDIR=/run/sirius-screen
+STATE=$RUNDIR/state
+mkdir -p $RUNDIR
+if test ! -f $STATE; then
+  echo on > $STATE
+fi
+get_bl() {
+  for bl in /sys/class/backlight/*; do
+    test -d $bl || continue
+    echo $bl
+    return 0
+  done
+  return 1
+}
+screen_off() {
+  BL=$(get_bl) || true
+  if test -n "$BL"; then
+    name=$(basename $BL)
+    CUR=$(cat $BL/brightness 2>/dev/null || echo 0)
+    if test "$CUR" != 0; then
+      echo "$CUR" > $RUNDIR/brightness.$name 2>/dev/null || true
+    fi
+    echo 0 > $BL/brightness 2>/dev/null || true
+    if test -f $BL/bl_power; then
+      echo 1 > $BL/bl_power 2>/dev/null || true
+    fi
+  fi
+  echo off > $STATE
+}
+screen_on() {
+  BL=$(get_bl) || true
+  if test -n "$BL"; then
+    name=$(basename $BL)
+    if test -f $BL/bl_power; then
+      echo 0 > $BL/bl_power 2>/dev/null || true
+    fi
+    if test -f $RUNDIR/brightness.$name; then
+      cat $RUNDIR/brightness.$name > $BL/brightness 2>/dev/null || true
+    fi
+  fi
+  echo on > $STATE
+}
+CMD=$1
+if test -z $CMD; then
+  CMD=status
+fi
+case $CMD in
+  off) screen_off ;;
+  on|pon) screen_on ;;
+  auto-off)
+    CUR=$(cat $STATE)
+    if test $CUR = on; then screen_off; fi ;;
+  auto-on)
+    CUR=$(cat $STATE)
+    if test $CUR = off; then screen_on; fi ;;
+  toggle)
+    CUR=$(cat $STATE)
+    if test $CUR = on; then screen_off; else screen_on; fi ;;
+  status) cat $STATE ;;
+  *) echo "usage: sirius-screen on|off|pon|toggle|status" 1>&2; exit 1 ;;
+esac

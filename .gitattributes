@@ -1,0 +1,7 @@
+* text=auto eol=lf
+# 只有 modem 大包走 Git LFS；自研小固件（jsn/tlv/ftb/board-2/zap/bdwlan）
+# 都是 KB 级，直接进 git，checkout 开箱即用。
+# *.mbn filter=lfs diff=lfs merge=lfs -text
+# modem.b* filter=lfs diff=lfs merge=lfs -text
+# wlanmdsp.mbn filter=lfs diff=lfs merge=lfs -text
+# adsp.mbn filter=lfs diff=lfs merge=lfs -text

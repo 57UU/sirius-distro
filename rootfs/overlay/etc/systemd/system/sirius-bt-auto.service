@@ -1,0 +1,10 @@
+[Unit]
+Description=Sirius BT auto power-on (headless server)
+After=bluetooth.service
+Wants=bluetooth.service
+[Service]
+Type=oneshot
+TimeoutStartSec=30
+ExecStart=/usr/local/sbin/sirius-bt-auto
+[Install]
+WantedBy=multi-user.target

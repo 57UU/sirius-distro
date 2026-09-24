@@ -1,0 +1,23 @@
+#!/bin/sh
+# sirius-bt-auto: power on BT controllers at boot for headless use.
+# BlueZ AutoEnable covers most cases; this is belt-and-braces (no desktop
+# agent toggling power on a server). hci_uart/btqca autoload stays in
+# /etc/modules-load.d/sirius.conf from the sirius bake.
+# NOTE: btmgmt can block forever on WCN3990 (no mgmt reply) -> every
+# command below is wrapped in timeout, whole unit has TimeoutStartSec.
+set -e
+for i in 1 2 3 4 5 6; do
+  if test -d /sys/class/bluetooth/hci0; then
+    break
+  fi
+  sleep 5
+done
+if test -d /sys/class/bluetooth/hci0; then
+  if command -v btmgmt > /dev/null 2>&1; then
+    timeout 10 btmgmt power on > /dev/null 2>&1 || true
+  fi
+  if command -v bluetoothctl > /dev/null 2>&1; then
+    printf "power on\nquit\n" | timeout 15 bluetoothctl > /dev/null 2>&1 || true
+  fi
+fi
+exit 0

@@ -1,0 +1,104 @@
+#!/bin/sh
+
+# shellcheck source=initramfs/init_functions.sh
+. ./init_functions.sh
+
+export PATH=/usr/bin:/bin:/usr/sbin:/sbin
+
+IP="172.16.42.1"
+
+mkdir -p /mnt
+mkdir -p /newroot
+
+mount_proc_sys_dev
+
+setup_mdev
+
+ROOT="$(get_cmdline_param rootfs_path)"
+ORIG_ROOT=""
+PART="$(get_cmdline_param rootfs_part)"
+DEBUG="$(get_cmdline_param initrd_hang)"
+
+# Default set by installer
+PART="${PART:-sda17}"
+
+echo "ROOT is $ROOT" > /dev/kmsg
+
+setup_firmware_path
+
+setup_usb_network
+start_udhcpd
+
+timeout=0
+until [ $timeout -eq 10 ]; do
+    if [ -n "$(blkid | grep "/dev/$PART" | cut -d ":" -f 1 | head -n 1)" ]; then
+	break
+    fi
+    sleep 1
+    timeout=$(($timeout+1))
+done
+
+if [ $timeout -eq 10 ]; then
+    echo "$PART never was probed/brought up" > /dev/kmsg
+    exit 1
+fi
+
+if [ -n "$DEBUG" ]; then
+    start_telnetd
+fi
+
+# This should be detected or configured better but for now this will do.
+mount "/dev/$PART" /mnt > /dev/kmsg
+
+if [ -z "$ROOT" ]; then
+    echo "ROOT is empty, assuming $PART is root" > /dev/kmsg
+    if [ -n "$DEBUG" ]; then
+        echo "HALTING WITH TELNET AS initrd_hang SET ON CMDLINE" > /dev/kmsg
+        while true; do sleep 300; done
+    fi
+    exec switch_root /mnt /sbin/init
+    exit
+fi
+
+echo "Mounted /dev/$PART as /mnt" > /dev/kmsg
+#If $ROOT isn't a valid path, check /data/, /data/.stowaways and /data/media/0 (storage)
+if [ ! -f "/mnt/$ROOT" ]; then
+    ORIG_ROOT="$ROOT"
+    echo "Rootfs isn't /mnt/$ROOT" > /dev/kmsg
+    ROOT="$(basename "$ROOT")"
+fi
+if [ ! -f "/mnt/$ROOT" ]; then
+    echo "Rootfs isn't /mnt/$ROOT" > /dev/kmsg
+    ROOT=".stowaways/$(basename "$ROOT")"
+fi
+if [ ! -f "/mnt/$ROOT" ]; then
+    echo "Rootfs isn't /mnt/$ROOT" > /dev/kmsg
+    ROOT="media/0/$(basename "$ROOT")"
+fi
+
+if [ ! -f "/mnt/$ROOT" ]; then
+    echo "Rootfs isn't /mnt/$ROOT" > /dev/kmsg
+    echo "Couldn't find $ORIG_ROOT" > /dev/kmsg
+	echo "Contents of '/mnt/$(dirname "$ORIG_ROOT")':" > /dev/kmsg
+	ls -la "/mnt/$(dirname "$ORIG_ROOT")/" > /dev/kmsg
+    echo "Halting" > /dev/kmsg
+    while true; do sleep 300; done
+fi
+
+mount "/mnt/$ROOT" /newroot # pmos-phosh.img
+
+echo "Moving image partition mount into rootfs" > /dev/kmsg
+mkdir -p /newroot/mnt/data
+mount --move /mnt /newroot/mnt/data
+
+# TEMP-DISABLED for gadget SSH: setup_usb_host_mode
+
+echo "Switching root" > /dev/kmsg
+if [ -n "$DEBUG" ]; then
+    echo "HALTING WITH TELNET AS initrd_hang SET ON CMDLINE" > /dev/kmsg
+    while true; do sleep 300; done;
+fi
+exec switch_root /newroot /sbin/init
+
+echo "Failed to switch root" > /dev/kmsg
+# Now we kernel panic :(

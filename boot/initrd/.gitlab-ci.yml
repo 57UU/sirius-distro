@@ -1,0 +1,13 @@
+
+variables:
+  SC_CUSTOM_FILES: |
+    "
+    build.sh
+    initramfs/init
+    initramfs/init_functions.sh
+    "
+
+# Using shellcheck from common ci-scripts repo: https://gitlab.com/sdm845-mainline/ci-scripts
+include:
+  - 'https://gitlab.com/sdm845-mainline/ci-scripts/-/raw/master/templates/preamble.yml'
+  - 'https://gitlab.com/sdm845-mainline/ci-scripts/-/raw/master/templates/shellcheck.yml'

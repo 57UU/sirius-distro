@@ -1,0 +1,17 @@
+#!/bin/sh
+# sirius-wifi-add: add an NM wifi profile with autoconnect for headless use.
+# Usage: sudo sirius-wifi-add SSID [PASSWORD]
+set -e
+SSID=$1
+PASS=$2
+if test -z $SSID; then
+  echo "usage: sirius-wifi-add SSID [PASSWORD]" 1>&2
+  exit 1
+fi
+if test -z $PASS; then
+  nmcli dev wifi connect "$SSID"
+else
+  nmcli dev wifi connect "$SSID" password "$PASS"
+fi
+nmcli -f NAME,AUTOCONNECT con show "$SSID" || true
+echo WIFI-ADD-DONE
