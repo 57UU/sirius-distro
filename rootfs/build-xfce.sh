@@ -22,10 +22,12 @@ KMOD_TGZ=${SIRIUS_KMOD:-}
 test -n "$SRC" || { echo "set SIRIUS_BASE to a pristine trixie arm64 tree"; exit 1; }
 test -n "$KMOD_TGZ" || { echo "set SIRIUS_KMOD to a kernel modules tarball"; exit 1; }
 test -d $SRC || { echo "missing base tree $SRC"; exit 1; }
+test "$(stat -c %u "$SRC")" = 0 || { echo "extract SIRIUS_BASE as root (sudo tar -xpJf rootfs.tar.xz)"; exit 1; }
 test -f $KMOD_TGZ || { echo "missing kmod $KMOD_TGZ"; exit 1; }
 R=$WORK/debian-trixie-xfce
 . $DISTRO/rootfs/lib/sirius-device.sh
 echo "=== xfce build start $(date) ==="
+mkdir -p $WORK
 rm -rf $R
 cp -a $SRC $R
 rm -f $R/etc/machine-id $R/var/lib/dbus/machine-id
