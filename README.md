@@ -33,7 +33,16 @@ fastboot flash boot boot.img
 fastboot format:ext4 userdata
 fastboot flash userdata xxxxx.simg
 ```
-重启即可
+刷写 userdata 可能出现卡住的情况，这是正常的，eMMC没办法。
+刷完后，请使用fastboot reboot重启，耐心等待，避免eMMC还没完成写入。
+
+首次进系统后务必扩容，否则很快没空间：
+
+```bash
+#在线扩容（/ 已挂载也能执行），mmcblk0p81 即 userdata，见 boot/build_both.sh
+sudo resize2fs /dev/mmcblk0p81
+df -h /   #确认已撑满整个 userdata 分区
+```
 
 # status
 
