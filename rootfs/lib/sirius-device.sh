@@ -19,6 +19,9 @@ sirius_firmware_pre() {
   cp -rf $FIRMWARE/pyxis-phone/. $R/lib/firmware/qcom/sdm710/pyxis/
   mkdir -p $R/lib/firmware/ath10k/WCN3990/hw1.0 $R/lib/firmware/qca
   cp -f $FIRMWARE/ath10k/board-2.bin.sirius $R/lib/firmware/ath10k/WCN3990/hw1.0/board-2.bin
+  cp -f $FIRMWARE/ath10k/firmware-5.bin.WCN3990 $R/lib/firmware/ath10k/WCN3990/hw1.0/firmware-5.bin
+  cp -f $FIRMWARE/ath10k/wlanmdsp.mbn.WCN3990 $R/lib/firmware/ath10k/WCN3990/hw1.0/wlanmdsp.mbn
+  chmod 644 $R/lib/firmware/ath10k/WCN3990/hw1.0/firmware-5.bin $R/lib/firmware/ath10k/WCN3990/hw1.0/wlanmdsp.mbn $R/lib/firmware/ath10k/WCN3990/hw1.0/board-2.bin
   cp -f $FIRMWARE/qca/ubuntu25-crbtfw21.tlv $R/lib/firmware/qca/crbtfw21.tlv
   rm -f $R/lib/firmware/qca/crnv21.bin
   cp -f $DSP_BIN/pd-mapper $R/usr/local/bin/pd-mapper
@@ -27,6 +30,10 @@ sirius_firmware_pre() {
 
 # Firmware re-overlay after apt (packages reinstall stock blobs) + checks.
 sirius_firmware_post() {
+  cp -f $FIRMWARE/ath10k/firmware-5.bin.WCN3990 $R/lib/firmware/ath10k/WCN3990/hw1.0/firmware-5.bin
+  cp -f $FIRMWARE/ath10k/wlanmdsp.mbn.WCN3990 $R/lib/firmware/ath10k/WCN3990/hw1.0/wlanmdsp.mbn
+  test "$(md5sum < $R/lib/firmware/ath10k/WCN3990/hw1.0/firmware-5.bin | cut -d " " -f1)" = d16e3444f68ee48c548a891b9f9279e1
+  test "$(md5sum < $R/lib/firmware/ath10k/WCN3990/hw1.0/wlanmdsp.mbn | cut -d " " -f1)" = 259b4f9e4aef57a5051f27a201653262
   cp -f $FIRMWARE/gpu/a630_sqe.fw $FIRMWARE/gpu/a630_gmu.bin $R/lib/firmware/qcom/
   chmod 644 $R/lib/firmware/qcom/a630_sqe.fw $R/lib/firmware/qcom/a630_gmu.bin
   test "$(md5sum < $R/lib/firmware/qcom/a630_sqe.fw | cut -d " " -f1)" = 9f2540d789d9fd4699a566d97fcabded
