@@ -1,7 +1,8 @@
 #!/bin/sh
 # sirius-screen: panel backlight switch for sirius (Orbital is the UI).
-# off: save brightness, backlight 0, bl_power 1.
-# on/pon: restore brightness, bl_power 0.
+# off: save brightness (only nonzero saves), backlight 0, bl_power 1.
+# on/pon: no-op when already on (never fight Orbital slider mid-drag);
+#   otherwise restore saved brightness clamped to [1, max], bl_power 0.
 # toggle/status as usual. SoC/WiFi/BT/SSH unaffected. No suspend.
 set -e
 RUNDIR=/run/sirius-screen
@@ -19,12 +20,16 @@ get_bl() {
   return 1
 }
 screen_off() {
+  CUR=$(cat $STATE 2>/dev/null || echo on)
+  if test "$CUR" = off; then
+    return 0
+  fi
   BL=$(get_bl) || true
   if test -n "$BL"; then
     name=$(basename $BL)
-    CUR=$(cat $BL/brightness 2>/dev/null || echo 0)
-    if test "$CUR" != 0; then
-      echo "$CUR" > $RUNDIR/brightness.$name 2>/dev/null || true
+    CURB=$(cat $BL/brightness 2>/dev/null || echo 0)
+    if test "$CURB" != 0; then
+      echo "$CURB" > $RUNDIR/brightness.$name 2>/dev/null || true
     fi
     echo 0 > $BL/brightness 2>/dev/null || true
     if test -f $BL/bl_power; then
@@ -34,6 +39,10 @@ screen_off() {
   echo off > $STATE
 }
 screen_on() {
+  CUR=$(cat $STATE 2>/dev/null || echo on)
+  if test "$CUR" = on; then
+    return 0
+  fi
   BL=$(get_bl) || true
   if test -n "$BL"; then
     name=$(basename $BL)
@@ -41,7 +50,13 @@ screen_on() {
       echo 0 > $BL/bl_power 2>/dev/null || true
     fi
     if test -f $RUNDIR/brightness.$name; then
-      cat $RUNDIR/brightness.$name > $BL/brightness 2>/dev/null || true
+      V=$(cat $RUNDIR/brightness.$name 2>/dev/null || echo 1)
+      case "$V" in ''|*[!0-9]*) V=1;; esac
+      MAX=$(cat $BL/max_brightness 2>/dev/null || echo 1023)
+      case "$MAX" in ''|*[!0-9]*) MAX=1023;; esac
+      if test "$V" -lt 1; then V=1; fi
+      if test "$V" -gt "$MAX"; then V=$MAX; fi
+      echo "$V" > $BL/brightness 2>/dev/null || true
     fi
   fi
   echo on > $STATE
