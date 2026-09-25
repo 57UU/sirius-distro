@@ -51,7 +51,7 @@ set -e
 export DEBIAN_FRONTEND=noninteractive
 apt-get update
 apt-get install -y triggerhappy evtest rfkill auditd kbd bluez
-apt-get install -y qt6-base qt6-declarative qml6-module-qtquick-controls qml6-module-qtquick-layouts qml6-module-qtquick-shapes qml6-module-qtquick-window qt6-svg-plugins libgl1 libegl1
+apt-get install -y qml6-module-qtquick-controls qml6-module-qtquick-layouts qml6-module-qtquick-shapes qml6-module-qtquick-window qt6-svg-plugins libgl1 libegl1
 apt-get purge -y lightdm lightdm-gtk-greeter xfce4 network-manager-gnome blueman mesa-vulkan-drivers || true
 apt-get autoremove --purge -y || true
 rm -rf /etc/lightdm
