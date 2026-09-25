@@ -54,7 +54,7 @@ cat > /etc/gdm3/daemon.conf <<'EOF3'
 AutomaticLoginEnable=True
 AutomaticLogin=u57u
 EOF3
-systemctl enable ssh gdm systemd-networkd systemd-resolved rmtfs tqftpserv pd-mapper wifi-shutdown bluetooth systemd-timesyncd NetworkManager || true
+systemctl enable ssh gdm systemd-networkd systemd-resolved rmtfs tqftpserv pd-mapper wifi-shutdown bluetooth bt-addr systemd-timesyncd NetworkManager || true
 apt-get clean
 rm -f /etc/resolv.conf
 mv /etc/resolv.conf.srv-link /etc/resolv.conf

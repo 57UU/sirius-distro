@@ -48,7 +48,7 @@ chroot $R /bin/bash <<'CHROOT_EOF'
 set -e
 export DEBIAN_FRONTEND=noninteractive
 apt-get update
-apt-get install -y triggerhappy evtest rfkill auditd kbd
+apt-get install -y triggerhappy evtest rfkill auditd kbd bluez
 apt-get install -y qt6-base qt6-declarative qml6-module-qtquick-controls qml6-module-qtquick-layouts qml6-module-qtquick-shapes qml6-module-qtquick-window qt6-svg-plugins libgl1 libegl1
 apt-get purge -y lightdm lightdm-gtk-greeter xfce4 network-manager-gnome blueman mesa-vulkan-drivers || true
 apt-get autoremove --purge -y || true
@@ -59,7 +59,7 @@ chmod 0440 /etc/sudoers.d/u57u
 usermod -aG video,render,input u57u || true
 systemctl disable lightdm gdm display-manager 2>/dev/null || true
 systemctl set-default multi-user.target
-systemctl enable ssh systemd-networkd systemd-resolved rmtfs tqftpserv pd-mapper wifi-shutdown bluetooth systemd-timesyncd NetworkManager triggerhappy sirius-idle-watch sirius-bt-auto orbital || true
+systemctl enable ssh systemd-networkd systemd-resolved rmtfs tqftpserv pd-mapper wifi-shutdown bluetooth bt-addr systemd-timesyncd NetworkManager triggerhappy sirius-idle-watch sirius-bt-auto orbital || true
 apt-get clean
 rm -f /etc/resolv.conf
 mv /etc/resolv.conf.srv-link /etc/resolv.conf

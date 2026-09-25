@@ -54,7 +54,7 @@ cat > /etc/lightdm/lightdm.conf <<'EOF3'
 autologin-user=u57u
 autologin-user-timeout=0
 EOF3
-systemctl enable ssh lightdm systemd-networkd systemd-resolved rmtfs tqftpserv pd-mapper wifi-shutdown bluetooth systemd-timesyncd NetworkManager || true
+systemctl enable ssh lightdm systemd-networkd systemd-resolved rmtfs tqftpserv pd-mapper wifi-shutdown bluetooth bt-addr systemd-timesyncd NetworkManager || true
 apt-get clean
 rm -f /etc/resolv.conf
 mv /etc/resolv.conf.srv-link /etc/resolv.conf

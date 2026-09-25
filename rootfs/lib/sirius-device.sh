@@ -93,9 +93,24 @@ kernel.sysrq = 1
 EOF3
   cat > $R/etc/systemd/network/10-wlan0.link <<'EOF3'
 [Match]
-Name=wlan0
+OriginalName=wlan0
+
 [Link]
-MACAddress=48:2c:a0:4b:c6:0d
+MACAddress=02:57:55:08:5E:01
+EOF3
+  cat > $R/etc/systemd/system/bt-addr.service <<'EOF3'
+[Unit]
+Description=Set stable Bluetooth public address (sirius)
+After=bluetooth.service
+ConditionPathExists=/sys/class/bluetooth/hci0
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+TimeoutStartSec=180
+ExecStartPre=-/usr/bin/pkill -9 -x btmgmt
+ExecStart=/bin/sh -c "systemctl is-active --quiet bluetooth || exit 0; systemctl stop bluetooth; for i in 1 2 3 4 5 6 7 8 9 10; do sleep 4 | timeout -s KILL 3 btmgmt --index 0 info > /tmp/btinfo 2>&1 && ! grep ^current /tmp/btinfo | grep -q powered && break; sleep 2; done; sleep 2; sleep 6 | timeout -s KILL 5 btmgmt --index 0 public-addr 02:57:55:08:5E:02 || echo SET-FAILED; sleep 1; systemctl start bluetooth; sleep 8; for i in 1 2 3; do sleep 5 | timeout -s KILL 4 btmgmt --index 0 info > /tmp/btinfo3 2>&1; grep -q 02:57:55:08:5e:02 /tmp/btinfo3 && grep ^current /tmp/btinfo3 | grep -q powered && break; sleep 3; done; if grep -q 02:57:55:08:5e:02 /tmp/btinfo3 && grep ^current /tmp/btinfo3 | grep -q powered; then echo VERIFIED; else echo VERIFY-FAILED; exit 1; fi"
+[Install]
+WantedBy=multi-user.target
 EOF3
   mkdir -p $R/etc/modules-load.d
   printf "hci_uart\nbtqca\n" > $R/etc/modules-load.d/sirius.conf

@@ -3,8 +3,10 @@
 # BlueZ AutoEnable covers most cases; this is belt-and-braces (no desktop
 # agent toggling power on a server). hci_uart/btqca autoload stays in
 # /etc/modules-load.d/sirius.conf from the sirius bake.
-# NOTE: btmgmt can block forever on WCN3990 (no mgmt reply) -> every
-# command below is wrapped in timeout, whole unit has TimeoutStartSec.
+# NOTE: btmgmt HANGS when stdin is /dev/null (systemd default): measured
+# 6s zero-output, ignores SIGTERM, needs SIGKILL. Feed it an open silent
+# stdin via a sleep pipe and always use timeout -s KILL. The bluetoothctl
+# call below already has a real stdin (printf pipe) and stays as is.
 set -e
 for i in 1 2 3 4 5 6; do
   if test -d /sys/class/bluetooth/hci0; then
@@ -14,7 +16,7 @@ for i in 1 2 3 4 5 6; do
 done
 if test -d /sys/class/bluetooth/hci0; then
   if command -v btmgmt > /dev/null 2>&1; then
-    timeout 10 btmgmt power on > /dev/null 2>&1 || true
+    sleep 3 | timeout -s KILL 10 btmgmt power on > /dev/null 2>&1 || true
   fi
   if command -v bluetoothctl > /dev/null 2>&1; then
     printf "power on\nquit\n" | timeout 15 bluetoothctl > /dev/null 2>&1 || true

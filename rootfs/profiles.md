@@ -9,7 +9,7 @@ build-xfce.sh    纯桌面 XFCE（LightDM 自动登录），无 overlay、无 se
 
 三者设备基座完全相同：modem/WLAN 固件（`firmware/`，md5 校验）、
 `pd-mapper`、rmtfs/tqftpserv、wifi-shutdown、ADSP 不恢复规则、
-sysrq、wlan0 命名、蓝牙 UART 自加载、RNDIS usb0 静态地址。
+sysrq、wlan0 命名+固定 MAC、蓝牙 UART 自加载+固定地址、RNDIS usb0 静态地址（见 docs/STABLE-MAC.md）。
 
 - 输入：`SIRIUS_BASE`（纯净 trixie arm64 树，如 linuxcontainers
   `rootfs.tar.xz` 解开）、`SIRIUS_KMOD`（对准手机 `uname -r` 的模块包，
