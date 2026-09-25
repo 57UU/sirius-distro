@@ -35,3 +35,22 @@ fastboot flash userdata xxxxx.simg
 ```
 重启即可
 
+# status
+
+
+
+| Components  | Status  |
+| ----------- | ------- |
+| CPU         | Working |
+| GPU         | Working |
+| eMMC        | Working |
+| USB         | Partial |
+| Bluetooth   | Working |
+| WiFi        | Working |
+| Thermal     | Working |
+| Touchscreen | Working |
+| Battery     | Working |
+| Audio       | Broken  |
+| Speaker     | Broken  |
+
+USB工作在gadget模式，作为usb虚拟网卡被电脑接入。
