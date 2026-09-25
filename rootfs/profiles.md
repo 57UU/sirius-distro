@@ -18,3 +18,4 @@ sysrq、wlan0 命名、蓝牙 UART 自加载、RNDIS usb0 静态地址。
 - `overlay/` 只属于 server 口味：开机会 `cp -a` 进 `/` 的文件
   （服务、脚本、配置），改动先改这里。
 - 产物（`*.tar.zst`/`*.simg`）不进库，走 GitHub Releases。
+- apt 源用 Debian 默认（全球通用，不锁国内镜像；国内构建慢可自换源）。
