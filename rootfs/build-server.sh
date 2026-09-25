@@ -1,7 +1,8 @@
 #!/bin/bash
 # Build Debian trixie server rootfs for xiaomi-sirius (headless + Orbital).
-# Device base (WiFi/BT bake) comes from lib/sirius-device.sh;
-# this script only adds: overlay/, /opt/orbital, Qt runtime, server enables.
+# Device base (WiFi/BT bake + screen/power stack) comes from overlay/
+# via lib/sirius-device.sh sirius_overlay (shared by all flavors);
+# this script only adds: /opt/orbital, Qt runtime, server enables.
 #
 # External inputs (fail fast if missing):
 #   SIRIUS_BASE  pristine debian-trixie arm64 tree (e.g. linuxcontainers rootfs)
@@ -36,12 +37,10 @@ cp -a $SRC $R
 rm -f $R/etc/machine-id $R/var/lib/dbus/machine-id
 rm -f $R/usr/bin/qemu-aarch64-static
 sirius_firmware_pre
-sirius_helpers_units
 sirius_kmod
 sirius_netconf
 sirius_apt_mirror
-cp -a $OVERLAY/. $R/
-chmod 755 $R/usr/local/sbin/sirius-screen $R/usr/local/sbin/sirius-idle-watch $R/usr/local/sbin/sirius-remodeset $R/usr/local/sbin/sirius-bt-auto $R/usr/local/sbin/sirius-wifi-add
+sirius_overlay
 mkdir -p $R/opt/orbital
 cp -f $ORBITAL_PKG/Orbital $ORBITAL_PKG/run.sh $R/opt/orbital/
 chmod 755 $R/opt/orbital/Orbital $R/opt/orbital/run.sh

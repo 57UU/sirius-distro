@@ -1,0 +1,5 @@
+[Match]
+OriginalName=wlan0
+
+[Link]
+MACAddress=02:57:55:08:5E:01

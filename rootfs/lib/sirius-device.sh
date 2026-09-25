@@ -33,95 +33,26 @@ sirius_firmware_post() {
   test ! -e $R/lib/firmware/qca/crnv21.bin
 }
 
-# Helper scripts, units, udev, sysctl, links: identical on every flavor.
-sirius_helpers_units() {
-  cat > $R/usr/local/sbin/safe-reboot <<'EOF3'
-#!/bin/sh
-echo s > /proc/sysrq-trigger
-sleep 1
-echo u > /proc/sysrq-trigger
-sleep 1
-echo b > /proc/sysrq-trigger
-EOF3
-  cat > $R/usr/local/bin/wifi-shutdown <<'EOF3'
-#!/bin/sh
-nmcli dev disconnect wlan0 2>/dev/null || true
-sleep 1
-modprobe -r ath10k_snoc ath10k_core 2>/dev/null || rmmod ath10k_snoc ath10k_core 2>/dev/null || true
-exit 0
-EOF3
-  chmod 755 $R/usr/local/sbin/safe-reboot $R/usr/local/bin/wifi-shutdown
-  cat > $R/etc/systemd/system/pd-mapper.service <<'EOF3'
-[Unit]
-Description=Qualcomm PD mapper service
-After=qrtr-ns.service
-Wants=qrtr-ns.service
-[Service]
-ExecStart=/usr/local/bin/pd-mapper
-Restart=always
-[Install]
-WantedBy=multi-user.target
-EOF3
-  cat > $R/etc/systemd/system/wifi-shutdown.service <<'EOF3'
-[Unit]
-Description=Teardown WiFi before modem stops (sirius shutdown fix)
-DefaultDependencies=no
-Before=shutdown.target reboot.target poweroff.target halt.target
-Before=NetworkManager.service ModemManager.service rmtfs.service tqftpserv.service pd-mapper.service
-[Service]
-Type=oneshot
-ExecStart=/usr/local/bin/wifi-shutdown
-[Install]
-WantedBy=halt.target reboot.target poweroff.target shutdown.target
-EOF3
-  mkdir -p $R/etc/systemd/system/rmtfs.service.d
-  cat > $R/etc/systemd/system/rmtfs.service.d/override.conf <<'EOF3'
-[Service]
-ExecStart=
-ExecStart=/usr/bin/rmtfs -r -s -o /var/lib/rmtfs
-EOF3
-  cat > $R/etc/systemd/system/rmtfs.service.d/20-after-tqftp.conf <<'EOF3'
-[Unit]
-After=tqftpserv.service
-Requires=tqftpserv.service
-EOF3
-  cat > $R/etc/udev/rules.d/60-adsp-norecovery.rules <<'EOF3'
-ACTION=="add", SUBSYSTEM=="remoteproc", ATTR{name}=="adsp", ATTR{recovery}="disabled"
-EOF3
-  cat > $R/etc/sysctl.d/60-sysrq.conf <<'EOF3'
-kernel.sysrq = 1
-EOF3
-  cat > $R/etc/systemd/network/10-wlan0.link <<'EOF3'
-[Match]
-OriginalName=wlan0
-
-[Link]
-MACAddress=02:57:55:08:5E:01
-EOF3
-  cat > $R/etc/systemd/system/bt-addr.service <<'EOF3'
-[Unit]
-Description=Set stable Bluetooth public address (sirius)
-After=sys-subsystem-bluetooth-devices-hci0.device
-Wants=sys-subsystem-bluetooth-devices-hci0.device
-Before=bluetooth.service
-ConditionPathExists=/sys/class/bluetooth/hci0
-JobTimeoutSec=90
-[Service]
-Type=oneshot
-RemainAfterExit=yes
-TimeoutStartSec=120
-ExecStartPre=-/usr/bin/pkill -9 -x btmgmt
-ExecStart=/bin/sh -c "sleep 5; for i in 1 2 3 4 5; do sleep 4 | timeout -s KILL 3 btmgmt --index 0 info > /tmp/btinfo 2>&1 && break; sleep 2; done; sleep 6 | timeout -s KILL 5 btmgmt --index 0 public-addr 02:57:55:08:5E:02 || echo SET-FAILED; sleep 5 | timeout -s KILL 4 btmgmt --index 0 info > /tmp/btinfo3 2>&1; if grep -q 02:57:55:08:5e:02 /tmp/btinfo3; then echo VERIFIED; else echo VERIFY-FAILED; exit 1; fi"
-[Install]
-WantedBy=multi-user.target
-EOF3
-  mkdir -p $R/etc/modules-load.d
-  printf "hci_uart\nbtqca\n" > $R/etc/modules-load.d/sirius.conf
+# Common device base for every flavor. Static files live in rootfs/overlay/
+# (edit there, not here); this only copies them in, fixes exec bits, and
+# creates the rmtfs partlabel symlinks (kept in code so re-bakes always
+# track the current partlabel names).
+# Requires: R, DISTRO. OVERLAY defaults to $DISTRO/rootfs/overlay.
+sirius_overlay() {
+  OVERLAY=${OVERLAY:-$DISTRO/rootfs/overlay}
+  test -d $OVERLAY || { echo "missing overlay $OVERLAY"; exit 1; }
+  cp -a $OVERLAY/. $R/
+  chmod 755 $R/usr/local/sbin/sirius-screen $R/usr/local/sbin/sirius-idle-watch $R/usr/local/sbin/sirius-remodeset $R/usr/local/sbin/sirius-bt-auto $R/usr/local/sbin/sirius-wifi-add $R/usr/local/sbin/safe-reboot $R/usr/local/bin/wifi-shutdown
   mkdir -p $R/var/lib/rmtfs
   ln -sf /dev/disk/by-partlabel/modemst1 $R/var/lib/rmtfs/modem_fs1
   ln -sf /dev/disk/by-partlabel/modemst2 $R/var/lib/rmtfs/modem_fs2
   ln -sf /dev/disk/by-partlabel/fsc $R/var/lib/rmtfs/modem_fsc
   ln -sf /dev/disk/by-partlabel/fsg $R/var/lib/rmtfs/modem_fsg
+}
+
+# Old name kept as an alias (build scripts call sirius_overlay now).
+sirius_helpers_units() {
+  sirius_overlay
 }
 
 sirius_kmod() {

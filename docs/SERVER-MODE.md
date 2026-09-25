@@ -47,7 +47,7 @@ overlay/etc/triggerhappy/triggers.d/sirius-power.conf
 overlay/etc/systemd/logind.conf.d/sirius-server.conf
 overlay/etc/NetworkManager/conf.d/sirius-server.conf
 overlay/etc/sysctl.d/60-sirius-printk.conf
-build-server.sh（另有 build-gnome.sh / build-xfce.sh 纯桌面版）
+build-server.sh（另有 build-gnome.sh GNOME 桌面版，同息屏/电源键栈）
 src/sirius-remodeset.c（救援工具源码）
 ```
 

@@ -2,7 +2,7 @@
 
 > 2026-09-25 定稿，手机实测通过。主线驱动读不到出厂 MAC，
 > WiFi 每次重启随机、蓝牙恒为全零假地址，故在 OS 层钉死，
-> 三口味 rootfs 共享同一套做法。
+> 两口味 rootfs 共享同一套做法。
 
 ## 1. 现象与根因
 
@@ -28,12 +28,12 @@ hci0   02:57:55:08:5E:02
 ## 3. 落点（本库改了哪里）
 
 ```text
-rootfs/lib/sirius-device.sh  sirius_helpers_units()：
+rootfs/lib/sirius-device.sh  sirius_overlay()(静态文件在 rootfs/overlay/)：
   /etc/systemd/network/10-wlan0.link       udev 层钉 wlan0
   /etc/systemd/system/bt-addr.service      开机改 hci0 公有地址
 rootfs/build-server.sh                     apt 加 bluez，各 enable 行加 bt-addr
-rootfs/build-gnome.sh / build-xfce.sh      各 enable 行加 bt-addr
-rootfs/overlay/usr/local/sbin/sirius-bt-auto  只做 power on（server 口味）
+rootfs/build-gnome.sh                      enable 行加 bt-addr
+rootfs/overlay/usr/local/sbin/sirius-bt-auto  只做 power on
 ```
 
 ## 4. bt-addr 流程（Before=bluetooth，趁 daemon 未启动改 virgin 地址）

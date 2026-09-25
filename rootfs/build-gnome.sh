@@ -1,6 +1,7 @@
 #!/bin/bash
 # Build Debian trixie GNOME rootfs for xiaomi-sirius (pure desktop).
-# Device base (WiFi/BT bake) comes from lib/sirius-device.sh;
+# Device base (WiFi/BT bake + screen/power stack) comes from overlay/
+# via lib/sirius-device.sh sirius_overlay (shared by all flavors);
 # this script only adds: GNOME packages, u57u user, GDM autologin, enables.
 #
 # External inputs (fail fast if missing):
@@ -16,6 +17,7 @@ set -e
 DISTRO="$(cd "$(dirname "$0")/.." && pwd)"
 FIRMWARE=$DISTRO/firmware
 DSP_BIN=$DISTRO/rootfs/dsp-bin
+OVERLAY=$DISTRO/rootfs/overlay
 WORK=${SIRIUS_WORK:-$DISTRO/work}
 SRC=${SIRIUS_BASE:-}
 KMOD_TGZ=${SIRIUS_KMOD:-}
@@ -33,7 +35,7 @@ cp -a $SRC $R
 rm -f $R/etc/machine-id $R/var/lib/dbus/machine-id
 rm -f $R/usr/bin/qemu-aarch64-static
 sirius_firmware_pre
-sirius_helpers_units
+sirius_overlay
 sirius_kmod
 sirius_netconf
 sirius_apt_mirror
@@ -42,7 +44,7 @@ chroot $R /bin/bash <<'CHROOT_EOF'
 set -e
 export DEBIAN_FRONTEND=noninteractive
 apt-get update
-apt-get install -y sudo openssh-server gnome-core gdm3 firmware-atheros firmware-qcom-soc network-manager nano wpasupplicant bluez mesa-vulkan-drivers rmtfs tqftpserv qrtr-tools wireless-tools systemd-timesyncd util-linux-extra
+apt-get install -y sudo openssh-server triggerhappy gnome-core gdm3 firmware-atheros firmware-qcom-soc network-manager nano wpasupplicant bluez mesa-vulkan-drivers rmtfs tqftpserv qrtr-tools wireless-tools systemd-timesyncd util-linux-extra
 useradd -m -u 1000 -U -G sudo -s /bin/bash u57u || true
 echo "u57u:1234" | chpasswd
 printf "u57u ALL=(ALL) NOPASSWD:ALL\n" > /etc/sudoers.d/u57u
@@ -56,14 +58,10 @@ cat > /etc/gdm3/daemon.conf <<'EOF3'
 AutomaticLoginEnable=True
 AutomaticLogin=u57u
 EOF3
-systemctl enable ssh gdm systemd-networkd systemd-resolved rmtfs tqftpserv pd-mapper wifi-shutdown bluetooth bt-addr systemd-timesyncd NetworkManager || true
-mkdir -p /etc/systemd/logind.conf.d
-cat > /etc/systemd/logind.conf.d/sirius-nosuspend.conf <<'EOF3'
-[Login]
-HandlePowerKey=ignore
-HandlePowerKeyLongPress=ignore
-IdleAction=ignore
-EOF3
+systemctl enable ssh gdm systemd-networkd systemd-resolved rmtfs tqftpserv pd-mapper wifi-shutdown bluetooth bt-addr systemd-timesyncd NetworkManager triggerhappy sirius-idle-watch sirius-bt-auto || true
+# Power-key/idle policy comes from overlay (logind sirius-server.conf:
+# HandlePowerKey=ignore so triggerhappy owns the key, like server).
+# GNOME-side knobs only: never suspend, settings-daemon takes no action.
 systemctl mask suspend.target hibernate.target hybrid-sleep.target suspend-then-hibernate.target
 cat > /usr/share/glib-2.0/schemas/90-sirius-power.gschema.override <<'EOF3'
 [org.gnome.settings-daemon.plugins.power]
