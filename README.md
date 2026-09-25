@@ -6,7 +6,7 @@
 
 ```text
 boot/       boot.img / boot_sys.img 组装脚本（cmdline 唯一真源）+ initrd
-firmware/   设备固件（自研小件直接入库；modem 大包见 pyxis-phone/README）
+firmware/   设备固件（自研小件 + modem 大包 pyxis-phone/ 均已入库，MANIFEST 校验）
 rootfs/     rootfs 烘焙：overlay（开机会拷进 / 的文件）+ 构建脚本
 src/        自研源码（sirius-remodeset）；第三方源码只留获取说明
 orbital/    上游仪表盘（获取说明，不 vendor 源码）
