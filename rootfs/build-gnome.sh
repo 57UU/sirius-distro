@@ -57,6 +57,21 @@ AutomaticLoginEnable=True
 AutomaticLogin=u57u
 EOF3
 systemctl enable ssh gdm systemd-networkd systemd-resolved rmtfs tqftpserv pd-mapper wifi-shutdown bluetooth bt-addr systemd-timesyncd NetworkManager || true
+mkdir -p /etc/systemd/logind.conf.d
+cat > /etc/systemd/logind.conf.d/sirius-nosuspend.conf <<'EOF3'
+[Login]
+HandlePowerKey=ignore
+HandlePowerKeyLongPress=ignore
+IdleAction=ignore
+EOF3
+systemctl mask suspend.target hibernate.target hybrid-sleep.target suspend-then-hibernate.target
+cat > /usr/share/glib-2.0/schemas/90-sirius-power.gschema.override <<'EOF3'
+[org.gnome.settings-daemon.plugins.power]
+power-button-action="nothing"
+sleep-inactive-ac-type="nothing"
+sleep-inactive-battery-type="nothing"
+EOF3
+glib-compile-schemas /usr/share/glib-2.0/schemas/
 apt-get clean
 rm -f /etc/resolv.conf
 mv /etc/resolv.conf.srv-link /etc/resolv.conf
