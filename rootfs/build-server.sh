@@ -50,15 +50,19 @@ chroot $R /bin/bash <<'CHROOT_EOF'
 set -e
 export DEBIAN_FRONTEND=noninteractive
 apt-get update
-apt-get install -y triggerhappy evtest rfkill auditd kbd bluez
+apt-get install -y triggerhappy evtest rfkill auditd kbd bluez sudo openssh-server network-manager nano wpasupplicant rmtfs tqftpserv qrtr-tools wireless-tools systemd-timesyncd util-linux-extra
 apt-get install -y qml6-module-qtquick-controls qml6-module-qtquick-layouts qml6-module-qtquick-shapes qml6-module-qtquick-window qt6-svg-plugins libgl1 libegl1
 apt-get purge -y lightdm lightdm-gtk-greeter xfce4 network-manager-gnome blueman mesa-vulkan-drivers || true
 apt-get autoremove --purge -y || true
 rm -rf /etc/lightdm
 rm -f /etc/systemd/system/display-manager.service
+useradd -m -u 1000 -U -G sudo -s /bin/bash u57u || true
+echo "u57u:1234" | chpasswd
 printf "u57u ALL=(ALL) NOPASSWD:ALL\n" > /etc/sudoers.d/u57u
 chmod 0440 /etc/sudoers.d/u57u
 usermod -aG video,render,input u57u || true
+ln -sf /usr/share/zoneinfo/Asia/Shanghai /etc/localtime
+echo "Asia/Shanghai" > /etc/timezone
 systemctl disable lightdm gdm display-manager 2>/dev/null || true
 systemctl set-default multi-user.target
 systemctl enable ssh systemd-networkd systemd-resolved rmtfs tqftpserv pd-mapper wifi-shutdown bluetooth bt-addr systemd-timesyncd NetworkManager triggerhappy sirius-idle-watch sirius-bt-auto orbital || true
