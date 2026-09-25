@@ -28,6 +28,7 @@ R=$WORK/debian-trixie-gnome
 echo "=== gnome build start $(date) ==="
 rm -rf $R
 cp -a $SRC $R
+rm -f $R/etc/machine-id $R/var/lib/dbus/machine-id
 rm -f $R/usr/bin/qemu-aarch64-static
 sirius_firmware_pre
 sirius_helpers_units
@@ -43,6 +44,7 @@ useradd -m -u 1000 -U -G sudo -s /bin/bash u57u || true
 echo "u57u:1234" | chpasswd
 printf "u57u ALL=(ALL) NOPASSWD:ALL\n" > /etc/sudoers.d/u57u
 chmod 0440 /etc/sudoers.d/u57u
+usermod -aG video,render,input u57u || true
 ln -sf /usr/share/zoneinfo/Asia/Shanghai /etc/localtime
 echo "Asia/Shanghai" > /etc/timezone
 mkdir -p /etc/gdm3

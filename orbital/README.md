@@ -1,6 +1,6 @@
 # Orbital（上游仪表盘占位，不 vendor 源码）
 
-上游：https://github.com/AthBe1337/Orbital
+上游：https://github.com/AthBe1337/Orbital（现行验证版 commit `77a95d9`）
 手机上没有源码时（需联网，IPv6 可用）：
 
 ```bash

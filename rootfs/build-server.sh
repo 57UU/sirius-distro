@@ -31,6 +31,7 @@ R=$WORK/debian-trixie-server
 echo "=== server build start $(date) ==="
 rm -rf $R
 cp -a $SRC $R
+rm -f $R/etc/machine-id $R/var/lib/dbus/machine-id
 rm -f $R/usr/bin/qemu-aarch64-static
 sirius_firmware_pre
 sirius_helpers_units
@@ -47,13 +48,14 @@ set -e
 export DEBIAN_FRONTEND=noninteractive
 apt-get update
 apt-get install -y triggerhappy evtest rfkill auditd kbd
-apt-get install -y qt6-base qt6-declarative qml6-module-qtquick-controls qml6-module-qtquick-layouts qml6-module-qtquick-shapes qml6-module-qtquick-window libgl1 libegl1
+apt-get install -y qt6-base qt6-declarative qml6-module-qtquick-controls qml6-module-qtquick-layouts qml6-module-qtquick-shapes qml6-module-qtquick-window qml6-module-qtquick-templates qml6-module-qtquick-dialogs qml6-module-qtquick-effects qml6-module-qtquick-localstorage qml6-module-qtquick-nativestyle qml6-module-qtquick-particles qml6-module-qtquick-tooling qml6-module-qtquick-vectorimage qt6-svg-plugins libgl1 libegl1
 apt-get purge -y lightdm lightdm-gtk-greeter xfce4 network-manager-gnome blueman mesa-vulkan-drivers || true
 apt-get autoremove --purge -y || true
 rm -rf /etc/lightdm
 rm -f /etc/systemd/system/display-manager.service
 printf "u57u ALL=(ALL) NOPASSWD:ALL\n" > /etc/sudoers.d/u57u
 chmod 0440 /etc/sudoers.d/u57u
+usermod -aG video,render,input u57u || true
 systemctl disable lightdm gdm display-manager 2>/dev/null || true
 systemctl set-default multi-user.target
 systemctl enable ssh systemd-networkd systemd-resolved rmtfs tqftpserv pd-mapper wifi-shutdown bluetooth systemd-timesyncd NetworkManager triggerhappy sirius-idle-watch sirius-bt-auto orbital || true
