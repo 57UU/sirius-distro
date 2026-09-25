@@ -36,12 +36,14 @@ rootfs/build-gnome.sh / build-xfce.sh      各 enable 行加 bt-addr
 rootfs/overlay/usr/local/sbin/sirius-bt-auto  只做 power on（server 口味）
 ```
 
-## 4. bt-addr 流程（After=bluetooth，不挡开机）
+## 4. bt-addr 流程（Before=bluetooth，趁 daemon 未启动改 virgin 地址）
 
 ```text
-确认 daemon 存活 → stop 蓝牙 → 轮询确认控制器 DOWN
-→ 改地址 → start 蓝牙 → 轮询校验地址加 powered
+daemon 未启动前改地址，改完它正常启动即带新地址，全程不 stop/start daemon。
+等 hci0 出现加 settle → 改地址（带重试）→ 校验地址存在即成功。
 任一步失败都不挡开机（蓝牙回落缺省地址，看 journal 定位）。
+v6 曾用 After 加 stop/set/start，在 GNOME 首启撞上 daemon 初始化竞态
+（1 秒大的 daemon 被 stop，中断其固件流程，后续 set 被默认值覆盖），故退回 virgin 路径。
 ```
 
 ## 5. 教训（每一条都是实测换来的）
@@ -59,6 +61,8 @@ rootfs/overlay/usr/local/sbin/sirius-bt-auto  只做 power on（server 口味）
 - PowerShell 下写远程 heredoc：单引号、dollar 符、反引号都会被层层转义，
   unit 正文只用双引号加字面数字列表才一次写对。unit 以手机实物为准，
   本库只做字节级同步，不手搓。
+- stop/set/start 只在 daemon 完全 steady 时可用；开机时 daemon 年龄不可控，
+  一律走 virgin 路径。daemon 初始化中的 stop 会打断固件流程。
 
 ## 6. 验证（2026-09-25，手机）
 

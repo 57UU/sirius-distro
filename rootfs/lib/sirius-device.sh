@@ -101,14 +101,17 @@ EOF3
   cat > $R/etc/systemd/system/bt-addr.service <<'EOF3'
 [Unit]
 Description=Set stable Bluetooth public address (sirius)
-After=bluetooth.service
+After=sys-subsystem-bluetooth-devices-hci0.device
+Wants=sys-subsystem-bluetooth-devices-hci0.device
+Before=bluetooth.service
 ConditionPathExists=/sys/class/bluetooth/hci0
+JobTimeoutSec=90
 [Service]
 Type=oneshot
 RemainAfterExit=yes
-TimeoutStartSec=240
+TimeoutStartSec=120
 ExecStartPre=-/usr/bin/pkill -9 -x btmgmt
-ExecStart=/bin/sh -c "systemctl is-active --quiet bluetooth || exit 0; echo BT-WAIT-POWERED; for i in 1 2 3 4 5 6 7 8 9 10; do sleep 4 | timeout -s KILL 3 btmgmt --index 0 info > /tmp/btup 2>&1 && grep ^current /tmp/btup | grep -q powered && break; sleep 2; done; echo UP-SEEN; sleep 2; echo BT-STOPPING; systemctl stop bluetooth; echo BT-STOPPED; for i in 1 2 3 4 5 6 7 8 9 10; do sleep 4 | timeout -s KILL 3 btmgmt --index 0 info > /tmp/btinfo 2>&1 && ! grep ^current /tmp/btinfo | grep -q powered && break; sleep 2; done; echo DOWN-SEEN; sleep 2; sleep 6 | timeout -s KILL 5 btmgmt --index 0 public-addr 02:57:55:08:5E:02 || echo SET-FAILED; sleep 1; systemctl start bluetooth; echo BT-STARTED; sleep 8; for i in 1 2 3; do sleep 5 | timeout -s KILL 4 btmgmt --index 0 info > /tmp/btinfo3 2>&1; grep -q 02:57:55:08:5e:02 /tmp/btinfo3 && grep ^current /tmp/btinfo3 | grep -q powered && break; sleep 3; done; if grep -q 02:57:55:08:5e:02 /tmp/btinfo3 && grep ^current /tmp/btinfo3 | grep -q powered; then echo VERIFIED; else echo VERIFY-FAILED; exit 1; fi"
+ExecStart=/bin/sh -c "sleep 5; for i in 1 2 3 4 5; do sleep 4 | timeout -s KILL 3 btmgmt --index 0 info > /tmp/btinfo 2>&1 && break; sleep 2; done; sleep 6 | timeout -s KILL 5 btmgmt --index 0 public-addr 02:57:55:08:5E:02 || echo SET-FAILED; sleep 5 | timeout -s KILL 4 btmgmt --index 0 info > /tmp/btinfo3 2>&1; if grep -q 02:57:55:08:5e:02 /tmp/btinfo3; then echo VERIFIED; else echo VERIFY-FAILED; exit 1; fi"
 [Install]
 WantedBy=multi-user.target
 EOF3
