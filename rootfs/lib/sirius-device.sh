@@ -12,8 +12,10 @@
 sirius_firmware_pre() {
   mkdir -p $R/lib/firmware/qcom/sdm710/pyxis
   cp -f $FIRMWARE/gpu/a615_zap.mbn $R/lib/firmware/qcom/sdm710/pyxis/a615_zap.mbn
+  mkdir -p $R/lib/firmware/qcom
+  cp -f $FIRMWARE/gpu/a630_sqe.fw $FIRMWARE/gpu/a630_gmu.bin $R/lib/firmware/qcom/
   cp -f $FIRMWARE/touch/st_fts_v521.ftb $R/lib/firmware/st_fts_v521.ftb
-  chmod 644 $R/lib/firmware/qcom/sdm710/pyxis/a615_zap.mbn $R/lib/firmware/st_fts_v521.ftb
+  chmod 644 $R/lib/firmware/qcom/sdm710/pyxis/a615_zap.mbn $R/lib/firmware/qcom/a630_sqe.fw $R/lib/firmware/qcom/a630_gmu.bin $R/lib/firmware/st_fts_v521.ftb
   cp -rf $FIRMWARE/pyxis-phone/. $R/lib/firmware/qcom/sdm710/pyxis/
   mkdir -p $R/lib/firmware/ath10k/WCN3990/hw1.0 $R/lib/firmware/qca
   cp -f $FIRMWARE/ath10k/board-2.bin.sirius $R/lib/firmware/ath10k/WCN3990/hw1.0/board-2.bin
@@ -25,6 +27,10 @@ sirius_firmware_pre() {
 
 # Firmware re-overlay after apt (packages reinstall stock blobs) + checks.
 sirius_firmware_post() {
+  cp -f $FIRMWARE/gpu/a630_sqe.fw $FIRMWARE/gpu/a630_gmu.bin $R/lib/firmware/qcom/
+  chmod 644 $R/lib/firmware/qcom/a630_sqe.fw $R/lib/firmware/qcom/a630_gmu.bin
+  test "$(md5sum < $R/lib/firmware/qcom/a630_sqe.fw | cut -d " " -f1)" = 9f2540d789d9fd4699a566d97fcabded
+  test "$(md5sum < $R/lib/firmware/qcom/a630_gmu.bin | cut -d " " -f1)" = ab20135f7adf48e0f344282a37da80e4
   cp -f $FIRMWARE/ath10k/board-2.bin.sirius $R/lib/firmware/ath10k/WCN3990/hw1.0/board-2.bin
   cp -f $FIRMWARE/qca/ubuntu25-crbtfw21.tlv $R/lib/firmware/qca/crbtfw21.tlv
   rm -f $R/lib/firmware/qca/crnv21.bin

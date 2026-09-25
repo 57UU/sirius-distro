@@ -6,6 +6,8 @@
 |---|---|---|---|
 | touch/st_fts_v521.ftb | 触屏固件 97K | initramfs /lib/firmware/st_fts_v521.ftb (调试用);rootfs同名亦可 | vendor 4.9树 firmware/转制,见HANDOFF第2节 |
 | gpu/a615_zap.mbn | GPU zap 14K, sha256 207b07c4... | /lib/firmware/qcom/sdm710/pyxis/a615_zap.mbn (rootfs,已装机验证GPU init成功) | ellyq/firmware-mainline-pyxis f2e4f88 dsp_fw/a615_zap.mbn |
+| gpu/a630_sqe.fw | GPU SQE 34K, md5 9f2540d7... | /lib/firmware/qcom/a630_sqe.fw (Adreno 616 必需,server/gnome通用) | Debian trixie firmware-qcom-soc 20250410-2 (gnome树实测GPU正常) |
+| gpu/a630_gmu.bin | GPU GMU 32K, md5 ab20135f... | /lib/firmware/qcom/a630_gmu.bin (Adreno 616 必需,server/gnome通用) | 同上 |
 | pyxis-dsp/ | adsp/cdsp/venus/ipa/mba/modem/qdsp6m/wlanmdsp | 待定,先别装(仅GPU已验证) | 同上pyxis包,供音频/视频/modem立项用 |
 | ath10k/board-2.bin.pyxis | pyxis校准BDF 26K | 暂不装!上游注释说装了WiFi崩 | 同上pyxis包calib_data,仅参考 |
 
