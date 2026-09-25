@@ -42,7 +42,7 @@ sirius_overlay() {
   OVERLAY=${OVERLAY:-$DISTRO/rootfs/overlay}
   test -d $OVERLAY || { echo "missing overlay $OVERLAY"; exit 1; }
   cp -a $OVERLAY/. $R/
-  chmod 755 $R/usr/local/sbin/sirius-screen $R/usr/local/sbin/sirius-idle-watch $R/usr/local/sbin/sirius-remodeset $R/usr/local/sbin/sirius-bt-auto $R/usr/local/sbin/sirius-wifi-add $R/usr/local/sbin/safe-reboot $R/usr/local/bin/wifi-shutdown
+  chmod 755 $R/usr/local/sbin/sirius-screen $R/usr/local/sbin/sirius-idle-watch $R/usr/local/sbin/sirius-remodeset $R/usr/local/sbin/sirius-bt-auto $R/usr/local/sbin/sirius-wifi-add $R/usr/local/sbin/safe-reboot $R/usr/local/bin/wifi-shutdown $R/usr/local/sbin/sirius-gnome-blank
   mkdir -p $R/var/lib/rmtfs
   ln -sf /dev/disk/by-partlabel/modemst1 $R/var/lib/rmtfs/modem_fs1
   ln -sf /dev/disk/by-partlabel/modemst2 $R/var/lib/rmtfs/modem_fs2

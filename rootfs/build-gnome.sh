@@ -58,7 +58,13 @@ cat > /etc/gdm3/daemon.conf <<'EOF3'
 AutomaticLoginEnable=True
 AutomaticLogin=u57u
 EOF3
-systemctl enable ssh gdm systemd-networkd systemd-resolved rmtfs tqftpserv pd-mapper wifi-shutdown bluetooth bt-addr systemd-timesyncd NetworkManager triggerhappy sirius-idle-watch sirius-bt-auto || true
+systemctl enable ssh gdm systemd-networkd systemd-resolved rmtfs tqftpserv pd-mapper wifi-shutdown bluetooth bt-addr systemd-timesyncd NetworkManager triggerhappy sirius-bt-auto || true
+# Blank timing belongs to GNOME (idle-delay, user-adjustable); the real
+# backlight follows it via the --user hook below, so the fixed-timer
+# system sirius-idle-watch stays OFF on this flavor (server-only).
+mkdir -p /home/u57u/.config/systemd/user/graphical-session.target.wants
+ln -sf /etc/systemd/user/sirius-gnome-blank.service /home/u57u/.config/systemd/user/graphical-session.target.wants/sirius-gnome-blank.service
+chown -R u57u:u57u /home/u57u/.config
 # Power-key/idle policy comes from overlay (logind sirius-server.conf:
 # HandlePowerKey=ignore so triggerhappy owns the key, like server).
 # GNOME-side knobs only: never suspend, settings-daemon takes no action.
@@ -68,6 +74,8 @@ cat > /usr/share/glib-2.0/schemas/90-sirius-power.gschema.override <<'EOF3'
 power-button-action="nothing"
 sleep-inactive-ac-type="nothing"
 sleep-inactive-battery-type="nothing"
+[org.gnome.desktop.session]
+idle-delay=uint32 120
 EOF3
 glib-compile-schemas /usr/share/glib-2.0/schemas/
 apt-get clean

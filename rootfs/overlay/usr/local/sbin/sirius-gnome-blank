@@ -1,0 +1,28 @@
+#!/bin/sh
+# sirius-gnome-blank: mirror GNOME blank state into the real panel backlight.
+# Timing belongs to GNOME (Settings -> Power -> Screen Blank -> idle-delay);
+# this hook only runs `sirius-screen auto-off` on ActiveChanged(true) and
+# `auto-on` on ActiveChanged(false). Both are state-guarded, so we never
+# fight triggerhappy's power-key toggle or volume/touch wake.
+# Runs as a systemd --user unit (u57u); root backlight writes go through
+# sudo -n (NOPASSWD in this image).
+set -e
+CTL="sudo -n /usr/local/sbin/sirius-screen"
+UID_N=$(id -u)
+BUS="unix:path=/run/user/${UID_N}/bus"
+export DBUS_SESSION_BUS_ADDRESS="${DBUS_SESSION_BUS_ADDRESS:-$BUS}"
+# Wait for gnome-shell's ScreenSaver name (session may still be starting).
+for i in $(seq 1 30); do
+  if /usr/bin/gdbus introspect --session --dest org.gnome.ScreenSaver --object-path /org/gnome/ScreenSaver >/dev/null 2>&1; then
+    break
+  fi
+  sleep 2
+done
+# One-shot sync in case we started while already blanked.
+/usr/bin/gdbus call --session --dest org.gnome.ScreenSaver --object-path /org/gnome/ScreenSaver --method org.gnome.ScreenSaver.GetActive 2>/dev/null | grep -q "(true" && $CTL auto-off || true
+/usr/bin/gdbus monitor --session --dest org.gnome.ScreenSaver 2>/dev/null | while IFS= read -r line; do
+  case "$line" in
+    *ActiveChanged*"(true,"*)  $CTL auto-off ;;
+    *ActiveChanged*"(false,"*) $CTL auto-on ;;
+  esac
+done
