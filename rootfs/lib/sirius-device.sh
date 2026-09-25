@@ -130,6 +130,16 @@ LinkLocalAddressing=no
 EOF2
 }
 
+sirius_apt_mirror() {
+  MIRROR=${SIRIUS_MIRROR:-https://mirrors.tuna.tsinghua.edu.cn}
+  rm -f $R/etc/apt/sources.list.d/*.sources
+  cat > $R/etc/apt/sources.list <<EOF2
+deb $MIRROR/debian trixie main contrib non-free non-free-firmware
+deb $MIRROR/debian trixie-updates main contrib non-free non-free-firmware
+deb $MIRROR/debian-security trixie-security main contrib non-free non-free-firmware
+EOF2
+}
+
 sirius_cleanup() {
   umount -R $R/dev 2>/dev/null || true
   umount -R $R/sys 2>/dev/null || true

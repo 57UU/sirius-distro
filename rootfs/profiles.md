@@ -18,4 +18,17 @@ sysrq、wlan0 命名、蓝牙 UART 自加载、RNDIS usb0 静态地址。
 - `overlay/` 只属于 server 口味：开机会 `cp -a` 进 `/` 的文件
   （服务、脚本、配置），改动先改这里。
 - 产物（`*.tar.zst`/`*.simg`）不进库，走 GitHub Releases。
-- apt 源用 Debian 默认（全球通用，不锁国内镜像；国内构建慢可自换源）。
+- apt 源：构建脚本强制切清华镜像（含 security），`SIRIUS_MIRROR` 环境变量可改地址。## 底包与镜像源
+
+- Debian rootfs 底包：linuxcontainers 镜像站，按日期取当天构建：
+  `https://images.linuxcontainers.org/images/debian/trixie/arm64/default/`
+  选日期目录（如 `20260913/`）下载 `rootfs.tar.xz`（约 90MB），
+  同目录有 `SHA256SUMS` 可验。解开即为 `SIRIUS_BASE`
+  （`tar -xJf rootfs.tar.xz -C /path/to/base`，root 权限）。
+  我们验证过的日期：`20260913`。
+- 构建机另需：`qemu-user` + binfmt（`qemu-aarch64`）、root 权限、
+  `img2simg/zstd`（仅打镜像阶段，本库构建脚本不管打镜像）。
+- apt 源策略：三口味构建脚本统一写清华源
+  （`debian` + `debian-updates` + `debian-security` 全套，
+  含 `non-free non-free-firmware`，后两者是 QC 固件包必需），
+  换地址用 `SIRIUS_MIRROR` 环境变量覆盖。

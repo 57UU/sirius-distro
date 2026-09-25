@@ -34,6 +34,7 @@ sirius_firmware_pre
 sirius_helpers_units
 sirius_kmod
 sirius_netconf
+sirius_apt_mirror
 sirius_chroot_begin
 chroot $R /bin/bash <<'CHROOT_EOF'
 set -e

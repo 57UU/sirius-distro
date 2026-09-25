@@ -37,6 +37,7 @@ sirius_firmware_pre
 sirius_helpers_units
 sirius_kmod
 sirius_netconf
+sirius_apt_mirror
 cp -a $OVERLAY/. $R/
 chmod 755 $R/usr/local/sbin/sirius-screen $R/usr/local/sbin/sirius-idle-watch $R/usr/local/sbin/sirius-remodeset $R/usr/local/sbin/sirius-bt-auto $R/usr/local/sbin/sirius-wifi-add
 mkdir -p $R/opt/orbital
