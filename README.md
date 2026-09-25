@@ -40,7 +40,7 @@ fastboot flash userdata xxxxx.simg
 
 ```bash
 #在线扩容（/ 已挂载也能执行），mmcblk0p81 即 userdata，见 boot/build_both.sh
-sudo resize2fs /dev/mmcblk0p81
+sudo /sbin/resize2fs /dev/mmcblk0p81  #要用全路径，默认PATH里没/sbin
 df -h /   #确认已撑满整个 userdata 分区
 ```
 
