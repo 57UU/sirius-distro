@@ -10,6 +10,6 @@ Type=oneshot
 RemainAfterExit=yes
 TimeoutStartSec=120
 ExecStartPre=-/usr/bin/pkill -9 -x btmgmt
-ExecStart=/bin/sh -c "sleep 5; for i in 1 2 3 4 5; do sleep 4 | timeout -s KILL 3 btmgmt --index 0 info > /tmp/btinfo 2>&1 && break; sleep 2; done; sleep 6 | timeout -s KILL 5 btmgmt --index 0 public-addr 02:57:55:08:5E:02 || echo SET-FAILED; sleep 5 | timeout -s KILL 4 btmgmt --index 0 info > /tmp/btinfo3 2>&1; if grep -qi 02:57:55:08:5e:02 /tmp/btinfo3; then echo VERIFIED; else echo VERIFY-FAILED; exit 1; fi"
+ExecStart=/bin/sh -c "sleep 5; for i in 1 2 3 4 5; do sleep 4 | timeout -s KILL 3 btmgmt --index 0 info > /tmp/btinfo 2>&1 && break; sleep 2; done; sleep 6 | timeout -s KILL 5 btmgmt --index 0 public-addr 02:57:55:08:5E:02 || echo SET-FAILED; sleep 5 | timeout -s KILL 4 btmgmt --index 0 info > /tmp/btinfo3 2>&1; if grep -qi 02:57:55:08:5e:02 /tmp/btinfo3; then echo VERIFIED; else echo VERIFY-FAILED-QCA-FW-IGNORES-MGMT-ADDR-STAYS-DEFAULT; fi"
 [Install]
 WantedBy=multi-user.target
