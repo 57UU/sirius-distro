@@ -44,7 +44,7 @@ chroot $R /bin/bash <<'CHROOT_EOF'
 set -e
 export DEBIAN_FRONTEND=noninteractive
 apt-get update
-apt-get install -y sudo openssh-server triggerhappy gnome-core gdm3 firmware-atheros firmware-qcom-soc network-manager nano wpasupplicant bluez mesa-vulkan-drivers rmtfs tqftpserv qrtr-tools wireless-tools systemd-timesyncd util-linux-extra
+apt-get install -y sudo openssh-server triggerhappy gnome-core gdm3 firmware-atheros firmware-qcom-soc network-manager nano wpasupplicant bluez mesa-vulkan-drivers rmtfs tqftpserv qrtr-tools wireless-tools systemd-timesyncd util-linux-extra e2fsprogs
 useradd -m -u 1000 -U -G sudo -s /bin/bash u57u || true
 echo "u57u:1234" | chpasswd
 printf "u57u ALL=(ALL) NOPASSWD:ALL\n" > /etc/sudoers.d/u57u
