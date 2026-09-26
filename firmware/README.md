@@ -16,4 +16,5 @@
 | ath10k/board-2.bin.sirius | sirius自制board-2.bin 704K(28条目) | /lib/firmware/ath10k/WCN3990/hw1.0/board-2.bin (已装机,原文件备份为board-2.bin.debian-orig) | ath10k-bdencoder(qca-swiss-army-knife)用modem分区原厂bdwlan生成,含variant=xiaomi_sirius,2026-09-18 |
 | ath10k/firmware-5.bin.WCN3990 | WCN3990主固件索引 60B, md5 d16e3444... | /lib/firmware/ath10k/WCN3990/hw1.0/firmware-5.bin (缺它则ath10k_snoc bind后无wlan0) | Debian trixie firmware-atheros 20250410-2 |
 | ath10k/wlanmdsp.mbn.WCN3990 | WCN3990主固件 3.7M, md5 259b4f9e... | /lib/firmware/ath10k/WCN3990/hw1.0/wlanmdsp.mbn | 同上 |
+| qca/crnv21.bin.sirius | QCA BT NVM 4587B，tag2烤BD 02:57:55:08:5E:02，md5 3947c734... | /lib/firmware/qca/crnv21.bin（此前rm掉，缺省地址5A:AD且mgmt写不上；此NVM开机即带地址） | linux-firmware原版crnv21改tag2字节 |
 | ath10k/sirius-bdwlan/ | 原厂WLAN校准35个(bdwlan.*/bdf_*.bin) | 同上生成用料,不直接装机 | 手机modem分区image/原样拷出,2026-09-18 |

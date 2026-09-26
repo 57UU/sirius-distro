@@ -23,7 +23,8 @@ sirius_firmware_pre() {
   cp -f $FIRMWARE/ath10k/wlanmdsp.mbn.WCN3990 $R/lib/firmware/ath10k/WCN3990/hw1.0/wlanmdsp.mbn
   chmod 644 $R/lib/firmware/ath10k/WCN3990/hw1.0/firmware-5.bin $R/lib/firmware/ath10k/WCN3990/hw1.0/wlanmdsp.mbn $R/lib/firmware/ath10k/WCN3990/hw1.0/board-2.bin
   cp -f $FIRMWARE/qca/ubuntu25-crbtfw21.tlv $R/lib/firmware/qca/crbtfw21.tlv
-  rm -f $R/lib/firmware/qca/crnv21.bin
+  cp -f $FIRMWARE/qca/crnv21.bin.sirius $R/lib/firmware/qca/crnv21.bin
+  chmod 644 $R/lib/firmware/qca/crnv21.bin
   cp -f $DSP_BIN/pd-mapper $R/usr/local/bin/pd-mapper
   chmod 755 $R/usr/local/bin/pd-mapper
 }
@@ -40,10 +41,11 @@ sirius_firmware_post() {
   test "$(md5sum < $R/lib/firmware/qcom/a630_gmu.bin | cut -d " " -f1)" = ab20135f7adf48e0f344282a37da80e4
   cp -f $FIRMWARE/ath10k/board-2.bin.sirius $R/lib/firmware/ath10k/WCN3990/hw1.0/board-2.bin
   cp -f $FIRMWARE/qca/ubuntu25-crbtfw21.tlv $R/lib/firmware/qca/crbtfw21.tlv
-  rm -f $R/lib/firmware/qca/crnv21.bin
+  cp -f $FIRMWARE/qca/crnv21.bin.sirius $R/lib/firmware/qca/crnv21.bin
+  chmod 644 $R/lib/firmware/qca/crnv21.bin
+  test "$(md5sum < $R/lib/firmware/qca/crnv21.bin | cut -d " " -f1)" = 3947c734ced07630d9c2c4ba48f72157
   test "$(md5sum < $R/lib/firmware/ath10k/WCN3990/hw1.0/board-2.bin | cut -d " " -f1)" = 4002bddb9476f322754405ccf284eda3
   test "$(md5sum < $R/lib/firmware/qca/crbtfw21.tlv | cut -d " " -f1)" = a590087df8f7ba34053956e9b5243bc9
-  test ! -e $R/lib/firmware/qca/crnv21.bin
 }
 
 # Common device base for every flavor. Static files live in rootfs/overlay/
