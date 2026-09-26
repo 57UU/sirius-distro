@@ -4,7 +4,7 @@
 内核源码在 [57UU/linux-sirius](https://github.com/57UU/linux-sirius)（分支 `feat/sirius-7.2`），
 
 ```text
-boot/       boot.img 组装脚本以及inited源码
+boot/       boot_sys.img 组装脚本以及initrd源码
 firmware/   设备固件
 rootfs/     rootfs 烘焙：overlay（开机会拷进 / 的文件）+ 构建脚本
 src/        自研源码（sirius-remodeset）；第三方源码只留获取说明
@@ -17,10 +17,10 @@ docs/       相关文档以及一些修复经验
 # 刷机指南
 解锁bootloader并进入fastboot模式
 
-## step1: 刷写 boot.img
+## step1: 刷写 boot_sys.img
 ```bash
 fastboot erase dtbo
-fastboot flash boot boot.img
+fastboot flash boot boot_sys.img
 ```
 需要清空dtbo，设备才会加载boot中的设备树。
 
@@ -39,7 +39,7 @@ fastboot flash userdata xxxxx.simg
 首次进系统后务必扩容，否则很快没空间：
 
 ```bash
-#在线扩容（/ 已挂载也能执行），mmcblk0p81 即 userdata，见 boot/build_both.sh
+#在线扩容（/ 已挂载也能执行），mmcblk0p81 即 userdata，见 boot/build_boot.sh
 sudo /sbin/resize2fs /dev/mmcblk0p81  #要用全路径，默认PATH里没/sbin
 df -h /   #确认已撑满整个 userdata 分区
 ```
