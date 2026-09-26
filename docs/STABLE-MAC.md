@@ -1,8 +1,8 @@
 # 稳定 MAC（WiFi / 蓝牙钉死）
 
-> 2026-09-25 定稿，手机实测通过。主线驱动读不到出厂 MAC，
-> WiFi 每次重启随机、蓝牙恒为全零假地址，故在 OS 层钉死，
-> 两口味 rootfs 共享同一套做法。
+> 2026-09-26 定稿（蓝牙机制重写，手机冷重启实测通过）。
+> 主线驱动读不到出厂 MAC，WiFi 每次重启随机、蓝牙恒为缺省假地址，
+> 故钉死自编 LAA，两口味 rootfs 共享同一套做法。
 
 ## 1. 现象与根因
 
@@ -24,26 +24,38 @@ hci0   02:57:55:08:5E:02
 
 出厂地址仍在本地 persist 备份里，本次有意不用、不进库。
 此前本库误烤过出厂地址，已替换为上表自编地址。
+分享 rootfs 镜像给别的机器前必须换掉这两个地址，否则撞车。
 
 ## 3. 落点（本库改了哪里）
 
 ```text
-rootfs/lib/sirius-device.sh  sirius_overlay()(静态文件在 rootfs/overlay/)：
-  /etc/systemd/network/10-wlan0.link       udev 层钉 wlan0
-  /etc/systemd/system/bt-addr.service      开机改 hci0 公有地址
-rootfs/build-server.sh                     apt 加 bluez，各 enable 行加 bt-addr
-rootfs/build-gnome.sh                      enable 行加 bt-addr
-rootfs/overlay/usr/local/sbin/sirius-bt-auto  只做 power on
+WiFi：rootfs/overlay/etc/systemd/network/10-wlan0.link（udev 层钉死）
+蓝牙：firmware/qca/crnv21.bin.sirius → /lib/firmware/qca/crnv21.bin
+      （NVM tag 2 烤地址，见 §4；sirius_firmware_pre/post 烤入 + md5）
+      rootfs/overlay/etc/systemd/system/bt-addr.service（best-effort 守卫）
+rootfs/build-server.sh / build-gnome.sh：apt 加 bluez，各 enable 行加 bt-addr
+rootfs/overlay/usr/local/sbin/sirius-bt-auto：只做 power on
 ```
 
-## 4. bt-addr 流程（Before=bluetooth，趁 daemon 未启动改 virgin 地址）
+## 4. 蓝牙：NVM 烤地址（mgmt 路径已证伪）
 
 ```text
-daemon 未启动前改地址，改完它正常启动即带新地址，全程不 stop/start daemon。
-等 hci0 出现加 settle → 改地址（带重试）→ 校验地址存在即成功。
-任一步失败都不挡开机（蓝牙回落缺省地址，看 journal 定位）。
-v6 曾用 After 加 stop/set/start，在 GNOME 首启撞上 daemon 初始化竞态
-（1 秒大的 daemon 被 stop，中断其固件流程，后续 set 被默认值覆盖），故退回 virgin 路径。
+证伪记录：bt-addr 的 mgmt 改地址在该版 QCA 固件（ubuntu25-crbtfw21.tlv）
+上从没成功过——①校验 grep 大小写错；②开电时控制器报 0x0b Rejected；
+③固件对 EDL_WRITE_BD_ADDR 假装成功（停 daemon、HCI down、power off
+全试过，地址纹丝不动）。内核 DT 的 local-bd-address 与 mgmt 走同一条
+vendor 命令，同样无效，故没走内核重编。
+
+定案：btqca 从 qca/crnv21.bin 的 TLV tag 2（EDL_TAG_ID_BD_ADDR）读地址
+随 NVM 下发，固件带着该地址启动；驱动核对一致即认定权威
+（btqca.c qca_set_bdaddr / quirk 确认路径），全程不依赖写命令。
+文件：linux-firmware 原版 crnv21 仅改 6 字节——
+  tag 2/len 6 的值在文件偏移 0x14，原厂值 00 07 64 21 90 39，
+  改为 LSB-first：02 5E 08 55 57 02（即 02:57:55:08:5E:02）。
+  md5 3947c734ced07630d9c2c4ba48f72157，见 MANIFEST.sha256。
+注意：当年删 crnv21.bin 是因为 Debian 自带版 + Debian tlv 会让初始化
+死在 0x204B（archive/HANDOFF-2026-09-19）。现在 tlv 是 Ubuntu 版，
+只回填该 NVM 且仅改 tag 2，一次通过——以后换 tlv 版本必须重验。
 ```
 
 ## 5. 教训（每一条都是实测换来的）
@@ -57,26 +69,29 @@ v6 曾用 After 加 stop/set/start，在 GNOME 首启撞上 daemon 初始化竞�
   WCN3990 上观察到刚改好的地址被重置回缺省。启停一律走
   `systemctl stop/start bluetooth`。
 - `pkill -f btmgmt` 会杀掉自己的 shell（命令行里也含 btmgmt），
-  用 `pkill -9 -x btmgmt` 精确匹配进程名。
-- PowerShell 下写远程 heredoc：单引号、dollar 符、反引号都会被层层转义，
-  unit 正文只用双引号加字面数字列表才一次写对。unit 以手机实物为准，
-  本库只做字节级同步，不手搓。
-- stop/set/start 只在 daemon 完全 steady 时可用；开机时 daemon 年龄不可控，
-  一律走 virgin 路径。daemon 初始化中的 stop 会打断固件流程。
+  用 `pkill -9 -x btmgmt` 精确匹配进程名。同理 pgrep 自匹配要用
+  bracket 写法。
+- bluetoothctl 显示的地址可能是 BlueZ 缓存假象，以
+  `btmgmt info` / `hciconfig` 为准（本次被骗过一次）。
+- PowerShell 双引号会吞噬远程命令里的 $？、$2、[...]，
+  远程复杂命令一律单引号，见上两条的写法。
+- 出厂 MAC、密码、内部机器地址一律不进库；原厂 NVM 值仅作格式
+  定位用。WiFi 密码等 NM 连接配置不在本库（sirius-wifi-add 烤）。
 
-## 6. 验证（2026-09-25，手机）
+## 6. 验证（2026-09-26，手机冷重启，v5）
 
 ```text
-- WiFi 连续三次重启同一地址，连回 HexGing，
-  udev 日志 ID_NET_LINK_FILE=/etc/systemd/network/10-wlan0.link。
-- bt-addr 在干净启动下走完 stop/set/start，hci0 地址正确，
-  UP RUNNING，daemon 存活。入库的最终版另加了重试校验循环
-  （只涉及 grep 与 sleep），随下次启动确认。
+- WiFi 连续三次重启同一地址，udev 日志 ID_NET_LINK_FILE 生效。
+- hci0 冷重启即 02:57:55:08:5E:02，UP RUNNING，
+  bt-addr / bluetooth 均为 active，--failed 为空。
+- v5 镜像用 debugfs 确认 qca/crnv21.bin 在位。
 - 换 MAC 后路由器 DHCP 重分（末段两位变化），要固定 IP 按新 MAC 重做预留。
 ```
 
-## 7. 注意事项
+## 7. 相关提交
 
-- 分享 rootfs 镜像给别的机器前必须换掉这两个地址，否则撞车。
-- 出厂 MAC、密码、内部机器地址一律不进库。
-- WiFi 密码等 NM 连接配置不在本库（首次开机用 sirius-wifi-add 烤）。
+```text
+2af3f74  overlay: bt-addr verify grep -i（表层修复）
+0952a68  overlay: bt-addr best-effort（里层确认后止损）
+24e659f  server: bake QCA BT NVM（根子定案，v5 生效）
+```
