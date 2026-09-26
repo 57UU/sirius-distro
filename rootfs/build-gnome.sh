@@ -58,7 +58,7 @@ cat > /etc/gdm3/daemon.conf <<'EOF3'
 AutomaticLoginEnable=True
 AutomaticLogin=u57u
 EOF3
-systemctl enable ssh gdm systemd-networkd systemd-resolved rmtfs tqftpserv pd-mapper wifi-shutdown bluetooth bt-addr systemd-timesyncd NetworkManager triggerhappy sirius-bt-auto || true
+systemctl enable ssh gdm systemd-networkd systemd-resolved rmtfs tqftpserv pd-mapper wifi-shutdown bluetooth bt-addr systemd-timesyncd NetworkManager triggerhappy sirius-bt-auto sirius-usb-bind.timer || true
 # Blank timing belongs to GNOME (idle-delay, user-adjustable); the real
 # backlight follows it via the --user hook below.
 # (Server flavor uses the Orbital built-in idle timer instead.

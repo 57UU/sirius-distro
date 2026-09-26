@@ -1,0 +1,9 @@
+#!/bin/sh
+# Keep the RNDIS gadget bound whenever the controller sits in device role.
+# Triggered by udev on extcon change; harmless to run by hand or at boot.
+MODE=/sys/kernel/debug/usb/a600000.usb/mode
+UDC=/sys/kernel/config/usb_gadget/g1/UDC
+[ "$(cat $MODE 2>/dev/null)" = device ] || exit 0
+[ -n "$(cat $UDC 2>/dev/null)" ] && exit 0
+echo a600000.usb > "$UDC" 2>/dev/null || exit 0
+ip link set usb0 up 2>/dev/null || true

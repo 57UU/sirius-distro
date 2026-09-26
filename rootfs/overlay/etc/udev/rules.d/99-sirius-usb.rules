@@ -1,0 +1,1 @@
+SUBSYSTEM=="extcon", ACTION=="change", RUN+="/usr/local/sbin/sirius-usb-bind"

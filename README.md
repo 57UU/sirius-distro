@@ -62,7 +62,7 @@ df -h /   #确认已撑满整个 userdata 分区
 | Audio       | Broken  |
 | Speaker     | Broken  |
 
-USB: gadget(RNDIS)与host可切换，host自供电已通(见docs/USB-HOST-FIX.md)。ID 接地的线自动进host，普通线自动回gadget；ID 悬空的头需手动切。
+USB 自动切换目前有缺陷：普通线连电脑走 gadget 网卡，OTG 线接外设走 host；部分线材可能要翻面插才认得出来。详情见 docs/USB-HOST-FIX.md，切换一律用 sirius-otg。
 
 ## USB 切换速查
 

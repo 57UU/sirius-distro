@@ -1,0 +1,7 @@
+[Unit]
+Description=Rebind RNDIS gadget when in device role
+After=local-fs.target
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/sbin/sirius-usb-bind

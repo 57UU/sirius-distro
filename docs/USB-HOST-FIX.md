@@ -33,13 +33,13 @@
 改后行为：开机会跟 extcon 走（目前基本是 host，gadget 需手动绑回）；
 `mode` 文件读写正常，`UDC` 解绑/重绑正常。
 
-## 3. 修复二：自供电（测试模块，转正待合入驱动）
+## 3. 修复二：自供电（驱动已转正，见上游 commit）
 
 - 根因：`qcom_smbx`（pm660-charger）把 OTG 配成软件控制后，
   运行时从不真正打开 boost（全文件唯一的 OTG 写操作在 init 表里）。
   下游 smb5 的等效操作是 `smblib_vbus_regulator_enable`：
   `DCDC_CMD_OTG_REG(0x1140) |= BIT(0)`。
-- 交付：模块源码在 `src/sirius-otg-boost/`，二进制不进 overlay，随 `SIRIUS_KMOD` 包走（`extra/` + depmod 索引，下次烘 rootfs 必须用 server2 的 `kmod-gcbbdbeb2ca53-otg.tgz`）；`sirius-otg` 优先 `modprobe`，手装路径只做回退。
+- 交付（已转正）：`qcom_smbx` 驱动上游已合入，供电走 `otg_boost` 属性，`sirius-otg` 脚本直接调驱动；`src/sirius-otg-boost/` 测试模块退役（kmod 包里的旧二进制下次刷新时删掉）。
 - 验证：`sirius-otg on`（dmesg 显示 `before=0x0 after=0x1`）→ 鼠标灯亮并枚举为
   `USB OPTICAL MOUSE`（`hid-generic`，`REL_X/REL_Y + 左中右键`）；
   `rmmod` → 灯灭掉线。开关系双向验证通过。
@@ -60,10 +60,10 @@ sudo sirius-otg status  # 看角色/供电/usb0
 # 切 host（先解绑 gadget）
 echo "" | sudo tee /sys/kernel/config/usb_gadget/g1/UDC
 echo host | sudo tee /sys/kernel/debug/usb/a600000.usb/mode
-sudo insmod /usr/local/lib/sirius/otg_boost_test.ko   # 开自供电（手装路径回退）
+echo 1 | sudo tee /sys/bus/platform/devices/c440000.spmi:pmic@0:charger@1000/otg_boost   # 开自供电（驱动属性）
 
 # 切回 gadget（RNDIS）
-sudo rmmod otg_boost_test            # 先关供电
+echo 0 | sudo tee /sys/bus/platform/devices/c440000.spmi:pmic@0:charger@1000/otg_boost   # 先关供电
 echo device | sudo tee /sys/kernel/debug/usb/a600000.usb/mode
 echo a600000.usb | sudo tee /sys/kernel/config/usb_gadget/g1/UDC
 # 注：启动后手动重绑的 gadget，PC 侧需配静态 172.16.42.2/16
@@ -72,15 +72,21 @@ echo a600000.usb | sudo tee /sys/kernel/config/usb_gadget/g1/UDC
 
 不要往 `mode` 里写 `auto`。
 
-## 5. 已知限制与待办
+## 5. gadget 自动重绑
+- `sirius-usb-bind`（只绑不解）：role 为 device 且 UDC 空就绑回，`usb0` 拉起。
+- `99-sirius-usb.rules`（udev，extcon change 触发）+ `sirius-usb-bind.timer`（每 15 秒兜底），两个口味构建脚本都已 enable timer。
+- 实测：extcon 在真实拔插时不发 uevent（monitor 全空），udev 规则留作摆设，timer 是真正干活的。
+- UDC 解绑是软件状态：单纯拔线不会掉绑，只有角色翻转才踢掉；掉绑不影响已绑定的，开机/initramfs 绑一次就行。
 
-- ID 接地的线（OTG 转接头、9008 工程线）会把 `gpio38` 拉低，手机秒切 host，RNDIS 起不来；RNDIS 必须用普通直连线。
+## 6. 已知限制与待办
+
+- ID 接地的线（OTG 转接头、9008 工程线、部分 A-to-C 线两面都接地）会把 `gpio38` 拉低，手机秒切 host，RNDIS 起不来；RNDIS 必须用普通直连线，A-to-C 先翻面，不行就换 C-to-C。被钉住时可手动 `echo device` + 绑 UDC抢回，只要不拔线就不会掉。
 - `extcon-usb-gpio`（ID gpio38）在本机上连 PC 线也报 `USB-HOST=1`，
   线对的情况下 extcon 自动跟随是准的（普通线进 device，ID 接地的 OTG 线进 host）；但往 mode 里写 auto 仍别碰，拿不准就手动 echo。
-- 同一 OTG 头在安卓机上能直接用，是因为安卓走 Type-C CC 检测；本机主线缺 tcpm/pdphy 那套栈，只剩 ID 脚 extcon。头没问题，是驱动栈的代差；完整修法是把 CC 检测接到角色切换+boost，工作量大，与驱动转正一起排期。注意部分廉价 OTG 头根本没接 ID 脚（gpio38 常高），这时自动切不会触发，必须手动 echo host + insmod 供电，电气层面不受影响。
+- 同一 OTG 头在安卓机上能直接用，是因为安卓走 Type-C CC 检测；本机主线缺 tcpm/pdphy 那套栈，只剩 ID 脚 extcon。头没问题，是驱动栈的代差；完整修法是把 CC 检测接到角色切换+boost，工作量大，与驱动转正一起排期。注意部分廉价 OTG 头根本没接 ID 脚（gpio38 常高），这时角色不会自动切，必须手动 echo host；供电走驱动自动（认 Rd 那面）或手动 otg_boost。
+- 朝向矩阵（实测）：A 面出 Rd（30E≈0x53/0x93，ID 悬空）→ 供电自动、角色手动；B 面接地 ID（gpio 低，30E≈0x91 无 Rd）→ 角色自动 host、供电手动。两面都能用，各需一步手动。B 面用完拔线后必须手动关供电（echo 0 > otg_boost），因为检测位从未置位、自动关不会触发。
 - 开机默认会被带到 host：`initramfs` 需加一行先 `echo device`
   再绑 `UDC`，否则开机插线就没有 RNDIS（待改，
   `boot/initrd/initramfs/init_functions.sh:setup_usb_network`）。
-- 转正：把 boost 使能写进 `qcom_smbx`（跟 host 角色联动），重编
-  `Image.gz`，删除测试模块（sirius-otg 脚本保留做手动入口）。
+- 转正（已完成）：boost 已写进 `qcom_smbx` 随模块走，未动 `Image.gz`；测试模块退役，`sirius-otg` 改调驱动属性。待办：kmod 包去掉旧二进制、`initramfs` 开机默认 gadget、CC 完整栈。
 - 回滚：`fastboot flash boot` 刷回 `boot_sys-72-nodebug-20260924.img`。
