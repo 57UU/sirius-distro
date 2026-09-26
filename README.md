@@ -9,7 +9,7 @@ firmware/   设备固件
 rootfs/     rootfs 烘焙：overlay（开机会拷进 / 的文件）+ 构建脚本
 src/        自研源码（sirius-remodeset）；第三方源码只留获取说明
 orbital/    上游仪表盘（获取说明，用于server系统的简易管理GUI）
-kernel/     上游内核引用（获取说明 + 需要的产物清单）
+kernel/     上游内核submodule（57UU/linux-sirius feat/sirius-7.2，需git submodule update --init）
 docs/       相关文档以及一些修复经验
 ```
 制作过程见：https://blog.57u.tech/2026/03/18/install-linux-on-android-device-mi8se/
@@ -62,4 +62,12 @@ df -h /   #确认已撑满整个 userdata 分区
 | Audio       | Broken  |
 | Speaker     | Broken  |
 
-USB工作在gadget模式，作为usb虚拟网卡被电脑接入。
+USB: gadget(RNDIS)与host可切换，host自供电已通(见docs/USB-HOST-FIX.md)。ID 接地的线自动进host，普通线自动回gadget；ID 悬空的头需手动切。
+
+## USB 切换速查
+
+```bash
+sudo sirius-otg on      # host + 自供电（OTG 头+外设）
+sudo sirius-otg off     # 关供电，尽力回 gadget（RNDIS 用普通线）
+sudo sirius-otg status  # 看角色/供电/usb0
+```

@@ -2,3 +2,7 @@
 	path = orbital/orbital-src
 	url = https://github.com/57UU/Orbital.git
 	branch = sirius/auto-screen-off
+[submodule "kernel"]
+	path = kernel
+	url = https://github.com/57UU/linux-sirius.git
+	branch = feat/sirius-7.2

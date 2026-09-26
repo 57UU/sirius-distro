@@ -1,0 +1,57 @@
+#!/bin/sh
+# sirius-otg: USB role + self-power switch for xiaomi-sirius.
+# Usage: sirius-otg on|off|status  (must run as root, e.g. via sudo)
+#   on  = host mode + OTG 5V boost (OTG cable + mouse/U-disk)
+#   off = back to gadget RNDIS (plain cable to PC)
+MODE=/sys/kernel/debug/usb/a600000.usb/mode
+UDC=/sys/kernel/config/usb_gadget/g1/UDC
+UDC_DEV=a600000.usb
+# module rides with the SIRIUS_KMOD tarball (extra/); the insmod path
+# below is only a fallback for hand-installed copies.
+KO_FALLBACK=/usr/local/lib/sirius/otg_boost_test.ko
+
+die() { echo "sirius-otg: $1" >&2; exit 1; }
+[ "$(id -u)" = 0 ] || die "run as root"
+[ -e "$MODE" ] || die "no $MODE (need otg dtb)"
+
+do_on() {
+	if [ -e "$UDC" ] && [ -n "$(cat $UDC 2>/dev/null)" ]; then
+		echo "" > "$UDC" || die "unbind gadget failed"
+	fi
+	echo host > "$MODE" || die "switch to host failed"
+	if ! lsmod | grep -q otg_boost_test; then
+		modprobe otg_boost_test 2>/dev/null || \
+		insmod "$KO_FALLBACK" || die "modprobe/insmod failed"
+	fi
+	echo "host + boost ON"
+}
+
+do_off() {
+	# boost OFF is mandatory (never drive VBUS toward a PC); the
+	# return to gadget below is best-effort: an OTG cable grounding
+	# the ID pin forces host role and the switch will not stick.
+	if lsmod | grep -q otg_boost_test; then
+		rmmod otg_boost_test || die "rmmod failed"
+	fi
+	echo device > "$MODE" 2>/dev/null
+	echo "$UDC_DEV" > "$UDC" 2>/dev/null
+	if [ "$(cat $MODE 2>/dev/null)" = device ] && [ -n "$(cat $UDC 2>/dev/null)" ]; then
+		echo "gadget(RNDIS) back ON"
+	else
+		echo "boost OFF; cable insists HOST, unplug OTG cable for gadget"
+	fi
+}
+
+do_status() {
+	echo -n "mode="; cat "$MODE" 2>/dev/null
+	echo -n "UDC="; cat "$UDC" 2>/dev/null
+	echo -n "boost="; lsmod | grep -q otg_boost_test && echo ON || echo OFF
+	ip -br link show usb0 2>/dev/null || echo "usb0: absent"
+}
+
+case "$1" in
+	on) do_on ;;
+	off) do_off ;;
+	status) do_status ;;
+	*) echo "usage: $0 on|off|status" >&2; exit 2 ;;
+esac
