@@ -5,6 +5,7 @@
 #            i.e. a PC is driving VBUS, to avoid backpower)
 #   off    = boost off first, then best-effort back to gadget RNDIS
 #   status = show role, boost, cable detect, usb0
+#   watch  = repeat status, default every 1s, Ctrl-C stops
 MODE=/sys/kernel/debug/usb/a600000.usb/mode
 UDC=/sys/kernel/config/usb_gadget/g1/UDC
 UDC_DEV=a600000.usb
@@ -47,9 +48,20 @@ do_status() {
 	ip -br link show usb0 2>/dev/null || echo "usb0: absent"
 }
 
+do_watch() {
+	interval=${1:-1}
+	while true; do
+		date "+%F %T"
+		do_status
+		echo "---"
+		sleep "$interval" || exit 0
+	done
+}
+
 case "$1" in
 	on) do_on ;;
 	off) do_off ;;
 	status) do_status ;;
-	*) echo "usage: $0 on|off|status" >&2; exit 2 ;;
+	watch) do_watch "$2" ;;
+	*) echo "usage: $0 on|off|status|watch [seconds]" >&2; exit 2 ;;
 esac

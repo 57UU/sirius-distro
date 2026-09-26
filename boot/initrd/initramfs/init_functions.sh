@@ -16,6 +16,9 @@ mount_proc_sys_dev() {
 	mkdir -p /dev/pts || echo "Couldn't create directory /dev/pts"
 	mount -t devpts devpts /dev/pts || echo "Couldn't mount /dev/pts"
 
+	mkdir -p /sys/kernel/debug
+	mount -t debugfs -o nodev,noexec,nosuid debugfs /sys/kernel/debug || echo "Could not mount /sys/kernel/debug"
+
 	mkdir /run
 }
 
@@ -101,6 +104,11 @@ setup_usb_network() {
 		|| echo "  Couldn't write RNDIS sub_compatible_id"
 	ln -s "$CONFIGFS/g1/configs/c.1" "$CONFIGFS/g1/os_desc/" \
 		|| echo "  Couldn't link c.1 to os_desc"
+
+		# Boot default is gadget: pin device role first.
+	if [ -f /sys/kernel/debug/usb/a600000.usb/mode ]; then
+		echo device > /sys/kernel/debug/usb/a600000.usb/mode 2>/dev/null || true
+	fi
 
 	# Check if there's an USB Device Controller
 	if [ -z "$(ls /sys/class/udc)" ]; then

@@ -1,9 +1,9 @@
 [Unit]
-Description=Poll USB gadget bind every 15s
+Description=Poll USB role+gadget follow every 5s
 
 [Timer]
 OnBootSec=30s
-OnUnitActiveSec=15s
+OnUnitActiveSec=5s
 
 [Install]
 WantedBy=timers.target

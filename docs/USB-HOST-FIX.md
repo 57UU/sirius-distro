@@ -72,21 +72,42 @@ echo a600000.usb | sudo tee /sys/kernel/config/usb_gadget/g1/UDC
 
 不要往 `mode` 里写 `auto`。
 
-## 5. gadget 自动重绑
-- `sirius-usb-bind`（只绑不解）：role 为 device 且 UDC 空就绑回，`usb0` 拉起。
-- `99-sirius-usb.rules`（udev，extcon change 触发）+ `sirius-usb-bind.timer`（每 15 秒兜底），两个口味构建脚本都已 enable timer。
-- 实测：extcon 在真实拔插时不发 uevent（monitor 全空），udev 规则留作摆设，timer 是真正干活的。
-- UDC 解绑是软件状态：单纯拔线不会掉绑，只有角色翻转才踢掉；掉绑不影响已绑定的，开机/initramfs 绑一次就行。
+## 5. 角色跟随（用户态闭环）
 
-## 6. 已知限制与待办
+`sirius-usb-bind` 每 5 秒按线缆状态摆角色：PMIC 见 Rd 且充电没在线就切 host（OTG 场景）；ID 接地那路不动，留给 extcon 边沿；其余情况回 device 绑网卡。boost 残留（cable 从没置位过、又没外设挂着）顺手关掉。触发靠 `99-sirius-usb.rules`（extcon 有事件就即时）+ `sirius-usb-bind.timer`（5 秒兜底），两个口味构建脚本都已 enable。
 
-- ID 接地的线（OTG 转接头、9008 工程线、部分 A-to-C 线两面都接地）会把 `gpio38` 拉低，手机秒切 host，RNDIS 起不来；RNDIS 必须用普通直连线，A-to-C 先翻面，不行就换 C-to-C。被钉住时可手动 `echo device` + 绑 UDC抢回，只要不拔线就不会掉。
-- `extcon-usb-gpio`（ID gpio38）在本机上连 PC 线也报 `USB-HOST=1`，
-  线对的情况下 extcon 自动跟随是准的（普通线进 device，ID 接地的 OTG 线进 host）；但往 mode 里写 auto 仍别碰，拿不准就手动 echo。
-- 同一 OTG 头在安卓机上能直接用，是因为安卓走 Type-C CC 检测；本机主线缺 tcpm/pdphy 那套栈，只剩 ID 脚 extcon。头没问题，是驱动栈的代差；完整修法是把 CC 检测接到角色切换+boost，工作量大，与驱动转正一起排期。注意部分廉价 OTG 头根本没接 ID 脚（gpio38 常高），这时角色不会自动切，必须手动 echo host；供电走驱动自动（认 Rd 那面）或手动 otg_boost。
-- 朝向矩阵（实测）：A 面出 Rd（30E≈0x53/0x93，ID 悬空）→ 供电自动、角色手动；B 面接地 ID（gpio 低，30E≈0x91 无 Rd）→ 角色自动 host、供电手动。两面都能用，各需一步手动。B 面用完拔线后必须手动关供电（echo 0 > otg_boost），因为检测位从未置位、自动关不会触发。
-- 开机默认会被带到 host：`initramfs` 需加一行先 `echo device`
-  再绑 `UDC`，否则开机插线就没有 RNDIS（待改，
-  `boot/initrd/initramfs/init_functions.sh:setup_usb_network`）。
-- 转正（已完成）：boost 已写进 `qcom_smbx` 随模块走，未动 `Image.gz`；测试模块退役，`sirius-otg` 改调驱动属性。待办：kmod 包去掉旧二进制、`initramfs` 开机默认 gadget、CC 完整栈。
-- 回滚：`fastboot flash boot` 刷回 `boot_sys-72-nodebug-20260924.img`。
+实测 extcon 真实拔插不发 uevent，所以 timer 才是干活的；UDC 绑定是软件状态，拔线不掉绑，只有角色翻转才踢。
+
+## 6. 局限
+
+ID 是 Micro-USB 时代遗留的 OTG 识别针：接地表示当 host，悬空表示 device，只有 0/1 两种状态。CC 是 Type-C 的两根配置线（CC1/CC2），两端靠 Rd/Rp 上下拉协商正反面、角色和供电，是完整协商的输入，安卓走的就是这套。
+
+本机没有 CC 栈：往 mode 里写 auto 会在 host/device 间来回抖，只能手动切；检测也被拆成两块单边信号——gpio38 只看 ID 是否接地，PMIC 只看 CC 上有没有 Rd，各管一面。而廉价头和 A-to-C 线接法混乱（有的两面都接地、有的悬空），翻个面就换了一组信号，这就是部分线要翻面、ID 接地的线钉死 host（RNDIS 必须用普通线）、ID 悬空的头认不出、只有 ID 接地不出 Rd 的那面切了角色还要手动开供电、拔线后还要手动关电的原因。
+
+所以我们用用户态闭环模拟 auto：sirius-usb-bind 靠 udev 事件即时触发加 5 秒 timer 兜底轮询，PMIC 见 Rd 且充电没在线就切 host，其余情况回 device 并把 gadget 的 UDC 绑回来，boost 有残留（cable 从没置位、总线又没外设）就顺手关掉；拿不准就用 sirius-otg on/off 手动指定，auto 永远别往 mode 里写。
+
+## 7. 代办
+- CC 完整栈：角色跟随暂由 `sirius-usb-bind` 定时闭环实现（用户态），内核级 Type-C 栈以后再说
+
+
+## 8. 状态机
+
+```mermaid
+stateDiagram-v2
+    [*] --> NO_CABLE
+    NO_CABLE --> DEVICE : plain cable, echo device, bind UDC
+    DEVICE --> NO_CABLE : unplug (bind stays, link down)
+    DEVICE --> HOST_IDLE : OTG plug, ID-low edge
+    NO_CABLE --> HOST_IDLE : OTG plug, ID floating
+    HOST_IDLE --> HOST_POWERED : Rd and no VBUS, auto
+    HOST_IDLE --> HOST_POWERED : echo 1 to otg_boost, manual
+    HOST_POWERED --> DEVICE : unplug plain cable, sirius-otg off
+    HOST_POWERED --> HOST_IDLE : unplug, echo 0
+    DEVICE : gadget RNDIS, boost OFF
+    HOST_IDLE : role host, boost OFF
+    HOST_POWERED : mouse and U-disk work
+    note right of HOST_POWERED
+        PC cable and boost ON is BACKPOWER
+        blocked by driver gate and script interlock
+    end note
+```

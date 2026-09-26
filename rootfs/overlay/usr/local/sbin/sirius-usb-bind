@@ -1,9 +1,29 @@
 #!/bin/sh
-# Keep the RNDIS gadget bound whenever the controller sits in device role.
-# Triggered by udev on extcon change; harmless to run by hand or at boot.
+# Follow cable state: OTG accessory -> host role, otherwise device + gadget.
+# Triggered by udev on extcon change and every few seconds by timer.
+# Safe to run by hand or at boot; all actions are idempotent.
 MODE=/sys/kernel/debug/usb/a600000.usb/mode
 UDC=/sys/kernel/config/usb_gadget/g1/UDC
-[ "$(cat $MODE 2>/dev/null)" = device ] || exit 0
-[ -n "$(cat $UDC 2>/dev/null)" ] && exit 0
-echo a600000.usb > "$UDC" 2>/dev/null || exit 0
+UDC_DEV=a600000.usb
+CHG=/sys/bus/platform/devices/c440000.spmi:pmic@0:charger@1000
+EXTN_HOST=/sys/class/extcon/extcon0/cable.1/state
+ONLINE=/sys/class/power_supply/pm660-charger/online
+rd=$(cat $CHG/otg_cable 2>/dev/null)
+vbus=$(cat $ONLINE 2>/dev/null)
+hid=$(cat $EXTN_HOST 2>/dev/null)
+if [ "$rd" = 1 ] && [ "$vbus" != 1 ]; then
+	[ "$(cat $MODE 2>/dev/null)" = host ] || echo host > $MODE 2>/dev/null || true
+	[ -n "$(cat $UDC 2>/dev/null)" ] && echo "" > $UDC 2>/dev/null || true
+	exit 0
+fi
+if [ "$hid" = 1 ]; then
+	exit 0
+fi
+[ "$(cat $MODE 2>/dev/null)" = device ] || echo device > $MODE 2>/dev/null || true
+[ -n "$(cat $UDC 2>/dev/null)" ] || { echo $UDC_DEV > $UDC 2>/dev/null || true; }
 ip link set usb0 up 2>/dev/null || true
+if [ "$(cat $CHG/otg_boost 2>/dev/null)" = 1 ] && [ "$rd" != 1 ]; then
+	if [ -z "$(ls /sys/bus/usb/devices/ | grep -v -e usb1 -e usb2 -e 1-0 -e 2-0)" ]; then
+		echo 0 > $CHG/otg_boost 2>/dev/null || true
+	fi
+fi
