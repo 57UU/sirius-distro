@@ -60,8 +60,9 @@ AutomaticLogin=u57u
 EOF3
 systemctl enable ssh gdm systemd-networkd systemd-resolved rmtfs tqftpserv pd-mapper wifi-shutdown bluetooth bt-addr systemd-timesyncd NetworkManager triggerhappy sirius-bt-auto || true
 # Blank timing belongs to GNOME (idle-delay, user-adjustable); the real
-# backlight follows it via the --user hook below, so the fixed-timer
-# system sirius-idle-watch stays OFF on this flavor (server-only).
+# backlight follows it via the --user hook below.
+# (Server flavor uses the Orbital built-in idle timer instead.
+# Triggerhappy key rules stay on this flavor.)
 mkdir -p /home/u57u/.config/systemd/user/graphical-session.target.wants
 ln -sf /etc/systemd/user/sirius-gnome-blank.service /home/u57u/.config/systemd/user/graphical-session.target.wants/sirius-gnome-blank.service
 chown -R u57u:u57u /home/u57u/.config

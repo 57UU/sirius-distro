@@ -8,7 +8,9 @@ WorkingDirectory=/opt/orbital
 Environment=QT_SCALE_FACTOR=2.2
 Environment=ORBITAL_TOUCH_INPUT_PATH=/dev/input/event3
 Environment=ORBITAL_TOUCH_INHIBIT_PATH=/sys/class/input/event3/device/inhibited
-Environment=ORBITAL_POWER_KEY_PATH=/dev/input/sirius-nopower
+# Power key now belongs to Orbital (idle timer + toggle live here).
+# event0 = pmic pon pwrkey (verified on device via /proc/bus/input/devices).
+Environment=ORBITAL_POWER_KEY_PATH=/dev/input/event0
 Environment=ORBITAL_VOLUME_KEY_PATH=/dev/input/event1,/dev/input/event2
 ExecStart=/opt/orbital/run.sh
 Restart=always

@@ -17,3 +17,8 @@ tmp/Image.gz
 kernel-dtb
 initrd.cpio.gz
 *.dtb
+
+
+# ide
+.vscode/
+.trae/

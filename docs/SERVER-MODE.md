@@ -1,7 +1,7 @@
-# sirius 服务器模式（Orbital 默认 UI + 背光守护 + 电源键）
+# sirius 服务器模式（Orbital 默认 UI + 内建息屏/电源键）
 
-> 2026-09-25 定稿，手机实测通过。分工原则：**Orbital 只管画，
-> 电源与息屏归守护进程**（Orbital 的电源处理故意禁用，见 orbital/README）。
+> 2026-09-25 定稿，2026-09-26 改：分工原则：**Orbital 管画+管电源与息屏
+  （设置→Screen Off Time；外挂息屏守护已删，见 orbital/README）**。
 > 内核零修改（`7.2.3-sdm670-gcbbdbeb2ca53`）；
 > boot（`boot_sys-72-nodebug`，cmdline 去 `debug`）只管启动。
 
@@ -17,37 +17,36 @@
   SoC/WiFi/BT/SSH 全程在线，不碰 suspend。
 ```
 
-结论：守护进程只碰背光，不碰显示管线。
+结论：息屏只碰背光，不碰显示管线。
 
 ## 2. 行为
 
 ```text
 开机：      orbital.service 自启（/opt/orbital，root 身份），
             自己 modeset 点亮面板。console/tty1 留在底下备用。
-电源键：    triggerhappy（root 身份）抓 KEY_POWER →
-            sirius-screen toggle：灭（存亮度→背光 0）/
-            亮（恢复亮度）。只动背光。
-音量±/触摸：直接点亮（sirius-screen pon，背光恢复，无其他动作）。
-无操作120s：sirius-idle-watch（python3 无依赖，读 /dev/input/event*）
-            调 sirius-screen auto-off。只关不開，不打架。
+电源键：    Orbital 抓 KEY_POWER（ORBITAL_POWER_KEY_PATH）→ toggle；
+            灭/亮只动背光；长按 1.5s 照旧退出重启（run.sh 拉起）。
+
+音量±/触摸：亮屏（无其他动作；息屏时音量只亮屏不变音量）。
+无操作息屏：Orbital 内建 idle 计时（默认 120s，设置→Screen Off Time
+            可调 0.5~30min，或从不只靠电源键），走 screenOffMethod 路径。
 亮度记忆：  每次关屏存当前值，开屏恢复；Orbital 滑杆随便拖，
             灭亮一次也不丢。
 网络：      NM 自连（`sirius-wifi-add` 烤首个网络，powersave=2）+
             RNDIS usb0 静态（`172.16.42.1`）+ BT 自启。
-logind：    HandlePowerKey=ignore（按键归 triggerhappy，
+logind：    HandlePowerKey=ignore（按键归 Orbital，
             否则按电源会触发 suspend），IdleAction=ignore。
 ```## 3. 文件（本库 `rootfs/overlay/`，手机端位置镜像对应）
 
 ```text
 overlay/usr/local/sbin/  sirius-screen sirius-remodeset（救援用）
-                         sirius-idle-watch sirius-bt-auto sirius-wifi-add
-overlay/etc/systemd/system/  sirius-idle-watch orbital triggerhappy
+                         sirius-bt-auto sirius-wifi-add
+overlay/etc/systemd/system/  orbital triggerhappy
                          .service.d/sirius-root.conf（thd 必须 root）
-overlay/etc/triggerhappy/triggers.d/sirius-power.conf
+overlay/etc/triggerhappy/triggers.d/sirius-power.conf（gnome 口味保留；server 构建时删除，按键归 Orbital）
 overlay/etc/systemd/logind.conf.d/sirius-server.conf
 overlay/etc/NetworkManager/conf.d/sirius-server.conf
-overlay/etc/sysctl.d/60-sirius-printk.conf
-build-server.sh（另有 build-gnome.sh GNOME 桌面版，同息屏/电源键栈）
+build-server.sh（另有 build-gnome.sh GNOME 桌面版：GNOME 计时归设置→电源→屏幕空白，电源键仍走 triggerhappy）
 src/sirius-remodeset.c（救援工具源码）
 ```
 
@@ -62,7 +61,7 @@ OK  背光双向；电源键 toggle；120s 无操作自动息屏；音量/触摸
 OK  亮度记忆（300→灭→亮回 300）；Orbital /opt 服务版运行正常
 OK  kmscube freedreno OpenGL ES 3.2（GPU 驱动正常；fastfetch 软渲染是
     无合成器 + 缺 video/render 组（已加）+ vulkan 被 purge 的结果）
-OK  audit 进文件（auditd）；大字体 console 备用；printk 限级
+OK  audit 进文件（auditd）；大字体 console 备用
 ```
 
 ## 5. 已知限制（设计如此，不是 bug）
@@ -74,15 +73,14 @@ OK  audit 进文件（auditd）；大字体 console 备用；printk 限级
 - fb paper-state / dpms 节点不可信；fb blank 写 EIO（设计已绕开，
   平时根本不碰显示管线）。
 - thd 默认 nobody，必须 root drop-in，否则按键脚本无权限（踩过）。
-- Orbital 长按电源退出（上游行为）目前被禁用（电源归守护进程），
-  如需还给 Orbital，改 service 环境变量即可。
+- 电源与息屏归 Orbital 内建；sirius-screen 只留手动救援（ssh 上跑 on/off/toggle）。
 ```
 
 ## 6. 排错速查
 
 ```text
-按键没反应  evtest 看 KEY_POWER → ps 确认 thd --user root →
-           /etc/triggerhappy/triggers.d/sirius-power.conf
+按键没反应  evtest 看 KEY_POWER 在哪个 event 节点 → 对照 orbital.service 的
+           ORBITAL_POWER_KEY_PATH；journalctl -u orbital 看是否抓到键
 屏灭亮度回不来  删 /run/sirius-screen/brightness.* 再 on
 关机慢  老规矩：等 15 分钟；急用 safe-reboot（sysrq s+u+b）
 apt 403/超时  先 date 看时间（1978 老坑）；IPv6 可用时 apt 优先走 v6
