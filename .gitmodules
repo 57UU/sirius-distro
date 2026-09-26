@@ -1,0 +1,4 @@
+[submodule "orbital/orbital-src"]
+	path = orbital/orbital-src
+	url = https://github.com/57UU/Orbital.git
+	branch = sirius/auto-screen-off
