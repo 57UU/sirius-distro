@@ -84,3 +84,19 @@ sudo sirius-otg on      # host + 自供电（OTG 头+外设）
 sudo sirius-otg off     # 关供电，尽力回 gadget（RNDIS 用普通线）
 sudo sirius-otg status  # 看角色/供电/usb0
 ```
+
+
+# Acknowledgements
+Thanks many opensource projects:
+
+kernel for sdm710: https://gitlab.com/sdm670-mainline/linux
+initrd: https://gitlab.com/sdm845-mainline/initrd
+orbital(lite panel): https://github.com/AthBe1337/Orbital
+firmware & config: https://wiki.nura.eco/wiki/Xiaomi_Mi_9_Lite_(xiaomi-pyxis)
+
+## Other upstream dependencies
+
+remote proc tools: https://github.com/andersson (pd-mapper, tqftpserv, rmtfs, qrtr)
+base system: Debian trixie (rootfs builds, firmware-qcom-soc / firmware-atheros packages)
+qca-swiss-army-knife
+initrd userspace: busybox
