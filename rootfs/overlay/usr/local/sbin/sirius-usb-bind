@@ -54,6 +54,7 @@ go_host() {
 	wait_mode host || return 1
 	if [ -e "$UDC" ] && [ -n "$(cat "$UDC" 2>/dev/null)" ]; then
 		echo "" > "$UDC" 2>/dev/null || true
+		log "gadget unbound (leaving device role)"
 	fi
 	return 0
 }
@@ -91,7 +92,15 @@ if [ "$rd" = 1 ]; then
 		exit 0
 	fi
 fi
+# ID path holds the ROLE, but the gadget bind is orthogonal: keep it
+# bound while sitting in device mode, else a boot with spurious
+# USB-HOST=1 leaves RNDIS dead with nobody responsible.
 if [ "$hid" = 1 ]; then
+	if [ "$(cat "$MODE" 2>/dev/null)" = device ] && [ -e "$UDC" ] && [ -z "$(cat "$UDC" 2>/dev/null)" ]; then
+		echo "$UDC_DEV" > "$UDC" 2>/dev/null || true
+		ip link set usb0 up 2>/dev/null || true
+		log "gadget bound (hid hold, device mode)"
+	fi
 	exit 0
 fi
 if ! go_device; then

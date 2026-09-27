@@ -1,0 +1,25 @@
+#!/bin/sh
+# sirius-bt-addr: set stable BT public address, fast.
+# Old version slept fixed walls (5+4*5+6+5s) waiting for QCA firmware and
+# blocked multi-user.target for ~20s. This polls mgmt-ready every 0.5s
+# (cap ~12s) and verifies every 0.5s (cap ~4s) instead.
+# Discipline kept from sirius-bt-auto: btmgmt HANGS on /dev/null stdin,
+# so feed it an open silent stdin via a sleep pipe, always timeout -s KILL.
+ADDR=02:57:55:08:5E:02
+mgmt() { sleep 0.2 | timeout -s KILL 3 btmgmt --index 0 "$@" 2>&1; }
+i=0
+while [ $i -lt 24 ]; do
+	if mgmt info > /dev/null 2>&1; then break; fi
+	sleep 0.5
+	i=$((i + 1))
+done
+mgmt public-addr $ADDR || echo SET-FAILED
+i=0
+while [ $i -lt 8 ]; do
+	mgmt info > /tmp/btinfo3 2>&1
+	if grep -qi "$ADDR" /tmp/btinfo3; then echo VERIFIED; exit 0; fi
+	sleep 0.5
+	i=$((i + 1))
+done
+echo VERIFY-FAILED-QCA-FW-IGNORES-MGMT-ADDR-STAYS-DEFAULT
+exit 0

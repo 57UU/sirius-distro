@@ -1,5 +1,8 @@
 #!/bin/sh
 nmcli dev disconnect wlan0 2>/dev/null || true
 sleep 1
-modprobe -r ath10k_snoc ath10k_core 2>/dev/null || rmmod ath10k_snoc ath10k_core 2>/dev/null || true
+# rmmod of a live wireless stack can hang in D (seen with charger modules);
+# never let shutdown wait on it unbounded.
+timeout -s KILL 5 modprobe -r ath10k_snoc ath10k_core 2>/dev/null || \
+  timeout -s KILL 5 rmmod ath10k_snoc ath10k_core 2>/dev/null || true
 exit 0

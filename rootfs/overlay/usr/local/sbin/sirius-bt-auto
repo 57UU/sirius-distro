@@ -7,19 +7,22 @@
 # 6s zero-output, ignores SIGTERM, needs SIGKILL. Feed it an open silent
 # stdin via a sleep pipe and always use timeout -s KILL. The bluetoothctl
 # call below already has a real stdin (printf pipe) and stays as is.
+# Polls hci0 every 1s (was sleep 5, up to 30s wall) to stay off multi-user.
 set -e
-for i in 1 2 3 4 5 6; do
+i=0
+while [ $i -lt 15 ]; do
   if test -d /sys/class/bluetooth/hci0; then
     break
   fi
-  sleep 5
+  sleep 1
+  i=$((i + 1))
 done
 if test -d /sys/class/bluetooth/hci0; then
   if command -v btmgmt > /dev/null 2>&1; then
-    sleep 3 | timeout -s KILL 10 btmgmt power on > /dev/null 2>&1 || true
+    sleep 1 | timeout -s KILL 6 btmgmt power on > /dev/null 2>&1 || true
   fi
   if command -v bluetoothctl > /dev/null 2>&1; then
-    printf "power on\nquit\n" | timeout 15 bluetoothctl > /dev/null 2>&1 || true
+    printf "power on\nquit\n" | timeout 8 bluetoothctl > /dev/null 2>&1 || true
   fi
 fi
 exit 0
