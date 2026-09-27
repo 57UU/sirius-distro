@@ -1,7 +1,11 @@
 [Unit]
-Description=Rebind RNDIS gadget when in device role
-After=local-fs.target
+Description=Follow USB cable state into host/device role (event-driven)
+After=systemd-udevd.service local-fs.target sys-kernel-debug.mount
+Wants=systemd-udevd.service
 
 [Service]
 Type=oneshot
 ExecStart=/usr/local/sbin/sirius-usb-bind
+
+[Install]
+WantedBy=multi-user.target

@@ -1,21 +1,37 @@
 #!/bin/sh
 # sirius-otg: USB role + OTG power switch for xiaomi-sirius.
 # Uses the qcom_smbx driver interface. Must run as root, e.g. via sudo.
-#   on     = host mode + OTG 5V boost on (refuses when charger online,
-#            i.e. a PC is driving VBUS, to avoid backpower)
-#   off    = boost off first, then best-effort back to gadget RNDIS
-#   status = show role, boost, cable detect, usb0
+#   on     = host mode + OTG 5V boost on, pins manual (auto-follow paused;
+#            refuses when charger online, i.e. a PC is driving VBUS)
+#   off    = boost off first, then back to gadget RNDIS, pins manual
+#            (waits up to 3s for the async role switch before reporting)
+#   auto   = release the manual pin, run one follow pass, resume event-driven
+#   status = show follow mode + role, boost, cable detect, usb0
 #   watch  = repeat status, default every 1s, Ctrl-C stops
 MODE=/sys/kernel/debug/usb/a600000.usb/mode
 UDC=/sys/kernel/config/usb_gadget/g1/UDC
 UDC_DEV=a600000.usb
 CHG=/sys/bus/platform/devices/c440000.spmi:pmic@0:charger@1000
 PSY_ONLINE=/sys/class/power_supply/pm660-charger/online
+MANUAL=/run/sirius-usb-manual
+FOLLOW=/usr/local/sbin/sirius-usb-bind
 
 die() { echo "sirius-otg: $1" >&2; exit 1; }
 [ "$(id -u)" = 0 ] || die "run as root"
 [ -e "$MODE" ] || die "no $MODE (need otg dtb)"
 [ -e "$CHG/otg_boost" ] || die "no driver otg interface (need new smbx module)"
+
+pin_manual() { echo "$1 $(date '+%F %T')" > "$MANUAL" 2>/dev/null || true; }
+
+# Role switch is async: poll readback up to 3s. Returns 0 when $1 reached.
+wait_role() {
+	i=0
+	while [ "$(cat "$MODE" 2>/dev/null)" != "$1" ] && [ $i -lt 6 ]; do
+		sleep 0.5 || break
+		i=$((i + 1))
+	done
+	[ "$(cat "$MODE" 2>/dev/null)" = "$1" ]
+}
 
 do_on() {
 	if [ "$(cat $PSY_ONLINE 2>/dev/null)" = 1 ]; then
@@ -26,21 +42,45 @@ do_on() {
 	fi
 	echo host > "$MODE" || die "switch to host failed"
 	echo 1 > "$CHG/otg_boost" || die "boost on failed"
-	echo "host + boost ON"
+	if wait_role host; then
+		pin_manual on
+		echo "host + boost ON (manual; 'sirius-otg auto' resumes follow)"
+	else
+		echo 0 > "$CHG/otg_boost" 2>/dev/null || true
+		die "role still '$(cat "$MODE" 2>/dev/null)' after 3s, boost rolled back"
+	fi
 }
 
 do_off() {
 	echo 0 > "$CHG/otg_boost" || die "boost off failed"
-	echo device > "$MODE" 2>/dev/null
-	echo "$UDC_DEV" > "$UDC" 2>/dev/null
-	if [ "$(cat $MODE 2>/dev/null)" = device ] && [ -n "$(cat $UDC 2>/dev/null)" ]; then
-		echo "gadget(RNDIS) back ON"
+	echo device > "$MODE" 2>/dev/null || echo "sirius-otg: mode write failed" >&2
+	if ! wait_role device; then
+		die "boost OFF; still '$(cat "$MODE" 2>/dev/null)' after 3s, cable insists HOST - unplug cables for gadget"
+	fi
+	if [ -z "$(cat "$UDC" 2>/dev/null)" ]; then
+		echo "$UDC_DEV" > "$UDC" 2>/dev/null || die "UDC bind failed"
+	fi
+	if [ -n "$(cat "$UDC" 2>/dev/null)" ]; then
+		pin_manual off
+		echo "gadget(RNDIS) back ON (manual; 'sirius-otg auto' resumes follow)"
 	else
-		echo "boost OFF; cable insists HOST, unplug cables for gadget"
+		die "role=device but UDC is empty"
 	fi
 }
 
+do_auto() {
+	rm -f "$MANUAL"
+	[ -x "$FOLLOW" ] && "$FOLLOW"
+	echo "auto-follow resumed"
+	do_status
+}
+
 do_status() {
+	if [ -e "$MANUAL" ]; then
+		echo "follow=manual ($(cat "$MANUAL" 2>/dev/null))"
+	else
+		echo "follow=auto"
+	fi
 	echo -n "mode="; cat "$MODE" 2>/dev/null
 	echo -n "UDC="; cat "$UDC" 2>/dev/null
 	echo -n "boost="; cat "$CHG/otg_boost" 2>/dev/null
@@ -61,7 +101,8 @@ do_watch() {
 case "$1" in
 	on) do_on ;;
 	off) do_off ;;
+	auto) do_auto ;;
 	status) do_status ;;
 	watch) do_watch "$2" ;;
-	*) echo "usage: $0 on|off|status|watch [seconds]" >&2; exit 2 ;;
+	*) echo "usage: $0 on|off|auto|status|watch [seconds]" >&2; exit 2 ;;
 esac

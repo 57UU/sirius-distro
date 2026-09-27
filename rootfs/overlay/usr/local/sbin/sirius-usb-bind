@@ -1,29 +1,118 @@
 #!/bin/sh
-# Follow cable state: OTG accessory -> host role, otherwise device + gadget.
-# Triggered by udev on extcon change and every few seconds by timer.
-# Safe to run by hand or at boot; all actions are idempotent.
+# sirius-usb-bind: USB role follow (event-driven, no polling timer).
+# Triggered by udev (platform OTG_CABLE / pm660-charger power_supply / usb_device
+# add+remove, see 99-sirius-usb.rules) and once at boot via
+# sirius-usb-bind.service. No extcon rule (ID stays manual).
+# Safe to run by hand; all actions are idempotent.
+#
+# Policy:
+#   Rd present + VBUS offline -> host role, unbind gadget (OTG accessory).
+#   ID grounded               -> hold: do nothing, manual 'sirius-otg' owns
+#     this path (extcon-usb-gpio reports USB-HOST=1 even for plain PC cables
+#     on this hardware, so auto-switching on ID would break RNDIS).
+#   otherwise                 -> device role + bind RNDIS gadget, usb0 up.
+# Power (otg_boost) is manual-only: this script never turns it on, but the
+# device path turns it off FIRST (backpower safety) and sweeps stale state.
+# Unknown VBUS is treated as "charger maybe online": hold, never force host.
+# Manual override: 'sirius-otg on/off' pins state via /run/sirius-usb-manual
+# and this script then holds (exits); 'sirius-otg auto' removes the pin.
+# /run is tmpfs, so every boot starts in auto-follow.
+LOCK=/run/sirius-usb-bind.lock
+mkdir -p /run 2>/dev/null
+if command -v flock >/dev/null 2>&1; then
+	exec 9>"$LOCK" 2>/dev/null || exit 0
+	flock -n 9 || exit 0
+fi
+# Manual pin wins over every event source.
+[ -e /run/sirius-usb-manual ] && exit 0
 MODE=/sys/kernel/debug/usb/a600000.usb/mode
 UDC=/sys/kernel/config/usb_gadget/g1/UDC
 UDC_DEV=a600000.usb
 CHG=/sys/bus/platform/devices/c440000.spmi:pmic@0:charger@1000
 EXTN_HOST=/sys/class/extcon/extcon0/cable.1/state
 ONLINE=/sys/class/power_supply/pm660-charger/online
-rd=$(cat $CHG/otg_cable 2>/dev/null)
-vbus=$(cat $ONLINE 2>/dev/null)
-hid=$(cat $EXTN_HOST 2>/dev/null)
-if [ "$rd" = 1 ] && [ "$vbus" != 1 ]; then
-	[ "$(cat $MODE 2>/dev/null)" = host ] || echo host > $MODE 2>/dev/null || true
-	[ -n "$(cat $UDC 2>/dev/null)" ] && echo "" > $UDC 2>/dev/null || true
-	exit 0
+log() { logger -t sirius-usb-bind "$1" 2>/dev/null || true; }
+rd=$(cat "$CHG/otg_cable" 2>/dev/null)
+vbus=$(cat "$ONLINE" 2>/dev/null)
+hid=$(cat "$EXTN_HOST" 2>/dev/null)
+old_mode=$(cat "$MODE" 2>/dev/null)
+old_udc=$(cat "$UDC" 2>/dev/null)
+# Role switch is async: poll readback up to 2s before judging.
+# (Without this the immediate readback races the hardware and logs
+# false "switch failed" while the switch still completes.)
+wait_mode() {
+	i=0
+	while [ "$(cat "$MODE" 2>/dev/null)" != "$1" ] && [ $i -lt 4 ]; do
+		sleep 0.5 || break
+		i=$((i + 1))
+	done
+	[ "$(cat "$MODE" 2>/dev/null)" = "$1" ]
+}
+go_host() {
+	[ -e "$MODE" ] || return 1
+	[ "$(cat "$MODE" 2>/dev/null)" = host ] || echo host > "$MODE" 2>/dev/null || return 1
+	wait_mode host || return 1
+	if [ -e "$UDC" ] && [ -n "$(cat "$UDC" 2>/dev/null)" ]; then
+		echo "" > "$UDC" 2>/dev/null || true
+	fi
+	return 0
+}
+go_device() {
+	if [ "$(cat "$CHG/otg_boost" 2>/dev/null)" = 1 ]; then
+		echo 0 > "$CHG/otg_boost" 2>/dev/null || true
+	fi
+	if [ -e "$MODE" ]; then
+		[ "$(cat "$MODE" 2>/dev/null)" = device ] || echo device > "$MODE" 2>/dev/null || return 1
+		wait_mode device || return 1
+	fi
+	if [ -e "$UDC" ] && [ -z "$(cat "$UDC" 2>/dev/null)" ]; then
+		echo "$UDC_DEV" > "$UDC" 2>/dev/null || true
+	fi
+	ip link set usb0 up 2>/dev/null || true
+	return 0
+}
+if [ "$rd" = 1 ]; then
+	if [ "$vbus" = 1 ]; then
+		if go_device; then
+			[ "$(cat "$MODE" 2>/dev/null)" != "$old_mode" ] && log "role=device (Rd+VBUS, charger online)"
+		else
+			log "device switch failed, holding"
+		fi
+		exit 0
+	elif [ "$vbus" = 0 ]; then
+		if go_host; then
+			[ "$old_mode" != host ] && log "role=host (Rd, no VBUS)"
+		else
+			log "host switch failed, holding"
+		fi
+		exit 0
+	else
+		log "rd=1 vbus=unknown, holding state"
+		exit 0
+	fi
 fi
 if [ "$hid" = 1 ]; then
 	exit 0
 fi
-[ "$(cat $MODE 2>/dev/null)" = device ] || echo device > $MODE 2>/dev/null || true
-[ -n "$(cat $UDC 2>/dev/null)" ] || { echo $UDC_DEV > $UDC 2>/dev/null || true; }
-ip link set usb0 up 2>/dev/null || true
-if [ "$(cat $CHG/otg_boost 2>/dev/null)" = 1 ] && [ "$rd" != 1 ]; then
-	if [ -z "$(ls /sys/bus/usb/devices/ | grep -v -e usb1 -e usb2 -e 1-0 -e 2-0)" ]; then
-		echo 0 > $CHG/otg_boost 2>/dev/null || true
+if ! go_device; then
+	log "device switch failed, holding"
+	exit 0
+fi
+if [ "$(cat "$MODE" 2>/dev/null)" != "$old_mode" ] || [ "$(cat "$UDC" 2>/dev/null)" != "$old_udc" ]; then
+	log "role=device (plain cable / unplug)"
+fi
+if [ "$(cat "$CHG/otg_boost" 2>/dev/null)" = 1 ] && [ "$rd" != 1 ]; then
+	empty=1
+	for d in /sys/bus/usb/devices/*; do
+		n=${d##*/}
+		case "$n" in
+			usb*|*-0) ;;
+			*) empty=0 ;;
+		esac
+		[ "$empty" = 0 ] && break
+	done
+	if [ "$empty" = 1 ]; then
+		echo 0 > "$CHG/otg_boost" 2>/dev/null || true
+		log "stale boost cleared"
 	fi
 fi

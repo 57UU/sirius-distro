@@ -1,1 +1,12 @@
-SUBSYSTEM=="extcon", ACTION=="change", RUN+="/usr/local/sbin/sirius-usb-bind"
+# sirius USB role follow: event sources (no polling timer).
+# All rules call the same idempotent script (flock-protected, safe on storms).
+# - extcon (ID edge) has NO rule on purpose: the gpio38 IRQ never fires on
+#   this phone (verified silent with udevadm monitor), and the handler holds
+#   on hid anyway, so a rule would be doubly dead. ID cables stay manual.
+# - power_supply change on pm660-charger: VBUS online/offline (PC plug/unplug).
+# - usb_device add/remove: peripheral enumerate/unplug (boost-leak sweep).
+# - platform change with OTG_CABLE (qcom_smbx cable flip):
+SUBSYSTEM=="platform", ACTION=="change", ENV{OTG_CABLE}=="?*", RUN+="/usr/local/sbin/sirius-usb-bind"
+SUBSYSTEM=="power_supply", ACTION=="change", ENV{POWER_SUPPLY_NAME}=="pm660-charger", RUN+="/usr/local/sbin/sirius-usb-bind"
+SUBSYSTEM=="usb", ACTION=="add", ENV{DEVTYPE}=="usb_device", RUN+="/usr/local/sbin/sirius-usb-bind"
+SUBSYSTEM=="usb", ACTION=="remove", ENV{DEVTYPE}=="usb_device", RUN+="/usr/local/sbin/sirius-usb-bind"
