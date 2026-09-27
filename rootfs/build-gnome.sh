@@ -6,26 +6,23 @@
 #
 # External inputs (fail fast if missing):
 #   SIRIUS_BASE  pristine debian-trixie arm64 tree (e.g. linuxcontainers rootfs)
-#   SIRIUS_KMOD  kernel modules tarball matching the phone kernel (uname -r)
+#   Kernel modules + firmware are NOT baked here; they live in the system-partition
+#   store built by rootfs/build-sysmod.sh (see docs/SYSMOD-STORE.md).
 #   SIRIUS_WORK  scratch/output dir for the tree (default: <distro>/work)
 # Run on an x86_64 Linux host with qemu-user + binfmt (needs sudo):
-#   sudo SIRIUS_BASE=/path/to/base SIRIUS_KMOD=/tmp/kmod.tgz ./build-gnome.sh
+#   sudo SIRIUS_BASE=/path/to/base ./build-gnome.sh
 #
 # NOTE: default user u57u password 1234 (device-lab convention).
 # Change it on first boot: passwd u57u.
 set -e
 DISTRO="$(cd "$(dirname "$0")/.." && pwd)"
-FIRMWARE=$DISTRO/firmware
 DSP_BIN=$DISTRO/rootfs/dsp-bin
 OVERLAY=$DISTRO/rootfs/overlay
 WORK=${SIRIUS_WORK:-$DISTRO/work}
 SRC=${SIRIUS_BASE:-}
-KMOD_TGZ=${SIRIUS_KMOD:-}
 test -n "$SRC" || { echo "set SIRIUS_BASE to a pristine trixie arm64 tree"; exit 1; }
-test -n "$KMOD_TGZ" || { echo "set SIRIUS_KMOD to a kernel modules tarball"; exit 1; }
 test -d $SRC || { echo "missing base tree $SRC"; exit 1; }
 test "$(stat -c %u "$SRC")" = 0 || { echo "extract SIRIUS_BASE as root (sudo tar -xpJf rootfs.tar.xz)"; exit 1; }
-test -f $KMOD_TGZ || { echo "missing kmod $KMOD_TGZ"; exit 1; }
 R=$WORK/debian-trixie-gnome
 . $DISTRO/rootfs/lib/sirius-device.sh
 echo "=== gnome build start $(date) ==="
@@ -34,9 +31,7 @@ rm -rf $R
 cp -a $SRC $R
 rm -f $R/etc/machine-id $R/var/lib/dbus/machine-id
 rm -f $R/usr/bin/qemu-aarch64-static
-sirius_firmware_pre
 sirius_overlay
-sirius_kmod
 sirius_netconf
 sirius_apt_mirror
 sirius_chroot_begin
@@ -85,6 +80,5 @@ mv /etc/resolv.conf.srv-link /etc/resolv.conf
 echo CHROOT-DONE
 CHROOT_EOF
 sirius_chroot_end
-sirius_firmware_post
 echo "=== gnome build done $(date) ==="
 du -sh $R

@@ -10,6 +10,60 @@ IP="172.16.42.1"
 mkdir -p /mnt
 mkdir -p /newroot
 
+# sirius system store (spare system partition): versioned kernel modules +
+# firmware, decoupling them from the userdata rootfs. Fail-safe: fall back
+# to rootfs files when the store is missing anything.
+find_sysmod_dev() {
+    # Explicit override from kernel cmdline: sysmod_part=mmcblk0p79.
+    _o="$(get_cmdline_param sysmod_part)"
+    if [ -n "$_o" ]; then
+        echo "/dev/$_o"
+        return 0
+    fi
+    # GPT partlabel when the device nodes provide it.
+    if [ -e /dev/disk/by-partlabel/system ]; then
+        echo /dev/disk/by-partlabel/system
+        return 0
+    fi
+    # Filesystem label stamped at mkfs time (see rootfs/build-sysmod.sh
+    # IMG_LABEL; both labels we ever shipped are matched).
+    blkid 2>/dev/null | sed -n 's|^\(/dev/[^:]*\):.*LABEL="\(sirius_sys\|kmod_sys\)".*|\1|p' | head -n 1
+}
+bind_sysmod() {
+    # $1 = new-root path (/mnt or /newroot). The store mount is moved
+    # inside the new root first so it survives switch_root, then the
+    # versioned module dir and the firmware tree are bind-mounted.
+    _root="$1"
+    _kver="$(uname -r)"
+    _dev="$(find_sysmod_dev)" || { echo "sysmod: no candidate device" > /dev/kmsg; return 0; }
+    mkdir -p /sysmod
+    if ! mount -o ro "$_dev" /sysmod 2>/dev/null; then
+        echo "sysmod: mount $_dev failed" > /dev/kmsg
+        return 0
+    fi
+    mkdir -p "$_root/mnt/sysmod"
+    if ! mount --move /sysmod "$_root/mnt/sysmod" 2>/dev/null; then
+        echo "sysmod: move failed" > /dev/kmsg
+        umount /sysmod
+        return 0
+    fi
+    _bound=0
+    if [ -d "$_root/mnt/sysmod/lib/modules/$_kver" ]; then
+        mkdir -p "$_root/lib/modules/$_kver"
+        if mount -o bind "$_root/mnt/sysmod/lib/modules/$_kver" "$_root/lib/modules/$_kver" 2>/dev/null; then
+            echo "sysmod: bound modules $_kver" > /dev/kmsg
+            _bound=1
+        fi
+    fi
+    if [ -d "$_root/mnt/sysmod/lib/firmware" ]; then
+        mkdir -p "$_root/lib/firmware"
+        if mount -o bind "$_root/mnt/sysmod/lib/firmware" "$_root/lib/firmware" 2>/dev/null; then
+            echo "sysmod: bound firmware" > /dev/kmsg
+            _bound=1
+        fi
+    fi
+    [ "$_bound" = 1 ] || echo "sysmod: nothing bound, using rootfs files" > /dev/kmsg
+}
 mount_proc_sys_dev
 
 setup_mdev
@@ -56,6 +110,7 @@ if [ -z "$ROOT" ]; then
         echo "HALTING WITH TELNET AS initrd_hang SET ON CMDLINE" > /dev/kmsg
         while true; do sleep 300; done
     fi
+    bind_sysmod /mnt
     exec switch_root /mnt /sbin/init
     exit
 fi
@@ -98,6 +153,7 @@ if [ -n "$DEBUG" ]; then
     echo "HALTING WITH TELNET AS initrd_hang SET ON CMDLINE" > /dev/kmsg
     while true; do sleep 300; done;
 fi
+bind_sysmod /newroot
 exec switch_root /newroot /sbin/init
 
 echo "Failed to switch root" > /dev/kmsg
