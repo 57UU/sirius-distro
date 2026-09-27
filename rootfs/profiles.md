@@ -27,4 +27,4 @@ DSI 背光（只画黑屏），所以 gnome 的跟随动作仍走 `sirius-screen
   （服务、脚本、udev、sysctl、logind、NetworkManager 配置），改动先改这里。
   `orbital.service` 文件也在 overlay 里，但只有 server 口味会 enable。
 - 产物（`*.tar.zst`/`*.simg`）不进库，走 GitHub Releases。
-- apt 源：构建脚本强制切清华镜像（含 security），`SIRIUS_MIRROR` 环境变量可改地址。
+- apt 源：构建脚本强制切 CERNET 镜像（含 security），`SIRIUS_MIRROR` 环境变量可改地址。

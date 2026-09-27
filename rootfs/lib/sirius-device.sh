@@ -95,7 +95,7 @@ EOF2
 }
 
 sirius_apt_mirror() {
-  MIRROR=${SIRIUS_MIRROR:-https://mirrors.tuna.tsinghua.edu.cn}
+  MIRROR=${SIRIUS_MIRROR:-https://mirrors.cernet.edu.cn}
   rm -f $R/etc/apt/sources.list.d/*.sources
   cat > $R/etc/apt/sources.list <<EOF2
 deb $MIRROR/debian trixie main contrib non-free non-free-firmware
