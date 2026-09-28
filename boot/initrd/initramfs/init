@@ -13,21 +13,11 @@ mkdir -p /newroot
 # sirius system store (spare system partition): versioned kernel modules +
 # firmware, decoupling them from the userdata rootfs. Fail-safe: fall back
 # to rootfs files when the store is missing anything.
+# System store lives on mmcblk0p79 (verified on device); override with
+# kernel cmdline sysmod_part= if the layout ever changes.
 find_sysmod_dev() {
-    # Explicit override from kernel cmdline: sysmod_part=mmcblk0p79.
     _o="$(get_cmdline_param sysmod_part)"
-    if [ -n "$_o" ]; then
-        echo "/dev/$_o"
-        return 0
-    fi
-    # GPT partlabel when the device nodes provide it.
-    if [ -e /dev/disk/by-partlabel/system ]; then
-        echo /dev/disk/by-partlabel/system
-        return 0
-    fi
-    # Filesystem label stamped at mkfs time (see rootfs/build-sysmod.sh
-    # IMG_LABEL; both labels we ever shipped are matched).
-    blkid 2>/dev/null | sed -n 's|^\(/dev/[^:]*\):.*LABEL="\(sirius_sys\|kmod_sys\)".*|\1|p' | head -n 1
+    echo "/dev/${_o:-mmcblk0p79}"
 }
 bind_sysmod() {
     # $1 = new-root path (/mnt or /newroot). The store mount is moved
@@ -37,6 +27,7 @@ bind_sysmod() {
     _kver="$(uname -r)"
     _dev="$(find_sysmod_dev)" || { echo "sysmod: no candidate device" > /dev/kmsg; return 0; }
     mkdir -p /sysmod
+    ./expand-part "$_dev"
     if ! mount -o ro "$_dev" /sysmod 2>/dev/null; then
         echo "sysmod: mount $_dev failed" > /dev/kmsg
         return 0
@@ -100,8 +91,9 @@ fi
 if [ -n "$DEBUG" ]; then
     start_telnetd
 fi
-
 # This should be detected or configured better but for now this will do.
+# Auto-expand userdata to the full partition when smaller (see ./expand-part).
+./expand-part "/dev/$PART"
 mount "/dev/$PART" /mnt > /dev/kmsg
 
 if [ -z "$ROOT" ]; then

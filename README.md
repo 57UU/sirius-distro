@@ -42,20 +42,11 @@ userdata 不动。rootfs 里旧 /lib/modules 留作回落，别删。
 自行构建或者在release中下载rootfs，解压出simg文件
 
 ```bash
-#格式化userdata为ext4
-fastboot format:ext4 userdata
 fastboot flash userdata xxxxx.simg
 ```
 刷写 userdata 可能出现卡住的情况，这是正常的，eMMC没办法。
 刷完后，请使用fastboot reboot重启，耐心等待，避免eMMC还没完成写入。
 
-首次进系统后务必扩容，否则很快没空间：
-
-```bash
-#在线扩容（/ 已挂载也能执行），mmcblk0p81 即 userdata，见 boot/build_boot.sh
-sudo resize2fs /dev/mmcblk0p81
-df -h /   #确认已撑满整个 userdata 分区
-```
 
 # status
 

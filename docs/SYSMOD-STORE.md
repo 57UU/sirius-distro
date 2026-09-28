@@ -17,10 +17,7 @@ lib/firmware/...          设备固件（映射关系见 rootfs/lib/sirius-devic
 
 ## 启动流程（boot/initrd/initramfs/init）
 
-1. `find_sysmod_dev`：cmdline `sysmod_part=` 显式指定
-   优先；其次 `/dev/disk/by-partlabel/system`；最后匹配 mkfs 卷标
-   `sirius_sys`/`kmod_sys`（`build-sysmod.sh` 的 `IMG_LABEL`，自定义卷标
-   请用 cmdline 参数指明）。
+1. `find_sysmod_dev`：直接用 `/dev/mmcblk0p79`（真机验证过），cmdline `sysmod_part=` 可覆盖。
 2. `mount --move` 把仓库挪进新根 `/mnt/sysmod`（不然 switch_root 会丢），
    再把 `lib/modules/<uname -r>` 和 `lib/firmware` bind 进新根。
 3. 每步都写 kmsg：`dmesg | grep sysmod` 可查命中哪条分支。

@@ -1,0 +1,15 @@
+#!/bin/sh
+# expand-part <device>: grow to the full partition when smaller.
+# Tries f2fs first, then ext4; the wrong tool fails closed on the
+# superblock magic without touching the device (both verified), and
+# the no-op case exits in under a millisecond, so this safely runs
+# on every boot. No blkid parsing: initramfs blkid output is unreliable.
+DEV="$1"
+[ -b "$DEV" ] || exit 0
+if /sbin/resize.f2fs "$DEV" > /dev/kmsg 2>&1; then
+    exit 0
+fi
+if /sbin/resize2fs "$DEV" > /dev/kmsg 2>&1; then
+    exit 0
+fi
+echo "expand-part: $DEV is neither f2fs nor ext4 (or resize failed)" > /dev/kmsg

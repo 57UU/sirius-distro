@@ -18,5 +18,12 @@ mkinitfs () {
 STAGE="$(mktemp -d)"
 trap 'rm -rf "$STAGE"' EXIT
 cp -a "$(dirname "$0")"/initramfs/. "$STAGE"/
-chmod 755 "$STAGE"/init "$STAGE"/bin/busybox "$STAGE"/init_functions.sh
+# Normalize payload modes: fresh checkouts (and Windows transfers) may
+# lack +x on dirs/files, which fails exec with EACCES in initramfs.
+chmod 755 "$STAGE"/sbin "$STAGE"/lib
+# The dynamic loader itself must be +x: the kernel execs it as the ELF
+# interpreter, and without +x every dynamically linked tool dies with
+# EACCES (static busybox applets are unaffected, which hides this).
+chmod 755 "$STAGE"/lib/* "$STAGE"/sbin/resize.f2fs "$STAGE"/sbin/resize2fs
+chmod 755 "$STAGE"/init "$STAGE"/bin/busybox "$STAGE"/init_functions.sh "$STAGE"/sbin/resize.f2fs "$STAGE"/sbin/resize2fs "$STAGE"/expand-part
 mkinitfs "$STAGE" "$OUT"
