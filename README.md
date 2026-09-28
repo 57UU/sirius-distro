@@ -24,17 +24,17 @@ fastboot flash boot boot_sys.img
 ```
 需要清空dtbo，设备才会加载boot中的设备树。
 
-## step2：刷写 system（模块+固件仓库 sysmod）
+## step2：刷写 vendor（模块+固件仓库 vendormod）
 
-内核模块和设备固件不住 rootfs，住在闲置的 system 分区（mmcblk0p79，
-3GB），开机由 initrd 绑定进系统。仓库镜像用 rootfs/build-sysmod.sh
-打出（详见 docs/SYSMOD-STORE.md），刷机：
+内核模块和设备固件不住 rootfs，住在闲置的 vendor 分区（mmcblk0p80，
+3GB），开机由 initrd 绑定进系统。仓库镜像用 rootfs/build-vendormod.sh
+打出（详见 docs/VENDORMOD-STORE.md），刷机：
 
 ```bash
-fastboot flash system sysmod.img
+fastboot flash vendor vendormod.img
 ```
 
-只换内核时：重编内核 → 重打 sysmod.img → 刷 system + boot 即可，
+只换内核时：重编内核 → 重打 vendormod.img → 刷 vendor + boot 即可，
 userdata 不动。rootfs 里旧 /lib/modules 留作回落，别删。
 
 ## step3：刷写 rootfs.img

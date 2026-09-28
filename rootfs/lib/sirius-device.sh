@@ -4,8 +4,8 @@
 #   R         target tree being built
 #   FIRMWARE  $DISTRO/firmware
 #   DSP_BIN   $DISTRO/rootfs/dsp-bin
-#   Kernel modules + firmware live in the system-partition store
-#   (rootfs/build-sysmod.sh), not in the rootfs tree.
+#   Kernel modules + firmware live in the vendor-partition store
+#   (rootfs/build-vendormod.sh), not in the rootfs tree.
 # Flavor-specific bits (desktop packages, DM login, service enables)
 # stay in each build-*.sh chroot section.
 

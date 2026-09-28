@@ -6,8 +6,8 @@
 #
 # External inputs (fail fast if missing):
 #   SIRIUS_BASE  pristine debian-trixie arm64 tree (e.g. linuxcontainers rootfs)
-#   Kernel modules + firmware are NOT baked here; they live in the system-partition
-#   store built by rootfs/build-sysmod.sh (see docs/SYSMOD-STORE.md).
+#   Kernel modules + firmware are NOT baked here; they live in the vendor-partition
+#   store built by rootfs/build-vendormod.sh (see docs/VENDORMOD-STORE.md).
 #   SIRIUS_WORK  scratch/output dir for the tree (default: <distro>/work)
 # Run on an x86_64 Linux host with qemu-user + binfmt (needs sudo):
 #   sudo SIRIUS_BASE=/path/to/base ./build-server.sh
