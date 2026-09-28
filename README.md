@@ -63,6 +63,7 @@ fastboot flash userdata xxxxx.simg
 | Thermal     | Working |
 | Touchscreen | Working |
 | Battery     | Working |
+| LED         | Working |
 | Audio       | Broken  |
 | Speaker     | Broken  |
 
