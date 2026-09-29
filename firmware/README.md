@@ -18,3 +18,7 @@
 | ath10k/wlanmdsp.mbn.WCN3990 | WCN3990主固件 3.7M, md5 259b4f9e... | /lib/firmware/ath10k/WCN3990/hw1.0/wlanmdsp.mbn | 同上 |
 | qca/crnv21.bin.sirius | QCA BT NVM 4587B，tag2烤BD 02:57:55:08:5E:02，md5 3947c734... | /lib/firmware/qca/crnv21.bin（此前rm掉，缺省地址5A:AD且mgmt写不上；此NVM开机即带地址） | linux-firmware原版crnv21改tag2字节 |
 | ath10k/sirius-bdwlan/ | 原厂WLAN校准35个(bdwlan.*/bdf_*.bin) | 同上生成用料,不直接装机 | 手机modem分区image/原样拷出,2026-09-18 |
+| acdb/Forte_Global_cal.acdb | 音频ACDB 26K, sha256 0db18192... | /lib/firmware/qcom/sdm710/sirius/Forte_Global_cal.acdb (q6core拓扑必需, 无则声卡不出) | AndroidBlobs/vendor_xiaomi_sirius V11.0.1.0 stock vendor |
+| dsp-adsp/ | ADSP用户态48文件+avs配置 15M | /lib/firmware/qcom/sdm710/pyxis/ (tqftpserv就地供给, 缺则ADSP看门狗崩溃) | 手机dsp分区原样拷出+stock vendor adsp_avs_config.acdb |
+| pyxis-phone/adsp.mbn+adsp.b00-b29 | 原厂ADSP分段(头8476B+30段, loader按phdr索引取bNN, RELOC布局) | /lib/firmware/qcom/sdm710/pyxis/ (单文件合并版会EINVAL, 必须分段) | 手机modem分区image/原样拷出 |
+| pyxis-phone/adsp/ | 同上48+1文件再放一份带adsp/子目录 (tqftp请求形如adsp/xxx, 平铺命中不了) | /lib/firmware/qcom/sdm710/pyxis/adsp/ | 同上 |

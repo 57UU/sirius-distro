@@ -42,16 +42,19 @@ echo "=== depmod $KVER ==="
 echo "=== firmware (mirrors sirius_firmware_pre) ==="
 FW=$STAGE/lib/firmware
 mkdir -p $FW/qcom/sdm710/pyxis $FW/qcom $FW/ath10k/WCN3990/hw1.0 $FW/qca
+mkdir -p $FW/qcom/sdm710/sirius
 cp -f $FIRMWARE/gpu/a615_zap.mbn $FW/qcom/sdm710/pyxis/a615_zap.mbn
 cp -f $FIRMWARE/gpu/a630_sqe.fw $FIRMWARE/gpu/a630_gmu.bin $FW/qcom/
 cp -f $FIRMWARE/touch/st_fts_v521.ftb $FW/st_fts_v521.ftb
 cp -rf $FIRMWARE/pyxis-phone/. $FW/qcom/sdm710/pyxis/
+cp -rf $FIRMWARE/dsp-adsp/. $FW/qcom/sdm710/pyxis/
+cp -f $FIRMWARE/acdb/Forte_Global_cal.acdb $FW/qcom/sdm710/sirius/Forte_Global_cal.acdb
 cp -f $FIRMWARE/ath10k/board-2.bin.sirius $FW/ath10k/WCN3990/hw1.0/board-2.bin
 cp -f $FIRMWARE/ath10k/firmware-5.bin.WCN3990 $FW/ath10k/WCN3990/hw1.0/firmware-5.bin
 cp -f $FIRMWARE/ath10k/wlanmdsp.mbn.WCN3990 $FW/ath10k/WCN3990/hw1.0/wlanmdsp.mbn
 cp -f $FIRMWARE/qca/ubuntu25-crbtfw21.tlv $FW/qca/crbtfw21.tlv
 cp -f $FIRMWARE/qca/crnv21.bin.sirius $FW/qca/crnv21.bin
-chmod 644 $FW/qcom/sdm710/pyxis/a615_zap.mbn $FW/qcom/a630_sqe.fw $FW/qcom/a630_gmu.bin \
+chmod 644 $FW/qcom/sdm710/pyxis/a615_zap.mbn $FW/qcom/a630_sqe.fw $FW/qcom/a630_gmu.bin $FW/qcom/sdm710/sirius/Forte_Global_cal.acdb \
   $FW/st_fts_v521.ftb $FW/ath10k/WCN3990/hw1.0/firmware-5.bin $FW/ath10k/WCN3990/hw1.0/wlanmdsp.mbn \
   $FW/ath10k/WCN3990/hw1.0/board-2.bin $FW/qca/crnv21.bin
 check_md5() { test "$(md5sum < "$1" | cut -d " " -f1)" = "$2" || { echo "md5 mismatch: $1"; exit 1; }; }
