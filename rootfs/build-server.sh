@@ -12,8 +12,8 @@
 # Run on an x86_64 Linux host with qemu-user + binfmt (needs sudo):
 #   sudo SIRIUS_BASE=/path/to/base ./build-server.sh
 #
-# NOTE: default user u57u password 1234 (device-lab convention).
-# Change it on first boot: passwd u57u.
+# NOTE: default user/password come from sirius-device.sh (SIRIUS_USER /
+# SIRIUS_PASS, device-lab convention). Change the password on first boot.
 set -e
 DISTRO="$(cd "$(dirname "$0")/.." && pwd)"
 DSP_BIN=$DISTRO/rootfs/dsp-bin
@@ -54,11 +54,11 @@ apt-get purge -y lightdm lightdm-gtk-greeter xfce4 network-manager-gnome blueman
 apt-get autoremove --purge -y || true
 rm -rf /etc/lightdm
 rm -f /etc/systemd/system/display-manager.service
-useradd -m -u 1000 -U -G sudo -s /bin/bash u57u || true
-echo "u57u:1234" | chpasswd
-printf "u57u ALL=(ALL) NOPASSWD:ALL\n" > /etc/sudoers.d/u57u
-chmod 0440 /etc/sudoers.d/u57u
-usermod -aG video,render,input u57u || true
+useradd -m -u 1000 -U -G sudo -s /bin/bash "$SIRIUS_USER" || true
+echo "$SIRIUS_USER:$SIRIUS_PASS" | chpasswd
+printf '%s ALL=(ALL) NOPASSWD:ALL\n' "$SIRIUS_USER" > /etc/sudoers.d/"$SIRIUS_USER"
+chmod 0440 /etc/sudoers.d/"$SIRIUS_USER"
+usermod -aG video,render,input "$SIRIUS_USER" || true
 ln -sf /usr/share/zoneinfo/Asia/Shanghai /etc/localtime
 echo "Asia/Shanghai" > /etc/timezone
 systemctl disable lightdm gdm display-manager 2>/dev/null || true

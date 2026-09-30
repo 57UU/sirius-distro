@@ -2,7 +2,7 @@
 # Build Debian trixie GNOME rootfs for xiaomi-sirius (pure desktop).
 # Device base (WiFi/BT bake + screen/power stack) comes from overlay/
 # via lib/sirius-device.sh sirius_overlay (shared by all flavors);
-# this script only adds: GNOME packages, u57u user, GDM autologin, enables.
+# this script only adds: GNOME packages, default user, GDM autologin, enables.
 #
 # External inputs (fail fast if missing):
 #   SIRIUS_BASE  pristine debian-trixie arm64 tree (e.g. linuxcontainers rootfs)
@@ -12,8 +12,8 @@
 # Run on an x86_64 Linux host with qemu-user + binfmt (needs sudo):
 #   sudo SIRIUS_BASE=/path/to/base ./build-gnome.sh
 #
-# NOTE: default user u57u password 1234 (device-lab convention).
-# Change it on first boot: passwd u57u.
+# NOTE: default user/password come from sirius-device.sh (SIRIUS_USER /
+# SIRIUS_PASS, device-lab convention). Change the password on first boot.
 set -e
 DISTRO="$(cd "$(dirname "$0")/.." && pwd)"
 DSP_BIN=$DISTRO/rootfs/dsp-bin
@@ -40,27 +40,27 @@ set -e
 export DEBIAN_FRONTEND=noninteractive
 apt-get update
 apt-get install -y sudo openssh-server triggerhappy gnome-core gdm3 firmware-atheros firmware-qcom-soc network-manager nano wpasupplicant bluez mesa-vulkan-drivers rmtfs tqftpserv qrtr-tools wireless-tools systemd-timesyncd util-linux-extra e2fsprogs
-useradd -m -u 1000 -U -G sudo -s /bin/bash u57u || true
-echo "u57u:1234" | chpasswd
-printf "u57u ALL=(ALL) NOPASSWD:ALL\n" > /etc/sudoers.d/u57u
-chmod 0440 /etc/sudoers.d/u57u
-usermod -aG video,render,input u57u || true
+useradd -m -u 1000 -U -G sudo -s /bin/bash "$SIRIUS_USER" || true
+echo "$SIRIUS_USER:$SIRIUS_PASS" | chpasswd
+printf '%s ALL=(ALL) NOPASSWD:ALL\n' "$SIRIUS_USER" > /etc/sudoers.d/"$SIRIUS_USER"
+chmod 0440 /etc/sudoers.d/"$SIRIUS_USER"
+usermod -aG video,render,input "$SIRIUS_USER" || true
 ln -sf /usr/share/zoneinfo/Asia/Shanghai /etc/localtime
 echo "Asia/Shanghai" > /etc/timezone
 mkdir -p /etc/gdm3
-cat > /etc/gdm3/daemon.conf <<'EOF3'
+cat > /etc/gdm3/daemon.conf <<EOF3
 [daemon]
 AutomaticLoginEnable=True
-AutomaticLogin=u57u
+AutomaticLogin=$SIRIUS_USER
 EOF3
 systemctl enable ssh gdm systemd-networkd systemd-resolved rmtfs tqftpserv pd-mapper wifi-shutdown bluetooth bt-addr systemd-timesyncd NetworkManager triggerhappy sirius-bt-auto sirius-usb-bind.service sirius-wifi-auto.timer sirius-zram.service || true
 # Blank timing belongs to GNOME (idle-delay, user-adjustable); the real
 # backlight follows it via the --user hook below.
 # (Server flavor uses the Orbital built-in idle timer instead.
 # Triggerhappy key rules stay on this flavor.)
-mkdir -p /home/u57u/.config/systemd/user/graphical-session.target.wants
-ln -sf /etc/systemd/user/sirius-gnome-blank.service /home/u57u/.config/systemd/user/graphical-session.target.wants/sirius-gnome-blank.service
-chown -R u57u:u57u /home/u57u/.config
+mkdir -p /home/$SIRIUS_USER/.config/systemd/user/graphical-session.target.wants
+ln -sf /etc/systemd/user/sirius-gnome-blank.service /home/$SIRIUS_USER/.config/systemd/user/graphical-session.target.wants/sirius-gnome-blank.service
+chown -R "$SIRIUS_USER":"$SIRIUS_USER" /home/$SIRIUS_USER/.config
 # Power-key/idle policy comes from overlay (logind sirius-server.conf:
 # HandlePowerKey=ignore so triggerhappy owns the key, like server).
 # GNOME-side knobs only: never suspend, settings-daemon takes no action.

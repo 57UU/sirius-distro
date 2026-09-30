@@ -11,6 +11,13 @@
 
 
 
+# Default device user baked into every flavor (device-lab convention).
+# Override at build time: sudo SIRIUS_USER=foo SIRIUS_PASS=bar ./build-server.sh
+# Exported so the quoted chroot heredocs in build-*.sh resolve them at runtime.
+SIRIUS_USER=${SIRIUS_USER:-u57u}
+SIRIUS_PASS=${SIRIUS_PASS:-1234}
+export SIRIUS_USER SIRIUS_PASS
+
 # Common device base for every flavor. Static files live in rootfs/overlay/
 # (edit there, not here); this only copies them in, fixes exec bits, and
 # creates the rmtfs partlabel symlinks (kept in code so re-bakes always
@@ -22,12 +29,21 @@ sirius_overlay() {
   cp -a $OVERLAY/. $R/
   cp -f $DSP_BIN/pd-mapper $R/usr/local/bin/pd-mapper
   chmod 755 $R/usr/local/bin/pd-mapper
-  chmod 755 $R/usr/local/sbin/sirius-screen $R/usr/local/sbin/sirius-remodeset $R/usr/local/sbin/sirius-bt-auto $R/usr/local/sbin/sirius-wifi-add $R/usr/local/sbin/safe-reboot $R/usr/local/bin/wifi-shutdown $R/usr/local/sbin/sirius-gnome-blank $R/usr/local/sbin/sirius-otg $R/usr/local/sbin/sirius-usb-bind $R/usr/local/sbin/sirius-bt-addr
+  chmod 755 $R/usr/local/sbin/sirius-screen $R/usr/local/sbin/sirius-remodeset $R/usr/local/sbin/sirius-bt-auto $R/usr/local/sbin/sirius-wifi-add $R/usr/local/sbin/safe-reboot $R/usr/local/bin/wifi-shutdown $R/usr/local/sbin/sirius-gnome-blank $R/usr/local/sbin/sirius-otg $R/usr/local/sbin/sirius-usb-bind $R/usr/local/sbin/sirius-bt-addr $R/usr/local/sbin/sirius-wifi-auto $R/usr/local/sbin/sirius-zram
   mkdir -p $R/var/lib/rmtfs
   ln -sf /dev/disk/by-partlabel/modemst1 $R/var/lib/rmtfs/modem_fs1
   ln -sf /dev/disk/by-partlabel/modemst2 $R/var/lib/rmtfs/modem_fs2
   ln -sf /dev/disk/by-partlabel/fsc $R/var/lib/rmtfs/modem_fsc
   ln -sf /dev/disk/by-partlabel/fsg $R/var/lib/rmtfs/modem_fsg
+  # Empty authorized_keys for the default user (uid/gid fixed at 1000 in the
+  # build scripts) so a public key can be dropped in over ssh right after
+  # first boot. Runs outside chroot, so chown by number works before the user
+  # exists; useradd -m keeps the existing tree.
+  mkdir -p $R/home/$SIRIUS_USER/.ssh
+  : > $R/home/$SIRIUS_USER/.ssh/authorized_keys
+  chmod 700 $R/home/$SIRIUS_USER/.ssh
+  chmod 600 $R/home/$SIRIUS_USER/.ssh/authorized_keys
+  chown -h 1000:1000 $R/home/$SIRIUS_USER/.ssh $R/home/$SIRIUS_USER/.ssh/authorized_keys
 }
 
 # Old name kept as an alias (build scripts call sirius_overlay now).
