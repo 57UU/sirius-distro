@@ -1,0 +1,9 @@
+[Unit]
+Description=Sirius wifi auto-reconnect watchdog (one pass)
+After=NetworkManager.service
+Wants=NetworkManager.service
+
+[Service]
+Type=oneshot
+TimeoutStartSec=120
+ExecStart=/usr/local/sbin/sirius-wifi-auto
