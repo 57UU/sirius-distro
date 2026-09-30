@@ -63,7 +63,7 @@ ln -sf /usr/share/zoneinfo/Asia/Shanghai /etc/localtime
 echo "Asia/Shanghai" > /etc/timezone
 systemctl disable lightdm gdm display-manager 2>/dev/null || true
 systemctl set-default multi-user.target
-systemctl enable ssh systemd-networkd systemd-resolved rmtfs tqftpserv pd-mapper wifi-shutdown bluetooth bt-addr systemd-timesyncd NetworkManager triggerhappy sirius-bt-auto sirius-usb-bind.service sirius-wifi-auto.timer orbital || true
+systemctl enable ssh systemd-networkd systemd-resolved rmtfs tqftpserv pd-mapper wifi-shutdown bluetooth bt-addr systemd-timesyncd NetworkManager triggerhappy sirius-bt-auto sirius-usb-bind.service sirius-wifi-auto.timer sirius-zram.service orbital || true
 apt-get clean
 rm -f /etc/resolv.conf
 mv /etc/resolv.conf.srv-link /etc/resolv.conf

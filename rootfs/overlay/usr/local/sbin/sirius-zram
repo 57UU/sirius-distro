@@ -1,0 +1,47 @@
+#!/bin/sh
+# sirius-zram: zram swap with lz4 at 50% of RAM.
+#   sudo sirius-zram [start|stop|status]   (default: start)
+#   sudo systemctl enable --now sirius-zram.service
+# Layout: algo lz4, disksize = MemTotal/2, swap priority 100
+# (wins over any future disk swap). Compression streams auto-scale
+# with CPUs on this kernel (no max_comp_streams knob). swappiness untouched.
+DEV=/dev/zram0
+SYS=/sys/block/zram0
+TAG=sirius-zram
+
+log() { echo "$TAG: $1"; logger -t "$TAG" "$1" 2>/dev/null || true; }
+
+do_start() {
+  if swapon -s 2>/dev/null | grep -q "^$DEV "; then
+    log "$DEV already active"
+    exit 0
+  fi
+  modprobe zram num_devices=1
+  test -b "$DEV" || { log "$DEV missing"; exit 1; }
+  swapoff "$DEV" 2>/dev/null || true
+  echo 1 > "$SYS/reset" 2>/dev/null || true
+  echo lz4 > "$SYS/comp_algorithm"
+  MEM_KB=$(awk '/^MemTotal:/ {print $2}' /proc/meminfo)
+  echo $((MEM_KB / 2 * 1024)) > "$SYS/disksize"
+  mkswap -L zram0 "$DEV" >/dev/null
+  swapon -p 100 "$DEV"
+  log "on: algo=$(cat $SYS/comp_algorithm | tr ' ' '\n' | grep '^\[' | tr -d '[]') disksize=$(cat $SYS/disksize) bytes"
+}
+
+do_stop() {
+  swapoff "$DEV" 2>/dev/null || true
+  echo 1 > "$SYS/reset" 2>/dev/null || true
+  log "off"
+}
+
+do_status() {
+  zramctl "$DEV" 2>/dev/null || echo "$DEV not configured"
+  free -m | sed -n '1,3p'
+}
+
+case "${1:-start}" in
+  start) do_start ;;
+  stop) do_stop ;;
+  status) do_status ;;
+  *) echo "usage: $0 [start|stop|status]" 1>&2; exit 1 ;;
+esac

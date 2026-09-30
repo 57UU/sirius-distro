@@ -1,0 +1,13 @@
+[Unit]
+Description=Sirius zram swap (lz4, 50 percent of RAM)
+After=systemd-modules-load.service
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+TimeoutStartSec=30
+ExecStart=/usr/local/sbin/sirius-zram start
+ExecStop=/usr/local/sbin/sirius-zram stop
+
+[Install]
+WantedBy=multi-user.target
