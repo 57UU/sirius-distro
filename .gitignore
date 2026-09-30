@@ -18,7 +18,7 @@ kernel-dtb
 initrd.cpio.gz
 *.dtb
 
-workspace.md
+workspace/
 
 # ide
 .vscode/
