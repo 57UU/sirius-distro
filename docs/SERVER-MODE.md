@@ -41,16 +41,15 @@ logind：    HandlePowerKey=ignore（按键归 Orbital，
 ```text
 overlay/usr/local/sbin/  sirius-screen sirius-remodeset（救援用）
                          sirius-bt-auto sirius-wifi-add
-overlay/etc/systemd/system/  orbital triggerhappy
-                         .service.d/sirius-root.conf（thd 必须 root）
-overlay/etc/triggerhappy/triggers.d/sirius-power.conf（gnome 口味保留；server 构建时删除，按键归 Orbital）
+overlay/etc/systemd/system/  orbital.service（server 专用）
+overlay/etc/systemd/logind.conf.d/sirius-server.conf（server：按键归 Orbital；gnome 构建时换成 sirius-gnome.conf：短按 lock→屏保→背光跟随）
 overlay/etc/systemd/logind.conf.d/sirius-server.conf
 overlay/etc/NetworkManager/conf.d/sirius-server.conf
-build-server.sh（另有 build-gnome.sh GNOME 桌面版：GNOME 计时归设置→电源→屏幕空白，电源键仍走 triggerhappy）
+build-server.sh（另有 build-gnome.sh GNOME 桌面版：计时归设置→电源→屏幕空白，电源键走 logind lock→GNOME 屏保（lock 不鉴权）→sirius-gnome-blank 背光跟随）
 src/sirius-remodeset.c（救援工具源码）
 ```
 
-手机包外单装：`triggerhappy evtest rfkill auditd kbd`
+手机包外单装：`evtest rfkill auditd kbd`
 （`build-server.sh` 已含；`libdrm-tests kmscube` 为调试工具，手动装）。
 
 ## 4. 验证记录（手机，2026-09-24/25）
@@ -72,7 +71,6 @@ OK  audit 进文件（auditd）；大字体 console 备用
   BT 实际靠 BlueZ AutoEnable 已 UP。
 - fb paper-state / dpms 节点不可信；fb blank 写 EIO（设计已绕开，
   平时根本不碰显示管线）。
-- thd 默认 nobody，必须 root drop-in，否则按键脚本无权限（踩过）。
 - 电源与息屏归 Orbital 内建；sirius-screen 只留手动救援（ssh 上跑 on/off/toggle）。
 ```
 

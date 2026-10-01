@@ -1,9 +1,9 @@
 #!/bin/sh
 # sirius-gnome-blank: mirror GNOME blank state into the real panel backlight.
 # Timing belongs to GNOME (Settings -> Power -> Screen Blank -> idle-delay);
-# this hook only runs `sirius-screen auto-off` on ActiveChanged(true) and
-# `auto-on` on ActiveChanged(false). Both are state-guarded, so we never
-# fight triggerhappy's power-key toggle or volume/touch wake.
+# power key reaches the screensaver via logind lock.
+# This hook only runs `sirius-screen auto-off` on ActiveChanged(true) and
+# `auto-on` on ActiveChanged(false). Both are state-guarded.
 # Runs as a systemd --user unit (u57u); root backlight writes go through
 # sudo -n (NOPASSWD in this image).
 set -e

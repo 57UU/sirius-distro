@@ -36,10 +36,8 @@ rm -f $R/usr/bin/qemu-aarch64-static
 sirius_netconf
 sirius_apt_mirror
 sirius_overlay
-# Orbital owns idle auto-off + power/volume/touch keys now (built-in idle timer).
-# Drop the triggerhappy key rules on this flavor so thd never fights Orbital
-# (gnome flavor keeps them: no Orbital there). sirius-screen stays as manual rescue.
-rm -f $R/etc/triggerhappy/triggers.d/sirius-power.conf
+# Server flavor: Orbital owns idle auto-off + power/volume/touch keys
+# (built-in idle timer). sirius-screen stays as manual rescue.
 mkdir -p $R/opt/orbital
 cp -f $ORBITAL_PKG/Orbital $ORBITAL_PKG/run.sh $R/opt/orbital/
 chmod 755 $R/opt/orbital/Orbital $R/opt/orbital/run.sh
@@ -48,7 +46,7 @@ chroot $R /bin/bash <<'CHROOT_EOF'
 set -e
 export DEBIAN_FRONTEND=noninteractive
 apt-get update
-apt-get install -y triggerhappy evtest rfkill auditd kbd e2fsprogs bluez sudo openssh-server network-manager nano wpasupplicant rmtfs tqftpserv qrtr-tools wireless-tools systemd-timesyncd util-linux-extra
+apt-get install -y evtest rfkill auditd kbd e2fsprogs bluez sudo openssh-server network-manager nano wpasupplicant rmtfs tqftpserv qrtr-tools wireless-tools systemd-timesyncd util-linux-extra
 apt-get install -y qml6-module-qtquick-controls qml6-module-qtquick-layouts qml6-module-qtquick-shapes qml6-module-qtquick-window qt6-svg-plugins libgl1 libegl1 libgles2 libgl1-mesa-dri libegl-mesa0
 apt-get purge -y lightdm lightdm-gtk-greeter xfce4 network-manager-gnome blueman mesa-vulkan-drivers || true
 apt-get autoremove --purge -y || true
@@ -63,7 +61,7 @@ ln -sf /usr/share/zoneinfo/Asia/Shanghai /etc/localtime
 echo "Asia/Shanghai" > /etc/timezone
 systemctl disable lightdm gdm display-manager 2>/dev/null || true
 systemctl set-default multi-user.target
-systemctl enable ssh systemd-networkd systemd-resolved rmtfs tqftpserv pd-mapper wifi-shutdown bluetooth bt-addr systemd-timesyncd NetworkManager triggerhappy sirius-bt-auto sirius-usb-bind.service sirius-wifi-auto.timer sirius-zram.service orbital || true
+systemctl enable ssh systemd-networkd systemd-resolved rmtfs tqftpserv pd-mapper wifi-shutdown bluetooth bt-addr systemd-timesyncd NetworkManager sirius-bt-auto sirius-usb-bind.service sirius-wifi-auto.timer sirius-zram.service orbital || true
 apt-get clean
 rm -f /etc/resolv.conf
 mv /etc/resolv.conf.srv-link /etc/resolv.conf

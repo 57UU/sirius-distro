@@ -34,12 +34,26 @@ rm -f $R/usr/bin/qemu-aarch64-static
 sirius_overlay
 sirius_netconf
 sirius_apt_mirror
+# Idle + power key are native GNOME/logind on this flavor. Give logind the
+# GNOME key policy: short-press power = lock -> screensaver blank ->
+# sirius-gnome-blank cuts backlight (lock asks no password, see gschema
+# below, so any input wakes); long-press = poweroff. Touch/volume wake by
+# resetting GNOME idle like a normal desktop.
+rm -f $R/etc/systemd/logind.conf.d/sirius-server.conf
+cat > $R/etc/systemd/logind.conf.d/sirius-gnome.conf <<'EOF2'
+[Login]
+HandlePowerKey=lock
+HandlePowerKeyLongPress=poweroff
+HandleLidSwitch=ignore
+HandleLidSwitchDocked=ignore
+IdleAction=ignore
+EOF2
 sirius_chroot_begin
 chroot $R /bin/bash <<'CHROOT_EOF'
 set -e
 export DEBIAN_FRONTEND=noninteractive
 apt-get update
-apt-get install -y sudo openssh-server triggerhappy gnome-core gdm3 firmware-atheros firmware-qcom-soc network-manager nano wpasupplicant bluez mesa-vulkan-drivers rmtfs tqftpserv qrtr-tools wireless-tools systemd-timesyncd util-linux-extra e2fsprogs
+apt-get install -y sudo openssh-server gnome-core gdm3 firmware-atheros firmware-qcom-soc network-manager nano wpasupplicant bluez mesa-vulkan-drivers rmtfs tqftpserv qrtr-tools wireless-tools systemd-timesyncd util-linux-extra e2fsprogs
 useradd -m -u 1000 -U -G sudo -s /bin/bash "$SIRIUS_USER" || true
 echo "$SIRIUS_USER:$SIRIUS_PASS" | chpasswd
 printf '%s ALL=(ALL) NOPASSWD:ALL\n' "$SIRIUS_USER" > /etc/sudoers.d/"$SIRIUS_USER"
@@ -53,17 +67,17 @@ cat > /etc/gdm3/daemon.conf <<EOF3
 AutomaticLoginEnable=True
 AutomaticLogin=$SIRIUS_USER
 EOF3
-systemctl enable ssh gdm systemd-networkd systemd-resolved rmtfs tqftpserv pd-mapper wifi-shutdown bluetooth bt-addr systemd-timesyncd NetworkManager triggerhappy sirius-bt-auto sirius-usb-bind.service sirius-wifi-auto.timer sirius-zram.service || true
-# Blank timing belongs to GNOME (idle-delay, user-adjustable); the real
-# backlight follows it via the --user hook below.
-# (Server flavor uses the Orbital built-in idle timer instead.
-# Triggerhappy key rules stay on this flavor.)
+systemctl enable ssh gdm systemd-networkd systemd-resolved rmtfs tqftpserv pd-mapper wifi-shutdown bluetooth bt-addr systemd-timesyncd NetworkManager sirius-bt-auto sirius-usb-bind.service sirius-wifi-auto.timer sirius-zram.service || true
+# Blank timing AND power key belong to GNOME/logind on this flavor
+# (server uses the Orbital built-in timer instead).
+# The real backlight follows the screensaver via the --user hook below;
+# idle timeout stays user-adjustable (Settings -> Power -> Screen Blank).
 mkdir -p /home/$SIRIUS_USER/.config/systemd/user/graphical-session.target.wants
 ln -sf /etc/systemd/user/sirius-gnome-blank.service /home/$SIRIUS_USER/.config/systemd/user/graphical-session.target.wants/sirius-gnome-blank.service
 chown -R "$SIRIUS_USER":"$SIRIUS_USER" /home/$SIRIUS_USER/.config
-# Power-key/idle policy comes from overlay (logind sirius-server.conf:
-# HandlePowerKey=ignore so triggerhappy owns the key, like server).
-# GNOME-side knobs only: never suspend, settings-daemon takes no action.
+# Logind policy is sirius-gnome.conf (written above, replaces the overlay server one).
+# GNOME-side knobs only: never suspend, never demand unlock password,
+# settings-daemon takes no power-button action (logind owns the key).
 systemctl mask suspend.target hibernate.target hybrid-sleep.target suspend-then-hibernate.target
 cat > /usr/share/glib-2.0/schemas/90-sirius-power.gschema.override <<'EOF3'
 [org.gnome.settings-daemon.plugins.power]
@@ -72,6 +86,11 @@ sleep-inactive-ac-type="nothing"
 sleep-inactive-battery-type="nothing"
 [org.gnome.desktop.session]
 idle-delay=uint32 120
+[org.gnome.desktop.screensaver]
+# Power key = logind lock, so the blank must not ask for
+# a password (same no-auth toggle semantics as before; any input wakes).
+lock-enabled=false
+idle-activation-enabled=true
 EOF3
 glib-compile-schemas /usr/share/glib-2.0/schemas/
 apt-get clean
