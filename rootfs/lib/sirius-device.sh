@@ -26,12 +26,12 @@ export SIRIUS_USER SIRIUS_PASS
 sirius_overlay() {
   OVERLAY=${OVERLAY:-$DISTRO/rootfs/overlay}
   test -d $OVERLAY || { echo "missing overlay $OVERLAY"; exit 1; }
-  cp -f $DSP_BIN/pd-mapper $R/usr/local/bin/pd-mapper
-  chmod 755 $R/usr/local/bin/pd-mapper
-  chmod 755 $R/usr/local/sbin/sirius-screen $R/usr/local/sbin/sirius-remodeset $R/usr/local/sbin/sirius-bt-auto $R/usr/local/sbin/sirius-wifi-add $R/usr/local/sbin/safe-reboot $R/usr/local/bin/wifi-shutdown $R/usr/local/sbin/sirius-gnome-blank $R/usr/local/sbin/sirius-otg $R/usr/local/sbin/sirius-usb-bind $R/usr/local/sbin/sirius-bt-addr $R/usr/local/sbin/sirius-wifi-auto $R/usr/local/sbin/sirius-zram
   # Overlay checkout is user-owned; plain cp -a would stamp that owner onto every
   # shipped dir (phone / once ended up u57u, apt refused it). Copy as root instead.
   cp -a --no-preserve=ownership $OVERLAY/. $R/
+  cp -f $DSP_BIN/pd-mapper $R/usr/local/bin/pd-mapper
+  chmod 755 $R/usr/local/bin/pd-mapper
+  chmod 755 $R/usr/local/sbin/sirius-screen $R/usr/local/sbin/sirius-remodeset $R/usr/local/sbin/sirius-bt-auto $R/usr/local/sbin/sirius-wifi-add $R/usr/local/sbin/safe-reboot $R/usr/local/bin/wifi-shutdown $R/usr/local/sbin/sirius-gnome-blank $R/usr/local/sbin/sirius-otg $R/usr/local/sbin/sirius-usb-bind $R/usr/local/sbin/sirius-bt-addr $R/usr/local/sbin/sirius-wifi-auto $R/usr/local/sbin/sirius-zram
   mkdir -p $R/var/lib/rmtfs
   ln -sf /dev/disk/by-partlabel/modemst1 $R/var/lib/rmtfs/modem_fs1
   ln -sf /dev/disk/by-partlabel/modemst2 $R/var/lib/rmtfs/modem_fs2
