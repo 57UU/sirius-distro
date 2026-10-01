@@ -31,7 +31,6 @@ echo "=== server build start $(date) ==="
 mkdir -p $WORK
 rm -rf $R
 cp -a $SRC $R
-chown root:root $R  # tar stores the top dir owner; phone / once ended up u57u
 rm -f $R/etc/machine-id $R/var/lib/dbus/machine-id
 rm -f $R/usr/bin/qemu-aarch64-static
 sirius_netconf
@@ -47,7 +46,7 @@ chroot $R /bin/bash <<'CHROOT_EOF'
 set -e
 export DEBIAN_FRONTEND=noninteractive
 apt-get update
-apt-get install -y evtest rfkill auditd kbd e2fsprogs bluez sudo openssh-server network-manager nano wpasupplicant rmtfs tqftpserv qrtr-tools wireless-tools systemd-timesyncd util-linux-extra
+apt-get install -y evtest rfkill auditd kbd e2fsprogs bluez sudo openssh-server network-manager nano wpasupplicant rmtfs tqftpserv qrtr-tools wireless-tools systemd-timesyncd systemd-resolved util-linux-extra
 apt-get install -y qml6-module-qtquick-controls qml6-module-qtquick-layouts qml6-module-qtquick-shapes qml6-module-qtquick-window qt6-svg-plugins libgl1 libegl1 libgles2 libgl1-mesa-dri libegl-mesa0
 apt-get purge -y lightdm lightdm-gtk-greeter xfce4 network-manager-gnome blueman mesa-vulkan-drivers || true
 apt-get autoremove --purge -y || true

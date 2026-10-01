@@ -14,8 +14,8 @@ sysrq、wlan0 命名+固定 MAC、蓝牙 UART 自加载+固定地址、RNDIS usb
 以及息屏/电源键栈（见 docs/SERVER-MODE.md）：
 server 由 Orbital 内建 idle 计时 + 电源键处理（设置→Screen Off Time 可调）；
 gnome 用 `sirius-gnome-blank`（--user 服务）跟随 GNOME 屏保状态，计时以
-`org.gnome.desktop.session idle-delay` 为准（默认 120s，用户可在设置里改；
-设为从不则不自动息屏），电源键走 triggerhappy。mutter 的 blank 关不掉本机
+`org.gnome.desktop.session idle-delay` 为准（默认 120s，用户可在设置里改，
+设为从不则不自动息屏）。电源键短按经 logind 锁屏触发屏保，再由 sirius-gnome-blank 切背光（免密，任意输入唤醒），长按照旧关机。mutter 的 blank 关不掉本机
 DSI 背光（只画黑屏），所以 gnome 的跟随动作仍走 `sirius-screen` 切真背光
 （真机实测结论；server 上它只留手动救援）。
 

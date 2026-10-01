@@ -29,7 +29,6 @@ echo "=== gnome build start $(date) ==="
 mkdir -p $WORK
 rm -rf $R
 cp -a $SRC $R
-chown root:root $R  # tar stores the top dir owner; phone / once ended up u57u
 rm -f $R/etc/machine-id $R/var/lib/dbus/machine-id
 rm -f $R/usr/bin/qemu-aarch64-static
 sirius_overlay
@@ -54,7 +53,7 @@ chroot $R /bin/bash <<'CHROOT_EOF'
 set -e
 export DEBIAN_FRONTEND=noninteractive
 apt-get update
-apt-get install -y sudo openssh-server gnome-core gdm3 firmware-atheros firmware-qcom-soc network-manager nano wpasupplicant bluez mesa-vulkan-drivers rmtfs tqftpserv qrtr-tools wireless-tools systemd-timesyncd util-linux-extra e2fsprogs
+apt-get install -y sudo openssh-server gnome-core gdm3 firmware-atheros firmware-qcom-soc network-manager nano wpasupplicant bluez mesa-vulkan-drivers rmtfs tqftpserv qrtr-tools wireless-tools systemd-timesyncd systemd-resolved util-linux-extra e2fsprogs
 useradd -m -u 1000 -U -G sudo -s /bin/bash "$SIRIUS_USER" || true
 echo "$SIRIUS_USER:$SIRIUS_PASS" | chpasswd
 printf '%s ALL=(ALL) NOPASSWD:ALL\n' "$SIRIUS_USER" > /etc/sudoers.d/"$SIRIUS_USER"
