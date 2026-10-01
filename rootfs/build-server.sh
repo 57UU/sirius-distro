@@ -31,6 +31,7 @@ echo "=== server build start $(date) ==="
 mkdir -p $WORK
 rm -rf $R
 cp -a $SRC $R
+chown root:root $R  # tar stores the top dir owner; phone / once ended up u57u
 rm -f $R/etc/machine-id $R/var/lib/dbus/machine-id
 rm -f $R/usr/bin/qemu-aarch64-static
 sirius_netconf
