@@ -43,6 +43,8 @@ sirius_overlay() {
   # exists; useradd -m keeps the existing tree.
   mkdir -p $R/home/$SIRIUS_USER/.ssh
   : > $R/home/$SIRIUS_USER/.ssh/authorized_keys
+  chmod 755 $R/home/$SIRIUS_USER
+  chown 1000:1000 $R/home/$SIRIUS_USER
   chmod 700 $R/home/$SIRIUS_USER/.ssh
   chmod 600 $R/home/$SIRIUS_USER/.ssh/authorized_keys
   chown -h 1000:1000 $R/home/$SIRIUS_USER/.ssh $R/home/$SIRIUS_USER/.ssh/authorized_keys
