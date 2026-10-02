@@ -57,9 +57,9 @@ fastboot flash userdata xxxxx.simg
 | CPU         | Working |
 | GPU         | Working |
 | eMMC        | Working |
-| USB         | Partial |
+| USB         | Partial, auto mode is partially implemented in userspace |
 | Bluetooth   | Working |
-| WiFi        | Working |
+| WiFi        | Working, but the signal is weak (5GHz) |
 | Thermal     | Working |
 | Touchscreen | Working |
 | Battery     | Working |
