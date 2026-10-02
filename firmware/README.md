@@ -11,7 +11,7 @@
 | pyxis-dsp/ | adsp/cdsp/venus/ipa/mba/modem/qdsp6m/wlanmdsp | 待定,先别装(仅GPU已验证) | 同上pyxis包,供音频/视频/modem立项用 |
 | ath10k/board-2.bin.pyxis | pyxis校准BDF 26K | 暂不装!上游注释说装了WiFi崩 | 同上pyxis包calib_data,仅参考 |
 
-校验: MANIFEST.sha256 (本目录)。
+校验：暂无集中清单（MANIFEST.sha256 已删除），今后固件增减直接改本表。
 注意: modem.mbn 58M为完整基带,仅存档,不要乱刷。
 | ath10k/board-2.bin.sirius | sirius自制board-2.bin 704K(28条目) | /lib/firmware/ath10k/WCN3990/hw1.0/board-2.bin (已装机,原文件备份为board-2.bin.debian-orig) | ath10k-bdencoder(qca-swiss-army-knife)用modem分区原厂bdwlan生成,含variant=xiaomi_sirius,2026-09-18 |
 | ath10k/firmware-5.bin.WCN3990 | WCN3990主固件索引 60B, md5 d16e3444... | /lib/firmware/ath10k/WCN3990/hw1.0/firmware-5.bin (缺它则ath10k_snoc bind后无wlan0) | Debian trixie firmware-atheros 20250410-2 |

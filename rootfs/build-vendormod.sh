@@ -60,7 +60,7 @@ check_md5 $FW/ath10k/WCN3990/hw1.0/wlanmdsp.mbn 259b4f9e4aef57a5051f27a201653262
 check_md5 $FW/qcom/a630_sqe.fw 9f2540d789d9fd4699a566d97fcabded
 check_md5 $FW/qcom/a630_gmu.bin ab20135f7adf48e0f344282a37da80e4
 check_md5 $FW/qca/crnv21.bin 3947c734ced07630d9c2c4ba48f72157
-check_md5 $FW/ath10k/WCN3990/hw1.0/board-2.bin 4002bddb9476f322754405ccf284eda3
+check_md5 $FW/ath10k/WCN3990/hw1.0/board-2.bin 63bb8000fe1f64cdecee79076c6d5bc0
 check_md5 $FW/qca/crbtfw21.tlv a590087df8f7ba34053956e9b5243bc9
 
 echo "=== mkfs $OUT ($IMG_SIZE) ==="

@@ -59,7 +59,7 @@ fastboot flash userdata xxxxx.simg
 | eMMC        | Working |
 | USB         | Partial, auto mode is partially implemented in userspace |
 | Bluetooth   | Working |
-| WiFi        | Working, but the signal is weak (5GHz) |
+| WiFi        | Working* |
 | Thermal     | Working |
 | Touchscreen | Working |
 | Battery     | Working |
@@ -69,6 +69,7 @@ fastboot flash userdata xxxxx.simg
 
 USB 自动切换目前有缺陷：普通线连电脑走 gadget 网卡，OTG 线接外设走 host；部分线材可能要翻面插才认得出来。详情见 docs/USB-HOST-FIX.md，切换一律用 sirius-otg。
 
+*: 5GHz WiFi 在开启帧保护后，会造成IO缓慢、延迟增大，详情见`docs/WIFI-5G-BDF-MFP.md`。
 ## 自制服务速查（`/usr/local/sbin`，需 root）
 
 ```bash
