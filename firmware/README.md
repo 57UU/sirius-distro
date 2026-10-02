@@ -23,3 +23,6 @@
 | acdb/adsp_avs_config.acdb | AVS配置 700B | 随 dsp-adsp/ 进 pyxis/adsp/ | stock vendor etc/acdbdata/ 原样 |
 | dsp-adsp/ | ADSP用户态 36文件+avs配置（已剔除相机/计算/lowi/testapp及map清单） | /lib/firmware/qcom/sdm710/pyxis/adsp/ (adsprpcd ADSP_LIBRARY_PATH) | 手机dsp分区原样拷出 + stock avs_config |
 | rfsa-adsp/ | stock rfsa sensor/BT音频 23文件 | 同上 pyxis/adsp/ (联合装机共60文件) | vendor/lib/rfsa/adsp/ 原样 |
+| tas2557/tas2557_uCDSP.bin | 功放DSP固件 23K (PPC SmartAmp) | /lib/firmware/tas2557_uCDSP.bin (缺则enable失败) | stock vendor V12.5.1.0 aac/goer版md5相同 |
+| tas2557/tas2557_cal.bin.sirius | 本机喇叭出厂校准 442B (AAC, Re=6.69) | /lib/firmware/ti/tas2557/tas2557_cal.bin (可选) | 手机persist分区audio/原样 |
+| tas2557/tas2557_cal.txt.sirius + tas2557_chk.txt.sirius | 出厂校准报告 (F0=875.43/Q=1.49) | 参考不装机 | 同上persist原样 |

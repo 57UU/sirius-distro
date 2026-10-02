@@ -50,7 +50,10 @@ cp -rf $FIRMWARE/dsp-adsp/. $FW/qcom/sdm710/pyxis/adsp/
 cp -rf $FIRMWARE/rfsa-adsp/. $FW/qcom/sdm710/pyxis/adsp/
 cp -f $FIRMWARE/acdb/Forte_Global_cal.acdb $FW/qcom/sdm710/pyxis/Global_cal.acdb
 cp -f $FIRMWARE/acdb/Forte/*.acdb $FW/qcom/sdm710/sirius/
-chmod 644 $FW/qcom/sdm710/pyxis/Global_cal.acdb $FW/qcom/sdm710/sirius/*.acdb
+cp -f $FIRMWARE/tas2557/tas2557_uCDSP.bin $FW/tas2557_uCDSP.bin
+mkdir -p $FW/ti/tas2557
+cp -f $FIRMWARE/tas2557/tas2557_cal.bin.sirius $FW/ti/tas2557/tas2557_cal.bin
+chmod 644 $FW/qcom/sdm710/pyxis/Global_cal.acdb $FW/qcom/sdm710/sirius/*.acdb $FW/tas2557_uCDSP.bin $FW/ti/tas2557/tas2557_cal.bin
 cp -rf $FIRMWARE/pyxis-phone/. $FW/qcom/sdm710/pyxis/
 cp -f $FIRMWARE/ath10k/board-2.bin.sirius $FW/ath10k/WCN3990/hw1.0/board-2.bin
 cp -f $FIRMWARE/ath10k/firmware-5.bin.WCN3990 $FW/ath10k/WCN3990/hw1.0/firmware-5.bin

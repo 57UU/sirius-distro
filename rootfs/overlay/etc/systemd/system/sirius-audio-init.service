@@ -1,0 +1,12 @@
+[Unit]
+Description=Sirius speaker route init (UCM HiFi/Speaker)
+After=sound.target
+ConditionPathExists=/usr/share/alsa/ucm2/SE/SE.conf
+
+[Service]
+Type=oneshot
+ExecStart=/usr/bin/alsaucm -c SE set _verb HiFi set _enadev Speaker
+RemainAfterExit=yes
+
+[Install]
+WantedBy=multi-user.target
