@@ -45,6 +45,12 @@ mkdir -p $FW/qcom/sdm710/pyxis $FW/qcom $FW/ath10k/WCN3990/hw1.0 $FW/qca
 cp -f $FIRMWARE/gpu/a615_zap.mbn $FW/qcom/sdm710/pyxis/a615_zap.mbn
 cp -f $FIRMWARE/gpu/a630_sqe.fw $FIRMWARE/gpu/a630_gmu.bin $FW/qcom/
 cp -f $FIRMWARE/touch/st_fts_v521.ftb $FW/st_fts_v521.ftb
+mkdir -p $FW/qcom/sdm710/pyxis/adsp $FW/qcom/sdm710/sirius
+cp -rf $FIRMWARE/dsp-adsp/. $FW/qcom/sdm710/pyxis/adsp/
+cp -rf $FIRMWARE/rfsa-adsp/. $FW/qcom/sdm710/pyxis/adsp/
+cp -f $FIRMWARE/acdb/Forte_Global_cal.acdb $FW/qcom/sdm710/pyxis/Global_cal.acdb
+cp -f $FIRMWARE/acdb/Forte/*.acdb $FW/qcom/sdm710/sirius/
+chmod 644 $FW/qcom/sdm710/pyxis/Global_cal.acdb $FW/qcom/sdm710/sirius/*.acdb
 cp -rf $FIRMWARE/pyxis-phone/. $FW/qcom/sdm710/pyxis/
 cp -f $FIRMWARE/ath10k/board-2.bin.sirius $FW/ath10k/WCN3990/hw1.0/board-2.bin
 cp -f $FIRMWARE/ath10k/firmware-5.bin.WCN3990 $FW/ath10k/WCN3990/hw1.0/firmware-5.bin

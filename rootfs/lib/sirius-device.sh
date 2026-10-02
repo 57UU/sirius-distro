@@ -31,6 +31,16 @@ sirius_overlay() {
   cp -a --no-preserve=ownership $OVERLAY/. $R/
   cp -f $DSP_BIN/pd-mapper $R/usr/local/bin/pd-mapper
   chmod 755 $R/usr/local/bin/pd-mapper
+  cp -f $DSP_BIN/adsprpcd $R/usr/local/bin/adsprpcd
+  chmod 755 $R/usr/local/bin/adsprpcd
+  mkdir -p $R/usr/local/lib
+  cp -f $DSP_BIN/libadsp_default_listener.so.1.0.0 $DSP_BIN/libadsprpc.so.1.0.0 $DSP_BIN/libyaml-0.so.2.0.9 $R/usr/local/lib/
+  chmod 644 $R/usr/local/lib/libadsp_default_listener.so.1.0.0 $R/usr/local/lib/libadsprpc.so.1.0.0 $R/usr/local/lib/libyaml-0.so.2.0.9
+  ln -sf libadsp_default_listener.so.1.0.0 $R/usr/local/lib/libadsp_default_listener.so.1
+  ln -sf libadsp_default_listener.so.1 $R/usr/local/lib/libadsp_default_listener.so
+  ln -sf libadsprpc.so.1.0.0 $R/usr/local/lib/libadsprpc.so.1
+  ln -sf libadsprpc.so.1 $R/usr/local/lib/libadsprpc.so
+  ln -sf libyaml-0.so.2.0.9 $R/usr/local/lib/libyaml-0.so.2
   chmod 755 $R/usr/local/sbin/sirius-screen $R/usr/local/sbin/sirius-remodeset $R/usr/local/sbin/sirius-bt-auto $R/usr/local/sbin/sirius-wifi-add $R/usr/local/sbin/safe-reboot $R/usr/local/bin/wifi-shutdown $R/usr/local/sbin/sirius-gnome-blank $R/usr/local/sbin/sirius-otg $R/usr/local/sbin/sirius-usb-bind $R/usr/local/sbin/sirius-bt-addr $R/usr/local/sbin/sirius-wifi-auto $R/usr/local/sbin/sirius-zram
   mkdir -p $R/var/lib/rmtfs
   ln -sf /dev/disk/by-partlabel/modemst1 $R/var/lib/rmtfs/modem_fs1

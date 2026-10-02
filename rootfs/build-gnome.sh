@@ -53,7 +53,7 @@ chroot $R /bin/bash <<'CHROOT_EOF'
 set -e
 export DEBIAN_FRONTEND=noninteractive
 apt-get update
-apt-get install -y sudo openssh-server gnome-core gdm3 firmware-atheros firmware-qcom-soc network-manager nano wpasupplicant bluez mesa-vulkan-drivers rmtfs tqftpserv qrtr-tools wireless-tools systemd-timesyncd systemd-resolved util-linux-extra e2fsprogs
+apt-get install -y sudo openssh-server gnome-core gdm3 firmware-atheros firmware-qcom-soc network-manager nano wpasupplicant bluez mesa-vulkan-drivers rmtfs tqftpserv qrtr-tools libbsd0 wireless-tools systemd-timesyncd systemd-resolved util-linux-extra e2fsprogs
 useradd -m -u 1000 -U -G sudo -s /bin/bash "$SIRIUS_USER" || true
 echo "$SIRIUS_USER:$SIRIUS_PASS" | chpasswd
 printf '%s ALL=(ALL) NOPASSWD:ALL\n' "$SIRIUS_USER" > /etc/sudoers.d/"$SIRIUS_USER"
@@ -67,7 +67,7 @@ cat > /etc/gdm3/daemon.conf <<EOF3
 AutomaticLoginEnable=True
 AutomaticLogin=$SIRIUS_USER
 EOF3
-systemctl enable ssh gdm systemd-networkd systemd-resolved rmtfs tqftpserv pd-mapper wifi-shutdown bluetooth bt-addr systemd-timesyncd NetworkManager sirius-bt-auto sirius-usb-bind.service sirius-wifi-auto.timer sirius-zram.service || true
+systemctl enable ssh gdm systemd-networkd systemd-resolved rmtfs tqftpserv pd-mapper adsprpcd-rootpd adsprpcd-audiopd adsprpcd-sensorspd wifi-shutdown bluetooth bt-addr systemd-timesyncd NetworkManager sirius-bt-auto sirius-usb-bind.service sirius-wifi-auto.timer sirius-zram.service || true
 # Blank timing AND power key belong to GNOME/logind on this flavor
 # (server uses the Orbital built-in timer instead).
 # The real backlight follows the screensaver via the --user hook below;
@@ -93,6 +93,7 @@ lock-enabled=false
 idle-activation-enabled=true
 EOF3
 glib-compile-schemas /usr/share/glib-2.0/schemas/
+ldconfig
 apt-get clean
 rm -f /etc/resolv.conf
 mv /etc/resolv.conf.srv-link /etc/resolv.conf
@@ -101,3 +102,4 @@ CHROOT_EOF
 sirius_chroot_end
 echo "=== gnome build done $(date) ==="
 du -sh $R
+

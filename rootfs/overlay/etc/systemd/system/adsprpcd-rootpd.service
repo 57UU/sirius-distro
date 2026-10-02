@@ -1,0 +1,13 @@
+[Unit]
+Description=Qualcomm ADSP RPC daemon (root PD listener)
+After=qrtr-ns.service pd-mapper.service tqftpserv.service
+Wants=qrtr-ns.service
+
+[Service]
+Environment=ADSP_LIBRARY_PATH=/usr/lib/firmware/qcom/sdm710/pyxis/adsp
+ExecStart=/usr/local/bin/adsprpcd
+Restart=always
+RestartSec=3
+
+[Install]
+WantedBy=multi-user.target

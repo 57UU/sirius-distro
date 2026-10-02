@@ -18,3 +18,8 @@
 | ath10k/wlanmdsp.mbn.WCN3990 | WCN3990主固件 3.7M, md5 259b4f9e... | /lib/firmware/ath10k/WCN3990/hw1.0/wlanmdsp.mbn | 同上 |
 | qca/crnv21.bin.sirius | QCA BT NVM 4587B，tag2烤BD 02:57:55:08:5E:02，md5 3947c734... | /lib/firmware/qca/crnv21.bin（此前rm掉，缺省地址5A:AD且mgmt写不上；此NVM开机即带地址） | linux-firmware原版crnv21改tag2字节 |
 | ath10k/sirius-bdwlan/ | 原厂WLAN校准35个(bdwlan.*/bdf_*.bin) | 同上生成用料,不直接装机 | 手机modem分区image/原样拷出,2026-09-18 |
+| acdb/Forte_Global_cal.acdb | 音频全局校准 26K | /lib/firmware/qcom/sdm710/pyxis/Global_cal.acdb (DT qcom,acdb-name 指定, q6core必需) | stock vendor V11.0.1.0 / AndroidBlobs sirius-user-9-9.8.22 |
+| acdb/Forte/ | 原厂ACDB全套 (含Speaker/Handset/Headset) | /lib/firmware/qcom/sdm710/sirius/ (预留) | stock vendor etc/acdbdata/Forte/ 原样 |
+| acdb/adsp_avs_config.acdb | AVS配置 700B | 随 dsp-adsp/ 进 pyxis/adsp/ | stock vendor etc/acdbdata/ 原样 |
+| dsp-adsp/ | ADSP用户态 36文件+avs配置（已剔除相机/计算/lowi/testapp及map清单） | /lib/firmware/qcom/sdm710/pyxis/adsp/ (adsprpcd ADSP_LIBRARY_PATH) | 手机dsp分区原样拷出 + stock avs_config |
+| rfsa-adsp/ | stock rfsa sensor/BT音频 23文件 | 同上 pyxis/adsp/ (联合装机共60文件) | vendor/lib/rfsa/adsp/ 原样 |
