@@ -82,6 +82,14 @@ sirius_overlay() {
   # first boot. Runs outside chroot, so chown by number works before the user
   # exists; useradd -m keeps the existing tree.
   mkdir -p $R/home/$SIRIUS_USER/.ssh
+  # Builds never run useradd -m on a home that already exists here,
+  # so seed every skel entry for a normal interactive login
+  # (Debian color prompt, aliases, logout handling).
+  for f in $R/etc/skel/.[!.]* $R/etc/skel/*; do
+    test -e "$f" || continue
+    cp -a "$f" $R/home/$SIRIUS_USER/
+    chown 1000:1000 $R/home/$SIRIUS_USER/"$(basename "$f")"
+  done
   : > $R/home/$SIRIUS_USER/.ssh/authorized_keys
   chmod 755 $R/home/$SIRIUS_USER
   chown 1000:1000 $R/home/$SIRIUS_USER
