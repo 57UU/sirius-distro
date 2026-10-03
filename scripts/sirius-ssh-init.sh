@@ -1,13 +1,14 @@
 #!/bin/bash
 # sirius-ssh-init.sh: password-login once, install local pubkey for future key auth.
 # Run in WSL (needs sshpass). Usage:
-#   ./sirius-ssh-init.sh [user@host]   (default u57u@192.168.7.102)
-# Env: SIRIUS_USER / SIRIUS_PASS / SIRIUS_PUBKEY / SIRIUS_SSH
+#   ./sirius-ssh-init.sh user@host pubkey
+# Env: SIRIUS_USER / SIRIUS_PASS (or SIRIUS_SSH / SIRIUS_PUBKEY instead of args)
 set -e
-TARGET="${1:-${SIRIUS_SSH:-u57u@192.168.7.102}}"
+TARGET="${1:-${SIRIUS_SSH:-}}"
+PUBKEY="${2:-${SIRIUS_PUBKEY:-}}"
+if [ -z "$TARGET" ] || [ -z "$PUBKEY" ]; then echo "usage: $0 user@host pubkey" >&2; exit 1; fi
 USER="${SIRIUS_USER:-u57u}"
 PASS="${SIRIUS_PASS:-1234}"
-PUBKEY="${SIRIUS_PUBKEY:-/mnt/c/Users/Administrator/.ssh/id_rsa.pub}"
 test -f "$PUBKEY" || { echo "missing pubkey $PUBKEY"; exit 1; }
 SSH_OPTS="-o StrictHostKeyChecking=no -o ConnectTimeout=8"
 echo "=== password login test: $TARGET"
