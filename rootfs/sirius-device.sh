@@ -5,7 +5,7 @@
 #   FIRMWARE  $DISTRO/firmware
 #   DSP_BIN   $DISTRO/rootfs/dsp-bin
 #   Kernel modules + firmware live in the vendor-partition store
-#   (rootfs/build-vendormod.sh), not in the rootfs tree.
+#   (kernel/build-vendormod.sh), not in the rootfs tree.
 # Flavor-specific bits (desktop packages, DM login, service enables)
 # stay in each build-*.sh chroot section.
 
@@ -17,6 +17,18 @@
 SIRIUS_USER=${SIRIUS_USER:-u57u}
 SIRIUS_PASS=${SIRIUS_PASS:-1234}
 export SIRIUS_USER SIRIUS_PASS
+
+# Shared audio bring-up (docs/AUDIO-BRINGUP.md §6): every flavor needs the full
+# ALSA userspace (aplay/amixer/alsaucm from alsa-utils, UCM data from
+# alsa-ucm-conf) and the default user in the audio group (/dev/snd is
+# root:audio 660; without it plain `aplay -l` says no soundcards while root
+# still sees SE). Exported so the quoted chroot heredocs in build-*.sh
+# resolve them at runtime (same mechanism as SIRIUS_USER/SIRIUS_PASS).
+# Service enables stay per-flavor: each build-*.sh enable list must still
+# include sirius-audio-init (UCM HiFi/Speaker route at boot).
+SIRIUS_GROUPS=${SIRIUS_GROUPS:-video,audio,render,input}
+SIRIUS_AUDIO_PKGS=${SIRIUS_AUDIO_PKGS:-"alsa-utils alsa-ucm-conf"}
+export SIRIUS_GROUPS SIRIUS_AUDIO_PKGS
 
 # Common device base for every flavor. Static files live in rootfs/overlay/
 # (edit there, not here); this only copies them in, fixes exec bits, and

@@ -1,13 +1,13 @@
 #!/bin/bash
 # Build Debian trixie server rootfs for xiaomi-sirius (headless + Orbital).
 # Device base (WiFi/BT bake + screen/power stack) comes from overlay/
-# via lib/sirius-device.sh sirius_overlay (shared by all flavors);
+# via sirius-device.sh sirius_overlay (shared by all flavors);
 # this script only adds: /opt/orbital, Qt runtime, server enables.
 #
 # External inputs (fail fast if missing):
 #   SIRIUS_BASE  pristine debian-trixie arm64 tree (e.g. linuxcontainers rootfs)
 #   Kernel modules + firmware are NOT baked here; they live in the vendor-partition
-#   store built by rootfs/build-vendormod.sh (see docs/VENDORMOD-STORE.md).
+#   store built by kernel/build-vendormod.sh (see docs/VENDORMOD-STORE.md).
 #   SIRIUS_WORK  scratch/output dir for the tree (default: <distro>/work)
 # Run on an x86_64 Linux host with qemu-user + binfmt (needs sudo):
 #   sudo SIRIUS_BASE=/path/to/base ./build-server.sh
@@ -26,7 +26,7 @@ test -d $SRC || { echo "missing base tree $SRC"; exit 1; }
 test "$(stat -c %u "$SRC")" = 0 || { echo "extract SIRIUS_BASE as root (sudo tar -xpJf rootfs.tar.xz)"; exit 1; }
 test -d $OVERLAY || { echo "missing overlay $OVERLAY"; exit 1; }
 R=$WORK/debian-trixie-server
-. $DISTRO/rootfs/lib/sirius-device.sh
+. $DISTRO/rootfs/sirius-device.sh
 echo "=== server build start $(date) ==="
 mkdir -p $WORK
 rm -rf $R
@@ -46,7 +46,7 @@ chroot $R /bin/bash <<'CHROOT_EOF'
 set -e
 export DEBIAN_FRONTEND=noninteractive
 apt-get update
-apt-get install -y evtest rfkill auditd kbd e2fsprogs bluez sudo openssh-server network-manager nano wpasupplicant rmtfs tqftpserv qrtr-tools libbsd0 wireless-tools systemd-timesyncd systemd-resolved util-linux-extra
+apt-get install -y evtest rfkill auditd kbd e2fsprogs bluez sudo openssh-server network-manager nano wpasupplicant rmtfs tqftpserv qrtr-tools libbsd0 wireless-tools pipewire wireplumber $SIRIUS_AUDIO_PKGS systemd-timesyncd systemd-resolved util-linux-extra
 apt-get install -y qml6-module-qtquick-controls qml6-module-qtquick-layouts qml6-module-qtquick-shapes qml6-module-qtquick-window qt6-svg-plugins libgl1 libegl1 libgles2 libgl1-mesa-dri libegl-mesa0
 apt-get purge -y lightdm lightdm-gtk-greeter xfce4 network-manager-gnome blueman mesa-vulkan-drivers || true
 apt-get autoremove --purge -y || true
@@ -56,12 +56,12 @@ useradd -m -u 1000 -U -G sudo -s /bin/bash "$SIRIUS_USER" || true
 echo "$SIRIUS_USER:$SIRIUS_PASS" | chpasswd
 printf '%s ALL=(ALL) NOPASSWD:ALL\n' "$SIRIUS_USER" > /etc/sudoers.d/"$SIRIUS_USER"
 chmod 0440 /etc/sudoers.d/"$SIRIUS_USER"
-usermod -aG video,render,input "$SIRIUS_USER" || true
+usermod -aG "$SIRIUS_GROUPS" "$SIRIUS_USER" || true
 ln -sf /usr/share/zoneinfo/Asia/Shanghai /etc/localtime
 echo "Asia/Shanghai" > /etc/timezone
 systemctl disable lightdm gdm display-manager 2>/dev/null || true
 systemctl set-default multi-user.target
-systemctl enable ssh systemd-networkd systemd-resolved rmtfs tqftpserv pd-mapper adsprpcd-rootpd adsprpcd-audiopd adsprpcd-sensorspd wifi-shutdown bluetooth bt-addr systemd-timesyncd NetworkManager sirius-bt-auto sirius-usb-bind.service sirius-wifi-auto.timer sirius-zram.service orbital || true
+systemctl enable ssh systemd-networkd systemd-resolved rmtfs tqftpserv pd-mapper adsprpcd-rootpd adsprpcd-audiopd adsprpcd-sensorspd wifi-shutdown bluetooth bt-addr systemd-timesyncd NetworkManager sirius-bt-auto sirius-usb-bind.service sirius-wifi-auto.timer sirius-zram.service sirius-audio-init orbital || true
 ldconfig
 apt-get clean
 rm -f /etc/resolv.conf

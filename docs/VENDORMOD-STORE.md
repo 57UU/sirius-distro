@@ -37,7 +37,7 @@ lib/firmware/...          设备固件（映射关系见 rootfs/lib/sirius-devic
 
 ```bash
 # 远程构建机（内核树已编过）：
-./rootfs/build-vendormod.sh
+./kernel/build-vendormod.sh
 # 产物默认 build/vendormod.img（256M，gitignored；首刷开机由 initrd 自动扩到整个 vendor 分区），附 md5。
 
 # init 改过则重打 boot（Image.gz/dtb 先就位）：

@@ -1,4 +1,4 @@
-﻿# sirius USB host / 自供电修复手册
+# sirius USB host / 自供电修复手册
 
 > 2026-09-26 定稿，手机实测通过。对应上游 `57UU/linux-sirius`
 > `feat/sirius-7.2 @ 3606aa01`，boot 镜像
@@ -24,7 +24,7 @@
 +	dr_mode = "otg";
 ```
 
-补丁已合入上游 `feat/sirius-7.2 @ 3606aa01`（见 `kernel/` submodule）。
+补丁已合入上游 `feat/sirius-7.2 @ 3606aa01`（见 `kernel/linux-sirius` submodule）。
 当时为避免重编整个内核，用的是 dtb 热补丁流程（server2 有
 `dtc/mkbootimg/unpack_bootimg`）：由在用的
 `boot_sys-72-nodebug-20260924.img` 解出 `Image.gz + dtb`，

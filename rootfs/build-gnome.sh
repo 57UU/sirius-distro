@@ -1,13 +1,13 @@
 #!/bin/bash
 # Build Debian trixie GNOME rootfs for xiaomi-sirius (pure desktop).
 # Device base (WiFi/BT bake + screen/power stack) comes from overlay/
-# via lib/sirius-device.sh sirius_overlay (shared by all flavors);
+# via sirius-device.sh sirius_overlay (shared by all flavors);
 # this script only adds: GNOME packages, default user, GDM autologin, enables.
 #
 # External inputs (fail fast if missing):
 #   SIRIUS_BASE  pristine debian-trixie arm64 tree (e.g. linuxcontainers rootfs)
 #   Kernel modules + firmware are NOT baked here; they live in the vendor-partition
-#   store built by rootfs/build-vendormod.sh (see docs/VENDORMOD-STORE.md).
+#   store built by kernel/build-vendormod.sh (see docs/VENDORMOD-STORE.md).
 #   SIRIUS_WORK  scratch/output dir for the tree (default: <distro>/work)
 # Run on an x86_64 Linux host with qemu-user + binfmt (needs sudo):
 #   sudo SIRIUS_BASE=/path/to/base ./build-gnome.sh
@@ -24,7 +24,7 @@ test -n "$SRC" || { echo "set SIRIUS_BASE to a pristine trixie arm64 tree"; exit
 test -d $SRC || { echo "missing base tree $SRC"; exit 1; }
 test "$(stat -c %u "$SRC")" = 0 || { echo "extract SIRIUS_BASE as root (sudo tar -xpJf rootfs.tar.xz)"; exit 1; }
 R=$WORK/debian-trixie-gnome
-. $DISTRO/rootfs/lib/sirius-device.sh
+. $DISTRO/rootfs/sirius-device.sh
 echo "=== gnome build start $(date) ==="
 mkdir -p $WORK
 rm -rf $R
@@ -53,12 +53,12 @@ chroot $R /bin/bash <<'CHROOT_EOF'
 set -e
 export DEBIAN_FRONTEND=noninteractive
 apt-get update
-apt-get install -y sudo openssh-server gnome-core gdm3 firmware-atheros firmware-qcom-soc network-manager nano wpasupplicant bluez mesa-vulkan-drivers rmtfs tqftpserv qrtr-tools libbsd0 wireless-tools pipewire wireplumber alsa-utils systemd-timesyncd systemd-resolved util-linux-extra e2fsprogs
+apt-get install -y sudo openssh-server gnome-core gdm3 firmware-atheros firmware-qcom-soc network-manager nano wpasupplicant bluez mesa-vulkan-drivers rmtfs tqftpserv qrtr-tools libbsd0 wireless-tools pipewire wireplumber $SIRIUS_AUDIO_PKGS systemd-timesyncd systemd-resolved util-linux-extra e2fsprogs
 useradd -m -u 1000 -U -G sudo -s /bin/bash "$SIRIUS_USER" || true
 echo "$SIRIUS_USER:$SIRIUS_PASS" | chpasswd
 printf '%s ALL=(ALL) NOPASSWD:ALL\n' "$SIRIUS_USER" > /etc/sudoers.d/"$SIRIUS_USER"
 chmod 0440 /etc/sudoers.d/"$SIRIUS_USER"
-usermod -aG video,render,input "$SIRIUS_USER" || true
+usermod -aG "$SIRIUS_GROUPS" "$SIRIUS_USER" || true
 ln -sf /usr/share/zoneinfo/Asia/Shanghai /etc/localtime
 echo "Asia/Shanghai" > /etc/timezone
 mkdir -p /etc/gdm3

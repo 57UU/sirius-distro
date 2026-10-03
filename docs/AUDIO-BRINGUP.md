@@ -72,8 +72,8 @@ vendor 是只读挂载，改文件先 remount rw，改完记得 ro 或重打镜�
 
 - UCM：overlay/usr/share/alsa/ucm2/SE/{SE.conf,HiFi.conf}，单个 Speaker（hw:SE,0，cset 开
   PRI_MI2S_RX MM1，需 cdev 声明；目录名与 conf 文件名必须一致；${CardId} 本机未定义，写死）。
-- 开机路由：overlay/etc/systemd/system/sirius-audio-init.service（alsaucm 挂 Speaker）。
-- PipeWire：gnome 镜像装 pipewire + wireplumber（无 pulse 层），wpctl 原生调音量。
+- 开机路由：overlay/etc/systemd/system/sirius-audio-init.service（alsaucm 挂 Speaker）。两 flavor 构建均 enable（server 镜像 2026-10-03 前漏了，已补）。
+- PipeWire：两 flavor 均装 pipewire + wireplumber（gnome 无 pulse 层，wpctl 原生调音量）。alsa-utils 两 flavor 均装（server 镜像 2026-10-03 前只有 alsa-ucm-conf，无 aplay/amixer/alsaucm，已补）。
   功放 DSP 固定增益，系统音量=软音量（和原厂一致）；Digital RX1/2/3 只属于耳机通路，别动。
   已知：WirePlumber/ACP 目前不吃这份 UCM（sink 名 stereo-fallback），路由靠上面服务保证。
 
@@ -87,6 +87,21 @@ vendor 是只读挂载，改文件先 remount rw，改完记得 ro 或重打镜�
   注意单次抓五个 widget（分开抓会有时序假象）。
 - regmap：先 mount debugfs，/sys/kernel/debug/regmap/1-004c/registers 是 live 读数（REGCACHE_NONE），
   但只反映当前 book/page（enable 后停在 book100，小心误读）。
+- 用户态无声先看组：`aplay -l` 报 no soundcards found，但 `sudo aplay -l` 能看到 SE，
+  `/dev/snd/*` 属主 root:audio 660 → 用户不在 audio 组。2026-10-03 server 实测
+  `getent group audio` 为空。修法：`sudo usermod -aG audio u57u` 后重连 ssh（新会话才生效）；
+  构建侧两 flavor 的 usermod 已加 audio。
+- server 镜像重启后路由回到 [off]：2026-10-03 前 server 没 enable sirius-audio-init，
+  dmesg 会刷 `no backend DAIs enabled for MultiMedia1`。构建已补 enable；
+  存量机器手动 `alsaucm -c SE set _verb HiFi set _enadev Speaker`。
+- pkill -f 会杀自己：`pkill -f "aplay.*camp-test"` 的 pattern 含在自己 ssh 那行 bash 命令里，
+  连自己一起杀，表现为 ssh 空输出 exit 1。改用 `pkill -x aplay` 或 bracket 写法
+  `pkill -f "[a]play"`。（btmgmt 那条同理，见 STABLE-MAC §5。）
+- wpctl 连不上先看 socket：`Could not connect to PipeWire` 时查 `/run/user/1000/pipewire-0`
+  是否存在（只剩 pipewire-0.lock 说明 daemon 掉过）。aplay 直播不依赖 PipeWire，
+  可先用它验证硬件链。
+- 手机播 mp3 先转码：本机无解码器，PC 侧 `ffmpeg -ac 2 -ar 48000 -sample_fmt s16` 转 wav
+  再 scp 到 /home/u57u（/tmp 重启清空，别放那），遵守 S16/48k 硬约束。
 - 出厂对照：stock vendor.img（sparse，用 simg2img 解）+ dtbo.img（52 overlay 逐个拆，sirius 是
   含 tas2557 的那两个）+ mixer/platform_info（speaker 后端以 intcodec 的 backend 表为准）。
 
@@ -94,5 +109,6 @@ vendor 是只读挂载，改文件先 remount rw，改完记得 ro 或重打镜�
 
 - 内核 SIRIUS-DBG 打印已清（531015c36）。server 树与手机 Image 的关系：打印是编进 Image 的，
   下次重编 Image 才彻底消失，功能不受影响。
+- 2026-10-03 补：两 flavor 默认用户进 audio 组；server 加 alsa-utils + enable sirius-audio-init（此前三处都缺，实测表现为用户态 no soundcards / 路由 [off]）。组与音频包收敛在 sirius-device.sh（SIRIUS_GROUPS / SIRIUS_AUDIO_PKGS），各 build-*.sh 引用变量；sirius-audio-init 的 enable 留在各 flavor 的 enable 列表（flavor-specific）。运行中 Image（#5）里 SIRIUS-DBG 还在，佐证打印是编进 Image 的。
 - 待：耳机通路（INT0）未验证；单声道只响一边是否符合预期（出厂 mono_speaker=right）；
   UCM 让 ACP 认出来后删 audio-init 服务；README 状态表用户自己改。

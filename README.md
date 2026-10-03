@@ -9,7 +9,7 @@ firmware/   设备固件
 rootfs/     rootfs 烘焙：overlay（开机会拷进 / 的文件）+ 构建脚本
 src/        自研源码（sirius-remodeset）；第三方源码只留获取说明
 orbital/    上游仪表盘（获取说明，用于server系统的简易管理GUI）
-kernel/     上游内核submodule（57UU/linux-sirius feat/sirius-7.2，需git submodule update --init）
+kernel/     内核区：build-vendormod.sh（vendor 分区仓库打包）+ linux-sirius/（上游内核submodule，57UU/linux-sirius feat/sirius-7.2，需git submodule update --init）
 docs/       相关文档以及一些修复经验
 ```
 制作过程见：https://blog.57u.tech/2026/03/18/install-linux-on-android-device-mi8se/
@@ -27,7 +27,7 @@ fastboot flash boot boot_sys.img
 ## step2：刷写 vendor（模块+固件仓库 vendormod）
 
 内核模块和设备固件不住 rootfs，住在闲置的 vendor 分区（mmcblk0p80，
-3GB），开机由 initrd 绑定进系统。仓库镜像用 rootfs/build-vendormod.sh
+3GB），开机由 initrd 绑定进系统。仓库镜像用 kernel/build-vendormod.sh
 打出（详见 docs/VENDORMOD-STORE.md），刷机：
 
 ```bash
