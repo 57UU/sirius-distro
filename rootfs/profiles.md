@@ -20,11 +20,13 @@ DSI 背光（只画黑屏），所以 gnome 的跟随动作仍走 `sirius-screen
 （真机实测结论；server 上它只留手动救援）。
 
 - 输入：`SIRIUS_BASE`（纯净 trixie arm64 树，如 linuxcontainers
-  `rootfs.tar.xz` 解开）、`SIRIUS_KMOD`（对准手机 `uname -r` 的模块包，
-  来自内核 Release）、`SIRIUS_WORK`（输出目录，默认 `<distro>/work`）。
-  缺谁 fail-fast，不猜路径。
+  `rootfs.tar.xz` 解开）、`SIRIUS_WORK`（输出目录，默认 `<distro>/work`）。
+  缺谁 fail-fast，不猜路径。内核模块 + 固件不住 rootfs，住 vendor 分区仓库
+  （`kernel/build-vendormod.sh` 打，见 docs/VENDORMOD-STORE.md），所以没有模块包输入。
 - `overlay/` 是公共基座：两个口味构建时都会 `cp -a` 进 `/`
   （服务、脚本、udev、sysctl、logind、NetworkManager 配置），改动先改这里。
   `orbital.service` 文件也在 overlay 里，但只有 server 口味会 enable。
+- 共享基座实现：`rootfs/sirius-device.sh`（被各 build-*.sh source）：`SIRIUS_USER/PASS`、`SIRIUS_GROUPS`（含 audio）、`SIRIUS_AUDIO_PKGS`（alsa-utils + alsa-ucm-conf）、`sirius_overlay` 等。改通用逻辑改这里；flavor 私有（桌面包、DM 登录、service enable 列表）留在各脚本。
+- 音频基线（两口味相同）：默认用户进 audio 组（/dev/snd 属主 root:audio，否则用户态报 no soundcards）、均装 alsa-utils、均 enable `sirius-audio-init`（开机挂 Speaker 路由）。enable 列表本身是 flavor-specific，见 docs/AUDIO-BRINGUP.md §6。
 - 产物（`*.tar.zst`/`*.simg`）不进库，走 GitHub Releases。
 - apt 源：构建脚本强制切 CERNET 镜像（含 security），`SIRIUS_MIRROR` 环境变量可改地址。
