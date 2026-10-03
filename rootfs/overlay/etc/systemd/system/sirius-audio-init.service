@@ -1,12 +1,23 @@
 [Unit]
 Description=Sirius speaker route init (UCM HiFi/Speaker)
-After=sound.target
+# NOTE: After=sound.target alone is NOT enough (verified 2026-10-03):
+# sound.target is only ordered after alsa-state/alsa-restore, nothing wires
+# it to our card, and the card probes ~30s late (ADSP + userspace PD chain).
+# The service once ran the same second the card appeared and failed with
+# "no soundcards found". So order on the card device unit itself; the
+# Restart below stays as backstop for re-probe flaps.
+After=sound.target dev-snd-controlC0.device
+Requires=dev-snd-controlC0.device
 ConditionPathExists=/usr/share/alsa/ucm2/SE/SE.conf
 
 [Service]
 Type=oneshot
 ExecStart=/usr/bin/alsaucm -c SE set _verb HiFi set _enadev Speaker
 RemainAfterExit=yes
+# Card probes late (ADSP + userspace PDs take ~30s); first-boot run may hit
+# "no soundcards found". Retry with backoff until the UCM route sticks.
+Restart=on-failure
+RestartSec=15
 
 [Install]
 WantedBy=multi-user.target

@@ -30,6 +30,24 @@ SIRIUS_GROUPS=${SIRIUS_GROUPS:-video,audio,render,input}
 SIRIUS_AUDIO_PKGS=${SIRIUS_AUDIO_PKGS:-"alsa-utils alsa-ucm-conf"}
 export SIRIUS_GROUPS SIRIUS_AUDIO_PKGS
 
+# Shared Vulkan spare (Turnip sees Adreno 615; Orbital stays on OpenGL ES,
+# switch later with QSG_RHI_BACKEND=vulkan). Same export-into-chroot
+# mechanism as above.
+SIRIUS_VULKAN_PKGS=${SIRIUS_VULKAN_PKGS:-"mesa-vulkan-drivers vulkan-tools"}
+export SIRIUS_VULKAN_PKGS
+
+# Shared base packages for every flavor: each build-*.sh runs
+# `apt-get install -y $SIRIUS_BASE_PKGS` first, then its flavor-only extras
+# (server: evtest/rfkill/auditd/kbd + Qt runtime; gnome:
+# gnome-core/gdm3/firmware). Flavor lines must not repeat these.
+SIRIUS_BASE_PKGS=${SIRIUS_BASE_PKGS:-"sudo openssh-server network-manager nano wpasupplicant bluez rmtfs tqftpserv qrtr-tools libbsd0 wireless-tools pipewire wireplumber $SIRIUS_AUDIO_PKGS $SIRIUS_VULKAN_PKGS systemd-timesyncd systemd-resolved util-linux-extra e2fsprogs"}
+export SIRIUS_BASE_PKGS
+
+# Shared service enables for every flavor: each build-*.sh runs
+# `systemctl enable $SIRIUS_BASE_UNITS <flavor-extra>` (server: orbital;
+# gnome: gdm). Flavor lines must not repeat these.
+SIRIUS_BASE_UNITS=${SIRIUS_BASE_UNITS:-"ssh systemd-networkd systemd-resolved rmtfs tqftpserv pd-mapper adsprpcd-rootpd adsprpcd-audiopd adsprpcd-sensorspd wifi-shutdown bluetooth bt-addr systemd-timesyncd NetworkManager sirius-bt-auto sirius-usb-bind.service sirius-wifi-auto.timer sirius-zram.service sirius-audio-init"}
+export SIRIUS_BASE_UNITS
 # Common device base for every flavor. Static files live in rootfs/overlay/
 # (edit there, not here); this only copies them in, fixes exec bits, and
 # creates the rmtfs partlabel symlinks (kept in code so re-bakes always
@@ -116,7 +134,11 @@ sirius_cleanup() {
 
 # qemu + mounts + resolv, with EXIT trap. Pair with sirius_chroot_end.
 sirius_chroot_begin() {
-  cp -f /usr/bin/qemu-aarch64-static $R/usr/bin/
+  # Native aarch64 hosts (e.g. the phone itself) need no qemu; the cp would
+  # fail under set -e, so only stage the static binary when emulating.
+  if [ "$(uname -m)" != aarch64 ]; then
+    cp -f /usr/bin/qemu-aarch64-static $R/usr/bin/
+  fi
   trap sirius_cleanup EXIT
   mount -t proc /proc $R/proc 2>/dev/null || true
   mount --rbind /sys $R/sys

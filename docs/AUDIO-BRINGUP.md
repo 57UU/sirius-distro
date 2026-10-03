@@ -91,6 +91,7 @@ vendor 是只读挂载，改文件先 remount rw，改完记得 ro 或重打镜�
   `/dev/snd/*` 属主 root:audio 660 → 用户不在 audio 组。2026-10-03 server 实测
   `getent group audio` 为空。修法：`sudo usermod -aG audio u57u` 后重连 ssh（新会话才生效）；
   构建侧两 flavor 的 usermod 已加 audio。
+- 新服务等硬件一律写 device 单元，别写 target：`After=sound.target` 这类里程碑不保证卡在位（实测它只排在 alsa-state/alsa-restore 后面），要写 `After= + Requires=dev-snd-controlC0.device`（磁盘挂载同款写法）+ `Restart=on-failure` 兜底。
 - server 镜像重启后路由回到 [off]：2026-10-03 前 server 没 enable sirius-audio-init，
   dmesg 会刷 `no backend DAIs enabled for MultiMedia1`。构建已补 enable；
   存量机器手动 `alsaucm -c SE set _verb HiFi set _enadev Speaker`。
