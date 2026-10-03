@@ -6,10 +6,19 @@
 # on every boot. No blkid parsing: initramfs blkid output is unreliable.
 DEV="$1"
 [ -b "$DEV" ] || exit 0
+# Say it on kmsg AND the console: the userdata grow on slow eMMC takes
+# minutes and otherwise looks like a frozen boot.
+say() {
+    echo "expand-part: $1" > /dev/kmsg
+    echo "expand-part: $1" > /dev/console 2>/dev/null || true
+}
+say "growing $DEV to fill the partition, please wait ..."
 if /sbin/resize.f2fs "$DEV" > /dev/kmsg 2>&1; then
+    say "$DEV grew (f2fs)"
     exit 0
 fi
 if /sbin/resize2fs "$DEV" > /dev/kmsg 2>&1; then
+    say "$DEV grew (ext4)"
     exit 0
 fi
-echo "expand-part: $DEV is neither f2fs nor ext4 (or resize failed)" > /dev/kmsg
+say "$DEV is neither f2fs nor ext4 (or resize failed)"
