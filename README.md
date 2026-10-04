@@ -34,8 +34,7 @@ fastboot flash boot boot_sys.img
 fastboot flash vendor vendormod.img
 ```
 
-只换内核时：重编内核 → 重打 vendormod.img → 刷 vendor + boot 即可，
-userdata 不动。rootfs 里旧 /lib/modules 留作回落，别删。
+只换内核时： 刷 vendor + boot 即可。但注意boot与vendor必须成对刷入，因为内核模块与内核版本强绑定。
 
 ## step3：刷写 rootfs.img
 
@@ -45,7 +44,7 @@ userdata 不动。rootfs 里旧 /lib/modules 留作回落，别删。
 fastboot flash userdata xxxxx.simg
 ```
 刷写 userdata 可能出现卡住的情况，这是正常的，eMMC没办法。
-刷完后，请使用fastboot reboot重启，耐心等待，避免eMMC还没完成写入。
+刷完后，请使用fastboot reboot重启，可能会有假死的状态，请耐心等待，避免eMMC还没完成写入。
 
 
 # status
