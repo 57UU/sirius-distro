@@ -153,7 +153,15 @@ sirius_chroot_begin() {
   mount --make-rslave $R/sys
   mount --rbind /dev $R/dev
   mount --make-rslave $R/dev
-  mv $R/etc/resolv.conf $R/etc/resolv.conf.srv-link
+  # Stash whatever the base ships (file or symlink) so apt gets a working
+  # build-time DNS. Never restored verbatim: sirius_chroot_end() installs
+  # the stock systemd-resolved stub symlink instead, so a host-polluted
+  # base (e.g. WSL resolv.conf copied in by debootstrap) cannot leak
+  # into the shipped image.
+  rm -f $R/etc/resolv.conf.srv-link
+  if [ -e $R/etc/resolv.conf ] || [ -L $R/etc/resolv.conf ]; then
+    mv $R/etc/resolv.conf $R/etc/resolv.conf.srv-link
+  fi
   echo "nameserver 8.8.8.8" > $R/etc/resolv.conf
 }
 
@@ -163,4 +171,11 @@ sirius_chroot_end() {
   umount $R/proc || true
   trap - EXIT
   rm -f $R/usr/bin/qemu-aarch64-static
+  # Finalize resolv.conf host-side (chroot bodies must not restore the
+  # stashed file themselves): stock Debian with systemd-resolved expects
+  # the stub symlink. This matches what systemd-resolved.postinst does on
+  # a fresh install (regular resolv.conf -> .resolv.conf.systemd-resolved.bak
+  # plus this same symlink).
+  rm -f $R/etc/resolv.conf $R/etc/resolv.conf.srv-link
+  ln -s ../run/systemd/resolve/stub-resolv.conf $R/etc/resolv.conf
 }

@@ -60,8 +60,8 @@ systemctl set-default multi-user.target
 systemctl enable $SIRIUS_BASE_UNITS orbital || true
 ldconfig
 apt-get clean
-rm -f /etc/resolv.conf
-mv /etc/resolv.conf.srv-link /etc/resolv.conf
+# resolv.conf is finalized host-side by sirius_chroot_end (stub symlink);
+# do not restore the stashed base file here, it may carry host DNS.
 echo CHROOT-DONE
 CHROOT_EOF
 sirius_chroot_end
