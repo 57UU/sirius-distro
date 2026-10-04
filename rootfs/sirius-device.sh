@@ -96,6 +96,9 @@ sirius_overlay() {
   chmod 700 $R/home/$SIRIUS_USER/.ssh
   chmod 600 $R/home/$SIRIUS_USER/.ssh/authorized_keys
   chown -h 1000:1000 $R/home/$SIRIUS_USER/.ssh $R/home/$SIRIUS_USER/.ssh/authorized_keys
+  # for rootless containers
+  mkdir -p $R/var/lib/systemd/linger
+  touch $R/var/lib/systemd/linger/$SIRIUS_USER
 }
 
 # Old name kept as an alias (build scripts call sirius_overlay now).
