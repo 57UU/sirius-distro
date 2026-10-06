@@ -38,9 +38,11 @@ fastboot flash vendor vendormod.img
 
 ```bash
 fastboot flash userdata xxxxx.simg
+fastboot reboot
 ```
 刷写 userdata 可能出现卡住的情况，这是正常的，eMMC没办法。
-刷完后，请使用fastboot reboot重启，可能会有假死的状态，请耐心等待，避免eMMC还没完成写入。
+
+刷完后，使用fastboot reboot重启，可能会有假死的状态，请耐心等待，避免eMMC还没完成写入。
 
 
 # status
