@@ -15,6 +15,7 @@ docs/       相关文档以及一些修复经验
 制作过程见：https://blog.57u.tech/2026/03/18/install-linux-on-android-device-mi8se/
 
 # 刷机指南
+在Release中下载boot,vendormod以及rootfs(debian-xxx)镜像。
 解锁bootloader并进入fastboot模式
 
 ## step1: 刷写 boot_sys.img
@@ -26,19 +27,14 @@ fastboot flash boot boot_sys.img
 
 ## step2：刷写 vendor（模块+固件仓库 vendormod）
 
-内核模块和设备固件不住 rootfs，住在闲置的 vendor 分区（mmcblk0p80，
-3GB），开机由 initrd 绑定进系统。仓库镜像用 kernel/build-vendormod.sh
-打出（详见 docs/VENDORMOD-STORE.md），刷机：
-
+内核模块和设备固件在 vendor 分区，刷入：
 ```bash
 fastboot flash vendor vendormod.img
 ```
-
 只换内核时： 刷 vendor + boot 即可。但注意boot与vendor必须成对刷入，因为内核模块与内核版本强绑定。
 
 ## step3：刷写 rootfs.img
-
-自行构建或者在release中下载rootfs，解压出simg文件
+解压出simg文件
 
 ```bash
 fastboot flash userdata xxxxx.simg
@@ -48,8 +44,6 @@ fastboot flash userdata xxxxx.simg
 
 
 # status
-
-
 
 | Components  | Status  |
 | ----------- | ------- |
