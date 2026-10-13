@@ -1,11 +1,17 @@
 #!/bin/sh
-# sirius-bt-addr: set stable BT public address, fast.
+# sirius-bt-addr: converge hci0 to its stable public address, fast.
+# Expected address is the factory BD addr from persist (wlan_bt/bt.mac);
+# when persist has none, fall back to the baked-in LAA so shared images
+# without persist data stay stable. The vendor NVM already carries the
+# factory addr (patched by initrd), so normally the controller boots
+# correct and this only verifies.
 # Old version slept fixed walls (5+4*5+6+5s) waiting for QCA firmware and
 # blocked multi-user.target for ~20s. This polls mgmt-ready every 0.5s
 # (cap ~12s) and verifies every 0.5s (cap ~4s) instead.
 # Discipline kept from sirius-bt-auto: btmgmt HANGS on /dev/null stdin,
 # so feed it an open silent stdin via a sleep pipe, always timeout -s KILL.
-ADDR=02:57:55:08:5E:02
+LAA=02:57:55:08:5E:02
+upper() { echo "$1" | tr 'a-f' 'A-F'; }
 mgmt() { sleep 0.2 | timeout -s KILL 3 btmgmt --index 0 "$@" 2>&1; }
 i=0
 while [ $i -lt 24 ]; do
@@ -13,13 +19,37 @@ while [ $i -lt 24 ]; do
 	sleep 0.5
 	i=$((i + 1))
 done
-mgmt public-addr $ADDR || echo SET-FAILED
+# Expected addr from persist when readable and sane.
+EXP=""
+MNT="$(mktemp -d)"
+if mount -o ro /dev/mmcblk0p68 "$MNT" 2>/dev/null || mount -o ro /dev/mmcblk0p69 "$MNT" 2>/dev/null; then
+	if [ "$(stat -c %s "$MNT/wlan_bt/bt.mac" 2>/dev/null)" = 6 ]; then
+		CAND="$(od -A n -t x1 "$MNT/wlan_bt/bt.mac" 2>/dev/null | tr -d ' \n' | sed 's/\(..\)/\1:/g;s/:$//')"
+		case "$CAND" in
+		??:??:??:??:??:??)
+			case "$CAND" in
+			00:00:00:00:00:00) ;;
+			*) EXP="$CAND" ;;
+			esac
+			;;
+		esac
+	fi
+	umount "$MNT" 2>/dev/null || true
+fi
+rmdir "$MNT" 2>/dev/null || true
+if [ -z "$EXP" ]; then EXP="$LAA"; fi
+CUR="$(mgmt info 2>/dev/null | grep -o -i -e 'addr [0-9a-f:][0-9a-f:]*' | head -n 1 | cut -d' ' -f2)"
+if [ -n "$CUR" ] && [ "$(upper "$CUR")" = "$(upper "$EXP")" ]; then
+	echo VERIFIED
+	exit 0
+fi
+mgmt public-addr "$EXP" || echo SET-FAILED
 i=0
 while [ $i -lt 8 ]; do
 	mgmt info > /tmp/btinfo3 2>&1
-	if grep -qi "$ADDR" /tmp/btinfo3; then echo VERIFIED; exit 0; fi
+	if grep -qi "$EXP" /tmp/btinfo3; then echo VERIFIED; exit 0; fi
 	sleep 0.5
 	i=$((i + 1))
 done
-echo VERIFY-FAILED-QCA-FW-IGNORES-MGMT-ADDR-STAYS-DEFAULT
+echo VERIFY-FAILED
 exit 0

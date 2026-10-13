@@ -115,3 +115,23 @@ stateDiagram-v2
         blocked by driver gate and script interlock
     end note
 ```
+
+## 9. Windows 认不到 RNDIS：gadget VID:PID 被 Google 驱动劫持
+（2026-10-13，手机实测定位）
+
+现象：手机侧 gadget 正常（单 RNDIS 功能、UDC 已绑、usb0 UP 有 IP），
+Windows 上却只有一个 OK 的 Android ADB Interface，没有 RNDIS 网卡，
+`172.16.42.1` 不通。重绑 UDC、换线无效。
+
+根因：gadget 沿用 pmOS initrd 默认 `18D1:D001`，而这台 Windows 装有
+Google USB 驱动（fastboot/adb 需要，oem31.inf v9.0.0.0），其中有
+`USB\VID_18D1&PID_D001` 的精确匹配。Windows 驱动排序里 HWID 精确匹配
+优先于 inbox RNDIS 的 compatible-ID 匹配，于是整个设备被绑成 ADB 口，
+RNDIS 功能永远拿不到驱动。`MatchingDeviceId` 实测即此条，可复现。
+
+修复：gadget 改用无人认领的经典 Linux RNDIS ID `0525:A4A2`
+（`boot/initrd/initramfs/init_functions.sh` 里 `setup_usb_network`
+的默认值，照抄注释）。bootloader 的 fastboot（`18D1:D00D`）不受影响；
+udev/脚本里只认 UDC 路径和 usb0 接口名，无一处依赖旧 VID:PID。
+改后 Windows 直接上 inbox Remote NDIS 驱动，DHCP 拿到 `172.16.42.2`，
+USB ssh 恢复。此前 USB ssh 时好时坏，即为驱动排序抖动所致。

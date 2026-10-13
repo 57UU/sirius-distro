@@ -103,6 +103,7 @@ if [ -z "$ROOT" ]; then
         while true; do sleep 300; done
     fi
     bind_vendormod /mnt
+    apply_persist_macs /mnt
     exec switch_root /mnt /sbin/init
     exit
 fi
@@ -146,6 +147,7 @@ if [ -n "$DEBUG" ]; then
     while true; do sleep 300; done;
 fi
 bind_vendormod /newroot
+apply_persist_macs /newroot
 exec switch_root /newroot /sbin/init
 
 echo "Failed to switch root" > /dev/kmsg

@@ -95,3 +95,44 @@ vendor 命令，同样无效，故没走内核重编。
 0952a68  overlay: bt-addr best-effort（里层确认后止损）
 24e659f  server: bake QCA BT NVM（根子定案，v5 生效）
 ```
+
+## 8. 出厂地址自动应用（2026-10-13，persist 读取，已验证）
+
+不再钉死自编 LAA：出厂地址就在 persist 分区里，
+`wlan_mac.bin` 文本 `wlan0=482ca04bc60d`、
+`wlan_bt/wlan.mac` 与之一致（`48:2C:A0:4B:C6:0D`），
+`wlan_bt/bt.mac`（`48:2C:A0:0B:C6:0D`，LSB-first 即 NVM 字节序）。
+persist 为 mmcblk0p68（备份 p69），全程只读挂载。
+
+```text
+机制：initrd 新增 apply_persist_macs（boot/initrd/initramfs/
+init_functions.sh），跟在 bind_vendormod 后面对新 root 执行：
+- WiFi：解析文本地址并校验（12 位 hex、单播、非零），写入
+  <新root>/etc/systemd/network/10-wlan0.link；udev 首次见到
+  wlan0 即生效，无竞态。
+- 蓝牙：校验 bt.mac（6 字节、非零），与 vendor 里 crnv21.bin
+  0x14 处比对，有差异才短暂 remount rw 打补丁再改回 ro。
+- 幂等：内容一致零写入（实测第二轮启动两条都是 already）；
+  任何一步读不到就保留 baked-in LAA（fail-soft）。
+- 暂存文件走 /run/persistmac（initramfs 里没有 /tmp，
+  曾因此写出 0 字节 link 导致随机 MAC，见下）。
+sirius-bt-addr 改为 persist 感知：从 persist 读期望地址（读不到
+回落 LAA），与 btmgmt info 当前地址一致直接 VERIFIED，不一致才
+public-addr 一次再验。实测开机两次都是 SET 后 VERIFIED。
+```
+
+```text
+踩坑记录：
+- initramfs 无 /tmp：暂存写 /tmp 失败，且 `cat 暂存 > 目标` 的重定向
+  会先截断目标——结果是 0 字节 10-wlan0.link，udev 忽略，wlan0 随机
+  地址（a6:xx）。修复：暂存改 /run/persistmac，加 -s 非空守卫；
+  BT 侧提取失败不再盲打补丁。
+- cmp 和 /dev/zero 比永远报 EOF-differ：全零判断改用 dd 取 6 字节
+  有限零文件再比。
+- btmgmt public-addr 并非如之前所记从没成功：开机时序（pre-config）
+  下实测两次 SET complete；系统起来后 power on 状态下报 0x0b
+  Rejected。NVM 补丁是否真正被固件采用尚未确证（vendor 文件字节
+  已对，但开机仍走了 SET 路径），两层都留着，结论以实测为准。
+- 换出厂 MAC 后路由器 DHCP 重分（本次分到 .216），固定 IP 绑定要按
+  新 MAC（48:2C:A0:4B:C6:0D）重做，旧 LAA 绑定失效。
+```
