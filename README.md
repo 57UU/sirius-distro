@@ -4,12 +4,12 @@
 内核源码在 [57UU/linux-sirius](https://github.com/57UU/linux-sirius)（分支 `feat/sirius-7.2`），
 
 ```text
-boot/       boot_sys.img 组装脚本以及initrd源码
+boot/       U-Boot 启动镜像（uboot/sirius-build.sh 打包）以及initrd源码
 firmware/   设备固件
 rootfs/     rootfs 烘焙：overlay（开机会拷进 / 的文件）+ 构建脚本
 src/        自研源码（sirius-remodeset）；第三方源码只留获取说明
 orbital/    上游仪表盘（获取说明，用于server系统的简易管理GUI）
-kernel/     内核区：build-vendormod.sh（vendor 分区仓库打包）+ linux-sirius/（上游内核submodule，57UU/linux-sirius feat/sirius-7.2，需git submodule update --init）
+kernel/     内核区：build-vendormod.sh（system 分区仓库打包）+ linux-sirius/（上游内核submodule，57UU/linux-sirius feat/sirius-7.2，需git submodule update --init）
 docs/       相关文档以及一些修复经验
 ```
 制作过程见：https://blog.57u.tech/2026/03/18/install-linux-on-android-device-mi8se/
@@ -18,20 +18,19 @@ docs/       相关文档以及一些修复经验
 在Release中下载boot,vendormod以及rootfs(debian-xxx)镜像。
 解锁bootloader并进入fastboot模式
 
-## step1: 刷写 boot_sys.img
+## step1: 刷写 U-Boot（boot 分区）
 ```bash
-fastboot erase dtbo
-fastboot flash boot boot_sys.img
+fastboot flash boot boot_uboot_extlinux.img
 ```
-需要清空dtbo，设备才会加载boot中的设备树。
+U-Boot 镜像由 `uboot/sirius-build.sh` 生成。只换内核时不用刷 boot，只刷 system 即可。
 
-## step2：刷写 vendor（模块+固件仓库 vendormod）
+## step2：刷写 system（模块+固件+内核 vendormod）
 
-内核模块和设备固件在 vendor 分区，刷入：
+内核模块和设备固件在 system 分区，刷入：
 ```bash
-fastboot flash vendor vendormod.img
+fastboot flash system vendormod.img
 ```
-只换内核时： 刷 vendor + boot 即可。但注意boot与vendor必须成对刷入，因为内核模块与内核版本强绑定。
+只换内核时： 只刷 system 即可（Image/dtb/initrd 全在里面）。注意 system 镜像与内核版本强绑定（modules），boot（U-Boot）只在 U-Boot/env 变化时重刷。
 
 ## step3：刷写 rootfs.img
 解压出simg文件

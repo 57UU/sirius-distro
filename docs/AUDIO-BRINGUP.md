@@ -7,13 +7,13 @@
 
 ```
 fastboot [boot: Image.gz + sirius dtb + initrd] [vendor: vendormod.img] [userdata: rootfs]
-  |  (换大版本内核才需 fastboot erase dtbo；见 boot/build_boot.sh)
+  |  (内核/Image/dtb/initrd 全在 system 分区 /boot，随 vendormod 镜像一起刷)
   v
 kernel (cmdline root=mmcblk0p81)
   +-- initrd：RNDIS 早联网（ssh 172.16.42.1）+ 挂 rootfs + switch_root
   +-- userdata rootfs：udev/systemd
-  |     /usr/lib/modules/<ver>  <- bind /mnt/vendormod（mmcblk0p80，ro）
-  |     /usr/lib/firmware       <- 同上（modules + firmware 全在 vendor 分区）
+  |     /usr/lib/modules/<ver>  <- bind /mnt/vendormod（mmcblk0p79，ro）
+  |     /usr/lib/firmware       <- 同上（modules + firmware 全在 system 分区）
   +-- remoteproc 起 ADSP（/lib/firmware/qcom/sdm710/pyxis/adsp.mbn，一次读入后进 fw cache）
   +-- adsprpcd x3（After qrtr-ns/pd-mapper，ADSP_LIBRARY_PATH=pyxis/adsp）推送用户 PD 的 so
   +-- APR 音频服务齐（q6core/AFE/ASM/ADM）-> 声卡 probe 出 card0（ADSP 没好会 defer/重试）

@@ -133,6 +133,13 @@ public-addr 一次再验。实测开机两次都是 SET 后 VERIFIED。
   下实测两次 SET complete；系统起来后 power on 状态下报 0x0b
   Rejected。NVM 补丁是否真正被固件采用尚未确证（vendor 文件字节
   已对，但开机仍走了 SET 路径），两层都留着，结论以实测为准。
+
+- NM 扫描随机再改 MAC：`wifi.scan-rand-mac-address` 默认 yes，NM 每次扫描
+  把 wlan0 改成随机地址、扫完再改回来（日志 `set-hw-addr ... (scanning)`）。
+  实测曾撞见正好停在随机地址上（`7a:..`），DHCP 直接拿错 IP。
+  修：`rootfs/overlay/etc/NetworkManager/conf.d/sirius-server.conf` 加
+  `[device] wifi.scan-rand-mac-address=no`。MAC 是通过 udev 钉的出厂地址，
+  不需要扫描期换 MAC 做隐私。
 - 换出厂 MAC 后路由器 DHCP 重分（本次分到 .216），固定 IP 绑定要按
   新 MAC（48:2C:A0:4B:C6:0D）重做，旧 LAA 绑定失效。
 ```

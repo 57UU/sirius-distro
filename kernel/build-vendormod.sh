@@ -72,6 +72,22 @@ check_md5 $FW/qca/crnv21.bin 3947c734ced07630d9c2c4ba48f72157
 check_md5 $FW/ath10k/WCN3990/hw1.0/board-2.bin 63bb8000fe1f64cdecee79076c6d5bc0
 check_md5 $FW/qca/crbtfw21.tlv a590087df8f7ba34053956e9b5243bc9
 
+echo "=== boot payload for U-Boot (vendor /boot) ==="
+PAYLOAD=$STAGE/boot
+mkdir -p $PAYLOAD/dtb $PAYLOAD/extlinux
+KIMG=$KERNEL_SRC/arch/arm64/boot/Image
+KDTB=$KERNEL_SRC/arch/arm64/boot/dts/qcom/sdm710-xiaomi-sirius.dtb
+test -f "$KIMG" || { echo "missing kernel Image $KIMG (build kernel first?)"; exit 1; }
+test -f "$KDTB" || { echo "missing dtb $KDTB"; exit 1; }
+cp -f "$KIMG" $PAYLOAD/Image
+cp -f "$KDTB" $PAYLOAD/dtb/sdm710-xiaomi-sirius.dtb
+# initrd is rebuilt by boot/initrd/build.sh into boot/.
+INITRD=$DISTRO/boot/initrd.cpio.gz
+test -f "$INITRD" || { echo "missing initrd $INITRD (run boot/initrd/build.sh first?)"; exit 1; }
+cp -f "$INITRD" $PAYLOAD/initrd.cpio.gz
+cp -f $DISTRO/boot/extlinux.conf $PAYLOAD/extlinux/extlinux.conf
+chmod 644 $PAYLOAD/Image $PAYLOAD/dtb/*.dtb $PAYLOAD/initrd.cpio.gz $PAYLOAD/extlinux/extlinux.conf
+
 echo "=== mkfs $OUT ($IMG_SIZE) ==="
 mkdir -p "$(dirname "$OUT")"
 "$MKFS" -d "$STAGE" -L "$IMG_LABEL" "$OUT" "$IMG_SIZE" >/dev/null

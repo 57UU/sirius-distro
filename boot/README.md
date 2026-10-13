@@ -1,13 +1,12 @@
-# boot：启动镜像组装（脚本进库，产物进 Releases）
+# boot：U-Boot 启动镜像（脚本进库，产物进 Releases）
 
-`build_boot.sh` 用同源 `Image.gz` + `sdm710-xiaomi-sirius.dtb` 打出
-`boot_sys.img`（进系统版，唯一的刷机用 boot 镜像）.
+只维护 U-Boot 启动链，不再维护 ABL 直启（boot/build_boot.sh 已删除）。
 
-- cmdline 唯一真源就是脚本里的 `BASE` 行。当前：
-  `loglevel=6 earlycon=tty0 earlyprintk root=/dev/mmcblk0p81
-  rootfstype=ext4 rootwait=15 rootfs_part=mmcblk0p81 rw consoleblank=120`
-- 内核与 dtb 来自 `../kernel/linux-sirius`（57UU/linux-sirius `feat/sirius-7.2` 编出，
-  拷到本目录再跑脚本）。
-- 只刷 `boot` 分区：`fastboot flash boot boot_sys-*.img`。
-  兜底镜像见 Releases（`KNOWN-GOOD` 说明随包）。
-- `initrd/`：initramfs 源（RNDIS 早联网 + 挂载 rootfs 后 switch_root）。
+- U-Boot 源码：`../uboot`（57UU/u-boot submodule），构建：`../uboot/sirius-build.sh`
+ （`qcom_defconfig + qcom-phone.config + sirius.config`，`DEVICE_TREE=qcom/sdm710-xiaomi-sirius`）。
+- 产物 `boot_uboot_extlinux.img`（gzip nodtb + sirius dtb，经 mkbootimg 打包），刷入 boot 分区：
+  `fastboot flash boot boot_uboot_extlinux.img && fastboot reboot`
+- U-Boot 从 system 分区（mmcblk0p79，U-Boot 视角 `mmc 0:4f`）经 sysboot 读
+  `/boot/extlinux/extlinux.conf`（本目录的同名文件是其源），加载 `/boot/Image` +
+  `/boot/initrd.cpio.gz` + `/boot/dtb/sdm710-xiaomi-sirius.dtb` 进系统。
+- `initrd/`：initramfs 源（RNDIS 早联网 + 挂载 rootfs/system 后 switch_root，打包进 system 分区 /boot）。

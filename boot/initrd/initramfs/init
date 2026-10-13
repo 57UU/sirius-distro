@@ -13,11 +13,11 @@ mkdir -p /newroot
 # sirius vendor store (spare vendor partition): versioned kernel modules +
 # firmware, decoupling them from the userdata rootfs. Fail-safe: fall back
 # to rootfs files when the store is missing anything.
-# Vendor store lives on mmcblk0p80 (3GB, like the old system store);
+# Vendor store lives on mmcblk0p79 (system partition, 3GB ext4);
 # override with kernel cmdline vendor_part= if the layout ever changes.
 find_vendormod_dev() {
     _o="$(get_cmdline_param vendor_part)"
-    echo "/dev/${_o:-mmcblk0p80}"
+    echo "/dev/${_o:-mmcblk0p79}"
 }
 bind_vendormod() {
     # $1 = new-root path (/mnt or /newroot). The store mount is moved
