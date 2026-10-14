@@ -1,11 +1,10 @@
-# vendor 分区仓库（vendormod）：内核模块 + 固件与 rootfs 解耦
+# system 分区仓库（kernel.img）：内核模块 + 固件与 rootfs 解耦
 
-`userdata` 上的 rootfs 只装系统；内核模块和设备固件住在闲置的
-`vendor` 分区（3GB，`fastboot getvar partition-size:vendor` = `0xC0000000`），
-开机由 initrd 绑定进新根。内核、模块、固件三者同版本一起走，
+`userdata` 上的 rootfs 只装系统；内核模块和设备固件住在 `system` 分区
+（`mmcblk0p79`），开机由 initrd 绑定进新根。内核、模块、固件三者同版本一起走，
 rootfs 随便重刷不影响驱动。
 
-> 历史：仓库最早住 system 分区（mmcblk0p79，命名 sysmod），中间搬到过 vendor（mmcblk0p80）并改名 vendormod；2026-10-14 为统一从 system 分区启动（U-Boot sysboot mmc 0:4f），又搬回 system（mmcblk0p79）。刷机用 fastboot flash system vendormod.img。
+> 历史：仓库最早住 system 分区（mmcblk0p79，命名 sysmod），中间搬到过 vendor（mmcblk0p80）并改名 vendormod；2026-10-14 为统一从 system 分区启动（U-Boot sysboot mmc 0:4f），又搬回 system（mmcblk0p79）。刷机用 fastboot flash system kernel.img。
 
 ## 布局（system 分区内）
 
@@ -36,14 +35,14 @@ lib/firmware/...          设备固件（映射关系见 rootfs/lib/sirius-devic
 
 ```bash
 # 远程构建机（内核树已编过）：
-./kernel/build-vendormod.sh
-# 产物默认 build/vendormod.img（256M，gitignored；首刷开机由 initrd 自动扩到整个 system 分区），附 md5。
+./kernel/build-kernel-img.sh
+# 产物默认 build/kernel.img（256M，gitignored；首刷开机由 initrd 自动扩到整个 system 分区），附 md5。
 
 # init/extlinux 改过则重打 system 镜像（initrd 先就位）：
-(cd boot/initrd && ./build.sh ../initrd.cpio.gz) && ./kernel/build-vendormod.sh
+(cd boot/initrd && ./build.sh ../initrd.cpio.gz) && ./kernel/build-kernel-img.sh
 
 # 刷机（fastboot）：
-fastboot flash system vendormod.img && fastboot reboot
+fastboot flash system kernel.img && fastboot reboot
 ```
 
 注意：刷 system 会清空该分区原厂数据（Android 侧已无用）
@@ -61,5 +60,5 @@ sudo sirius-otg status
 ## rootfs 侧配合
 
 - rootfs 里旧 `/lib/modules/*` 保留当 fallback，别删。
-- vendor 分区挂载点开机后在 `/mnt/vendormod`（只读绑定的源头），
-  想往仓库加东西：重新跑 `build-vendormod.sh` 并 fastboot 重刷 vendor。
+- 仓库挂载点开机后在 `/mnt/vendormod`（只读绑定的源头，挂载点名保留），
+  想往仓库加东西：重新跑 `build-kernel-img.sh` 并 fastboot 重刷 system。

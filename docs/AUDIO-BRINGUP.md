@@ -6,8 +6,8 @@
 ## 2. 启动链路（全，音频视角）
 
 ```
-fastboot [boot: Image.gz + sirius dtb + initrd] [vendor: vendormod.img] [userdata: rootfs]
-  |  (内核/Image/dtb/initrd 全在 system 分区 /boot，随 vendormod 镜像一起刷)
+fastboot [boot: Image.gz + sirius dtb + initrd] [system: kernel.img] [userdata: rootfs]
+  |  (内核/Image/dtb/initrd 全在 system 分区 /boot，随 kernel.img 镜像一起刷)
   v
 kernel (cmdline root=mmcblk0p81)
   +-- initrd：RNDIS 早联网（ssh 172.16.42.1）+ 挂 rootfs + switch_root

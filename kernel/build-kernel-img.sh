@@ -1,5 +1,5 @@
 #!/bin/bash
-# build-vendormod.sh: assemble the sirius vendor-partition store image.
+# build-kernel-img.sh: assemble the sirius kernel store image (system partition).
 #
 # The store decouples kernel modules + device firmware from the userdata
 # rootfs. Layout inside the image:
@@ -7,10 +7,10 @@
 #   lib/firmware/...          device blobs (same mapping as sirius_firmware_pre)
 #
 # Run on the kernel build host (needs the kernel tree already built):
-#   ./build-vendormod.sh
+#   ./build-kernel-img.sh
 # Env overrides:
 #   KERNEL_SRC  built kernel tree (default: <distro>/kernel/linux-sirius)
-#   OUT         output image (default: <distro>/build/vendormod.img, gitignored)
+#   OUT         output image (default: <distro>/build/kernel.img, gitignored)
 #   IMG_SIZE    ext4 size (default: 256M; content is ~55M)
 #   IMG_LABEL   fs label (default: sirius_vendor)
 #   ARCH / CROSS_COMPILE / DEPMOD / MKFS as usual.
@@ -18,7 +18,7 @@ set -e
 DISTRO="$(cd "$(dirname "$0")/.." && pwd)"
 KERNEL_SRC=${KERNEL_SRC:-$DISTRO/kernel/linux-sirius}
 FIRMWARE=$DISTRO/firmware
-OUT=${OUT:-$DISTRO/build/vendormod.img}
+OUT=${OUT:-$DISTRO/build/kernel.img}
 IMG_SIZE=${IMG_SIZE:-256M}
 IMG_LABEL=${IMG_LABEL:-sirius_vendor}
 ARCH=${ARCH:-arm64}
@@ -94,4 +94,4 @@ mkdir -p "$(dirname "$OUT")"
 e2fsck -n -f "$OUT" >/dev/null
 md5sum "$OUT"
 ls -lh "$OUT"
-echo VENDORMOD-DONE
+echo KERNEL-IMG-DONE

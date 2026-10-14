@@ -13,7 +13,7 @@ PBL（ROM）→ XBL → ABL（官 fastboot 仍在，只做下载/启动跳转）
 ```
 
 - ABL 直启已退役（`boot/build_boot.sh` 已删）。dtbo 不用擦，U-Boot 路径与它无关。
-- vendor 分区（mmcblk0p80）已清空为 spare，仓库内容住 system 分区，见 `VENDORMOD-STORE.md`。
+- vendor 分区（mmcblk0p80）已清空为 spare，仓库内容住 system 分区，见 `KERNEL-IMG-STORE.md`。
 
 ## 2. 构建（`uboot/sirius-build.sh`）
 
@@ -46,7 +46,7 @@ bootcmd=run do_boot
 
 - `mmc 0:4f`：U-Boot 分区号是**十六进制**，`4f`=79=system。写 `0:80` 会被当成 `0x80`=128 → `Invalid partition 128`。
 - 不用 `bootflow scan -b`：每盘只扫前 30 分区（`MAX_PART_PER_BOOTDEV=30` 写死），p79/p80 永远扫不到；且 `qcom_defconfig` 的 `BOOTDEV_*` 只有 ETH，没有 MMC hunter。sysboot 直指分区最稳。
-- `extlinux.conf` 源在主库 `boot/extlinux.conf`，`build-vendormod.sh` 会把它和 Image/dtb/initrd 一起打进 system 镜像 `/boot`。
+- `extlinux.conf` 源在主库 `boot/extlinux.conf`，`build-kernel-img.sh` 会把它和 Image/dtb/initrd 一起打进 system 镜像 `/boot`。
 
 ## 4. 设备树（`dts/upstream/src/arm64/qcom/`）
 
