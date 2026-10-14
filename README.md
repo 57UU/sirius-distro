@@ -20,9 +20,10 @@ docs/       相关文档以及一些修复经验
 
 ## step1: 刷写 U-Boot（boot 分区）
 ```bash
+fastboot erase dtbo
 fastboot flash boot boot_uboot_extlinux.img
 ```
-U-Boot 镜像由 `uboot/sirius-build.sh` 生成。只换内核时不用刷 boot，只刷 system 即可。
+需要清空dtbo，设备才会加载boot中的设备树。只换内核时不用重刷 boot，只刷 system 即可。
 
 ## step2：刷写 system（kernel.img：内核+模块+固件）
 
@@ -30,7 +31,6 @@ U-Boot 镜像由 `uboot/sirius-build.sh` 生成。只换内核时不用刷 boot�
 ```bash
 fastboot flash system kernel.img
 ```
-只换内核时： 只刷 system 即可（Image/dtb/initrd 全在里面）。注意 system 镜像与内核版本强绑定（modules），boot（U-Boot）只在 U-Boot/env 变化时重刷。
 
 ## step3：刷写 rootfs.img
 解压出simg文件
@@ -91,6 +91,7 @@ kernel for sdm710: https://gitlab.com/sdm670-mainline/linux
 initrd: https://gitlab.com/sdm845-mainline/initrd
 orbital(lite panel): https://github.com/AthBe1337/Orbital
 firmware & config: https://wiki.nura.eco/wiki/Xiaomi_Mi_9_Lite_(xiaomi-pyxis)
+uboot: https://gitlab.postmarketos.org/ellyq/u-boot
 
 android reference: https://github.com/Rocky7842/android_kernel_xiaomi_sdm710
 
