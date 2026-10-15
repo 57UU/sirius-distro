@@ -45,6 +45,8 @@ mkdir -p $FW/qcom/sdm710/pyxis $FW/qcom $FW/ath10k/WCN3990/hw1.0 $FW/qca
 cp -f $FIRMWARE/gpu/a615_zap.mbn $FW/qcom/sdm710/pyxis/a615_zap.mbn
 cp -f $FIRMWARE/gpu/a630_sqe.fw $FIRMWARE/gpu/a630_gmu.bin $FW/qcom/
 cp -f $FIRMWARE/ipa-sirius/ipa_fws.mbn $FIRMWARE/ipa-sirius/ipa_fws.b00 $FIRMWARE/ipa-sirius/ipa_fws.b01 $FIRMWARE/ipa-sirius/ipa_fws.b02 $FIRMWARE/ipa-sirius/ipa_fws.b03 $FIRMWARE/ipa-sirius/ipa_fws.b04 $FW/qcom/sdm710/pyxis/
+cp -f $FIRMWARE/cdsp-sirius/cdsp.mbn $FIRMWARE/cdsp-sirius/cdsp.b00 $FIRMWARE/cdsp-sirius/cdsp.b01 $FIRMWARE/cdsp-sirius/cdsp.b02 $FIRMWARE/cdsp-sirius/cdsp.b03 $FIRMWARE/cdsp-sirius/cdsp.b04 $FIRMWARE/cdsp-sirius/cdsp.b05 $FIRMWARE/cdsp-sirius/cdsp.b06 $FIRMWARE/cdsp-sirius/cdsp.b08 $FIRMWARE/cdsp-sirius/cdsp.b10 $FIRMWARE/cdsp-sirius/cdspr.jsn $FW/qcom/sdm710/pyxis/
+chmod 644 $FW/qcom/sdm710/pyxis/cdsp.mbn $FW/qcom/sdm710/pyxis/cdsp.b00 $FW/qcom/sdm710/pyxis/cdsp.b01 $FW/qcom/sdm710/pyxis/cdsp.b02 $FW/qcom/sdm710/pyxis/cdsp.b03 $FW/qcom/sdm710/pyxis/cdsp.b04 $FW/qcom/sdm710/pyxis/cdsp.b05 $FW/qcom/sdm710/pyxis/cdsp.b06 $FW/qcom/sdm710/pyxis/cdsp.b08 $FW/qcom/sdm710/pyxis/cdsp.b10 $FW/qcom/sdm710/pyxis/cdspr.jsn
 chmod 644 $FW/qcom/sdm710/pyxis/ipa_fws.mbn $FW/qcom/sdm710/pyxis/ipa_fws.b00 $FW/qcom/sdm710/pyxis/ipa_fws.b01 $FW/qcom/sdm710/pyxis/ipa_fws.b02 $FW/qcom/sdm710/pyxis/ipa_fws.b03 $FW/qcom/sdm710/pyxis/ipa_fws.b04
 cp -f $FIRMWARE/venus-sirius/venus.mbn $FIRMWARE/venus-sirius/venus.b00 $FIRMWARE/venus-sirius/venus.b01 $FIRMWARE/venus-sirius/venus.b02 $FIRMWARE/venus-sirius/venus.b03 $FIRMWARE/venus-sirius/venus.b04 $FW/qcom/sdm710/pyxis/
 chmod 644 $FW/qcom/sdm710/pyxis/venus.mbn $FW/qcom/sdm710/pyxis/venus.b00 $FW/qcom/sdm710/pyxis/venus.b01 $FW/qcom/sdm710/pyxis/venus.b02 $FW/qcom/sdm710/pyxis/venus.b03 $FW/qcom/sdm710/pyxis/venus.b04
@@ -77,6 +79,7 @@ check_md5 $FW/ath10k/WCN3990/hw1.0/board-2.bin 63bb8000fe1f64cdecee79076c6d5bc0
 check_md5 $FW/qca/crbtfw21.tlv a590087df8f7ba34053956e9b5243bc9
 check_md5 $FW/qcom/sdm710/pyxis/venus.mbn 9ca486b43f891d38ccb68e72ee40bfab
 check_md5 $FW/qcom/sdm710/pyxis/ipa_fws.mbn 4f3c8cac8e681948b1a3235163a3fa9f
+check_md5 $FW/qcom/sdm710/pyxis/cdsp.mbn d0e3a4a90d75d5600b90adeb218595da
 
 echo "=== boot payload for U-Boot (vendor /boot) ==="
 PAYLOAD=$STAGE/boot

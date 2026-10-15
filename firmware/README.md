@@ -10,6 +10,7 @@
 | gpu/a630_gmu.bin | GPU GMU 32K, md5 ab20135f... | /lib/firmware/qcom/a630_gmu.bin (Adreno 616 必需,server/gnome通用) | 同上 |
 | venus-sirius/venus.mbn + venus.b00-b04 | 视频硬解Venus固件 860K (venus.mbn由venus.mdt改名,md5 9ca486b4) | /lib/firmware/qcom/sdm710/pyxis/venus.{mbn,b00-b04} (DT firmware-name点名,已装机验证video0-13全出) | 本机modem分区image/原样拷出(2021出厂) |
 | ipa-sirius/ipa_fws.mbn + ipa_fws.b00-b04 | IPA数据通道固件 26K (mbn由mdt改名,md5 4f3c8cac) | /lib/firmware/qcom/sdm710/pyxis/ipa_fws.{mbn,b00-b04} (DT firmware-name点名,已装机验证setup completed + rmnet_ipa0出现) | stock vendor.img firmware/原样 (V12.5.1.0),qcm6490版-22不兼容 |
+| cdsp-sirius/cdsp.mbn + cdsp.b00-b06,b08,b10 + cdspr.jsn | 计算DSP固件 2.8M (mbn由mdt改名,md5 d0e3a4a9) | /lib/firmware/qcom/sdm710/pyxis/cdsp.{mbn,bXX,jsn} (DT firmware-name点名,已装机验证remoteproc running,sdm845版-22不兼容) | 本机modem分区image/原样拷出(2021出厂) |
 | pyxis-dsp/ | adsp/cdsp/venus/ipa/mba/modem/qdsp6m/wlanmdsp | 待定,先别装(仅GPU已验证) | 同上pyxis包,供音频/视频/modem立项用 |
 | ath10k/board-2.bin.pyxis | pyxis校准BDF 26K | 暂不装!上游注释说装了WiFi崩 | 同上pyxis包calib_data,仅参考 |
 
