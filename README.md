@@ -58,8 +58,8 @@ fastboot reboot
 | Battery     | Working |
 | LED         | Working |
 | Speaker     | Working |
-| Video decode | Working, HW H.264 VP8 VP9 HEVC MPEG-2, H.264 HEVC tested |
-| Video encode | Partial, H.264 HEVC verified via v4l2-ctl, ffmpeg segfaults |
+| Video decode | Working, H.264 VP8 VP9 HEVC MPEG-2, H.264 HEVC  |
+| Video encode | Partial, verified via v4l2-ctl, ffmpeg segfaults |
 | Modem/IPA   | Working |
 | Microphone  | Broken |
 
