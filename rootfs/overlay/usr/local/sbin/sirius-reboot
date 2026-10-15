@@ -1,0 +1,21 @@
+#!/bin/sh
+# sirius-reboot [menu|fastboot] - reboot into a U-Boot mode via BCB misc flag.
+# Plain `reboot` cannot carry a reason on systemd, so this writes the Android
+# BCB command field first (U-Boot `bcb test` reads it, acts once, clears it):
+#   sudo sirius-reboot menu      -> U-Boot bootmenu on next boot
+#   sudo sirius-reboot fastboot  -> U-Boot fastboot mode on next boot
+#   sudo sirius-reboot           -> normal reboot
+set -eu
+MISC=/dev/disk/by-partlabel/misc
+mode="${1:-}"
+case "$mode" in
+  menu)     CMD="uboot-menu" ;;
+  fastboot) CMD="uboot-fastboot" ;;
+  "")       exec reboot ;;
+  *) echo "usage: $0 [menu|fastboot]" >&2; exit 1 ;;
+esac
+[ -b "$MISC" ] || { echo "no misc partition at $MISC" >&2; exit 1; }
+pad=$((32 - ${#CMD}))
+{ printf '%s' "$CMD"; dd if=/dev/zero bs=1 count="$pad" 2>/dev/null; } | dd of="$MISC" bs=32 count=1 conv=notrunc status=none
+sync
+reboot

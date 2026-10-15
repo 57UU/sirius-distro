@@ -66,3 +66,44 @@ bootcmd=run do_boot
 
 - `bootflow scan` 扫不到 30 号以后的分区，不要用它找内核。
 - 熄屏/电源键在 U-Boot 下不管用，卡住就长按电源强制重启（boot 分区没刷坏就还能进，原系统不受影响；刷坏了进 fastboot 重刷）。
+
+## 7. U-Boot fastboot 直刷（`sirius-reboot`，2026-10-16 验证可用）
+
+U-Boot 自带 fastboot（`CONFIG_USB_FUNCTION_FASTBOOT` + `FASTBOOT_FLASH`），但实测刷机失败（见本节末尾结论），目前仅进 fastboot 验证可用，刷机仍走 ABL fastboot。
+system/userdata 不用回 ABL，直接在这里刷。`sirius.env` 里 `fastboot=fastboot usb 0`
+（用编译进的默认缓冲地址；带 `$fastboot_addr_r` 空变量的旧写法已删）。
+
+进入方式（三选一）：
+
+- `sudo sirius-reboot fastboot`（推荐）：往 misc 分区写 BCB 命令后重启，
+  U-Boot `check_bcb` 读到就进 fastboot；`sudo sirius-reboot menu` 进 bootmenu。
+  BCB 用完即清（读→清→存回），下次正常开机；未知命令直接正常启动。
+  注意 systemd 的 `reboot` 传不了参数，所以必须走这个 helper。
+- bootmenu 第 2 项 `Enable fastboot mode`（开机 1 秒内按音量键打断 autoboot）。
+- 按键：`BOOTDELAY=1` + `button-kbd`，超时自动进系统。
+
+屏幕看着像"冻住"（重要）：屏本身是活的（vidconsole 照常刷新），但 fastboot 模式**本身静默**（等 USB 命令，不打屏），所以一直停在
+`autoboot: 0` 那一帧——不是卡死。以电脑端为准：
+设备管理器冒出 `USB download gadget` 即已进入。
+
+Windows 驱动：gadget 是 `VID_18D1&PID_4EE0`，Google 驱动只认 ABL 的 `D00D`，
+绑不上。手动装：设备管理器 → USB download gadget → 更新驱动程序 →
+浏览我的电脑 → 从列表选取 → 按实测可选 **WinUSB 厂商的 ADB 设备**
+（装完 `fastboot devices` 出设备，`getvar version` 回 `0.4`）。
+
+
+实测结论（2026-10-16）：U-Boot fastboot 目前**不可用于刷机**，只保留进 fastboot 验证过，退回 ABL fastboot 刷机：
+- `fastboot flash boot`（596KB）即失败：`AdbWriteEndpointSync failed (121)`，host 端超时；随后 gadget 挂死，`getvar` 也不回。
+- 屏上刷屏 `dwc3-generic-peripheral usb@a600000: request ... was not queued to ep1in-bulk`（IN 回包队列丢包，偶发变必现）。
+- 更深一层：屏上还出现 `Bad device specification mmc boot_a` / `Couldn't find partition mmc boot_a`——U-Boot fastboot 按 Android A/B 逻辑找 `boot_a`，而本机 GPT 用的是无后缀名（boot/system/userdata），即使下载成功也会落空。
+- 疑似诱因有二待查：`FASTBOOT_BUF_ADDR=0x1A000000` 在 sirius 上可能不是可写内存（download 一写就 abort）；dwc3 gadget 本身不稳。
+- 屏上半截还叠了 MI logo + 花屏：疑似失败传输后反复重启/帧缓冲重叠。恢复：长按电源硬重启（BCB 为空则正常进系统）；fastboot 相关验证先冻结，不再试刷。
+
+已知告警（2026-10-16 实测）：屏上偶见 `dwc3-generic-peripheral usb@a600000: request ... was not queued to ep1in-bulk`，即一次 USB IN 回包被丢弃。小包（`getvar`）连打 8 次全过，大包传输（256MB system）尚未验证，刷完务必重启进系统验 md5/功能，不要假设一次成功。
+
+刷机（eMMC 慢，后台跑完再 `fastboot reboot`，见 AGENTS.md 刷机节）：
+
+```bash
+fastboot flash system kernel.img && fastboot reboot
+fastboot flash userdata xxxx.simg && fastboot reboot
+```
