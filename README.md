@@ -58,6 +58,9 @@ fastboot reboot
 | Battery     | Working |
 | LED         | Working |
 | Speaker     | Working |
+| Video decode | Working|
+| Video encode | Broken |
+| Modem/IPA   | Working |
 | Microphone  | Broken |
 
 USB 自动切换目前有缺陷：普通线连电脑走 gadget 网卡，OTG 线接外设走 host；部分线材可能要翻面插才认得出来。详情见 docs/USB-HOST-FIX.md，切换一律用 sirius-otg。
