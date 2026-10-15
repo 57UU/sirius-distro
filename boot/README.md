@@ -4,8 +4,8 @@
 
 - U-Boot 源码：`../uboot`（57UU/u-boot submodule），构建：`../uboot/sirius-build.sh`
  （`qcom_defconfig + qcom-phone.config + sirius.config`，`DEVICE_TREE=qcom/sdm710-xiaomi-sirius`）。
-- 产物 `boot_uboot_extlinux.img`（gzip nodtb + sirius dtb，经 mkbootimg 打包），刷入 boot 分区：
-  `fastboot flash boot boot_uboot_extlinux.img && fastboot reboot`
+- 产物 `boot.img`（gzip nodtb + sirius dtb，经 mkbootimg 打包），刷入 boot 分区：
+  `fastboot flash boot boot.img && fastboot reboot`
 - U-Boot 从 system 分区（mmcblk0p79，U-Boot 视角 `mmc 0:4f`）经 sysboot 读
   `/boot/extlinux/extlinux.conf`（本目录的同名文件是其源），加载 `/boot/Image` +
   `/boot/initrd.cpio.gz` + `/boot/dtb/sdm710-xiaomi-sirius.dtb` 进系统。

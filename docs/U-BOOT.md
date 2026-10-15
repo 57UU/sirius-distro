@@ -6,7 +6,7 @@
 
 ```text
 PBL（ROM）→ XBL → ABL（官 fastboot 仍在，只做下载/启动跳转）
-  └─ boot 分区：U-Boot（`boot_uboot_extlinux.img`）
+  └─ boot 分区：U-Boot（`boot.img`）
       └─ sysboot 直读 system 分区（mmcblk0p79，U-Boot 视角 `mmc 0:4f`）
           `/boot/extlinux/extlinux.conf` → `/boot/Image` + `/boot/initrd.cpio.gz` + `/boot/dtb/*.dtb`
               └─ Linux（root=/dev/mmcblk0p81 userdata）
@@ -24,7 +24,7 @@ make O=$OUT qcom_defconfig qcom-phone.config sirius.config
 make O=$OUT -j$JOBS DEVICE_TREE=qcom/sdm710-xiaomi-sirius
 gzip -c u-boot-nodtb.bin > u-boot-nodtb.bin.gz
 cat u-boot-nodtb.bin.gz sdm710-xiaomi-sirius.dtb > uboot-payload
-mkbootimg --kernel_offset 0x00008000 --pagesize 4096 --kernel uboot-payload -o boot_uboot_extlinux.img
+mkbootimg --kernel_offset 0x00008000 --pagesize 4096 --kernel uboot-payload -o boot.img
 ```
 
 - `qcom_defconfig + qcom-phone.config`：上游手机基座，带 `PANIC_HANG`（挂了停在屏上，log 可读）、console record、`FASTBOOT_BUF_ADDR=0x1A000000`、`BUTTON_REMAP_PHONE_KEYS`。不要用手写的 `xiaomi-sirius_defconfig`（已删，缺这些，挂了悄悄复位）。
@@ -55,10 +55,10 @@ bootcmd=run do_boot
 
 ## 5. 上机测试流程
 
-1. `fastboot boot boot_uboot_extlinux.img`（只进内存，不刷机，挂了重启就回来）。
+1. `fastboot boot boot.img`（只进内存，不刷机，挂了重启就回来）。
 2. 看屏幕：U-Boot 日志直接打在显示屏上（vidconsole）。`sysboot` 会打印读 conf 和加载三件套，成功则进内核 earlycon 日志。
 3. 进系统后看 `cat /proc/cmdline` 有 `vendor_part=mmcblk0p79` 即走的 U-Boot/extlinux 路径；`mount | grep vendormod` 应为 p79。
-4. 确认无误再落盘：`fastboot flash boot boot_uboot_extlinux.img && fastboot reboot`（eMMC 慢，写完等一会儿）。
+4. 确认无误再落盘：`fastboot flash boot boot.img && fastboot reboot`（eMMC 慢，写完等一会儿）。
 
 失败时屏幕就是诊断器：`Invalid partition 128`→分区号进制错；`bootflow ... efi_mgr ... failed`→没扫到盘（查 preboot/sysboot）；UFS 报错→dts 里没关干净；`Loading Boot0001 failed`→`bootefi bootmgr` 找不到 ESP，正常（sysboot 成功就不会走到它）。
 
