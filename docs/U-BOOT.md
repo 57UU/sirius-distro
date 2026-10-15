@@ -12,7 +12,7 @@ PBL（ROM）→ XBL → ABL（官 fastboot 仍在，只做下载/启动跳转）
               └─ Linux（root=/dev/mmcblk0p81 userdata）
 ```
 
-- ABL 直启已退役（`boot/build_boot.sh` 已删）。dtbo 不用擦，U-Boot 路径与它无关。
+- ABL 直启已退役（`boot/build_boot.sh` 已删）。dtbo 分区必须清空（`fastboot erase dtbo`，实测留着 stock dtbo 会起不来：ABL 交接前仍会碰它）。
 - vendor 分区（mmcblk0p80）已清空为 spare，仓库内容住 system 分区，见 `KERNEL-IMG-STORE.md`。
 
 ## 2. 构建（`uboot/sirius-build.sh`）
