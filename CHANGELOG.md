@@ -22,7 +22,6 @@
 ### 变更
 
 - **破坏性变更：引导方式更换**。ABL 直启退役，改用 U-Boot。
-  升级时 `dtbo` 分区必须清空，残留的 stock dtbo 会导致设备无法开机。
 - **破坏性变更：内核与固件改存 system 分区**。产物镜像改名 `kernel.img`，
   刷写命令由 `fastboot flash vendor ...` 改为 `fastboot flash system ...`；
   `vendor` 分区不再参与启动。

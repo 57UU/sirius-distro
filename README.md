@@ -20,8 +20,11 @@ docs/       相关文档以及一些修复经验
 
 ## step1: 刷写 U-Boot（boot 分区）
 ```bash
+fastboot erase dtbo
 fastboot flash boot boot.img
 ```
+需要清空dtbo，启动连才会加载boot中的设备树
+
 只换内核时不用重刷 boot，只刷 system 即可。
 
 ## step2：刷写 system（kernel.img：内核+模块+固件）
