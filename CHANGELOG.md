@@ -1,0 +1,47 @@
+# 更新日志
+
+本文件记录 sirius-distro 的所有显著变更。
+
+本文档格式基于 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.0.0/)，
+本项目遵循[语义化版本规范](https://semver.org/spec/v2.0.0.html)。
+
+## [Unreleased]
+
+> v1.3.2 之后、尚未打 tag 的变更，预计作为 v2.0 发布。
+> 本次更新重做了引导方式，**升级必须换刷机流程**，请先读完「变更」中的破坏性变更条目。
+
+### 新增
+
+- **U-Boot 启动链**：设备改由 U-Boot 引导，从 system 分区读取内核、initrd 与设备树。
+- **重启模式**：新增 `sirius-reboot`，可重启进 fastboot 或启动菜单。
+- **自定义开机 logo**：新增可选的 `boot-logo/`。
+- **固件**：新增视频编解码、Modem/IPA、CDSP 固件。
+
+### 变更
+
+- **破坏性变更：引导方式更换**。ABL 直启退役，改用 U-Boot。
+  升级时 `dtbo` 分区必须清空，残留的 stock dtbo 会导致设备无法开机。
+- **破坏性变更：内核与固件改存 system 分区**。产物镜像改名 `kernel.img`，
+  刷写命令由 `fastboot flash vendor ...` 改为 `fastboot flash system ...`；
+  `vendor` 分区不再参与启动。
+- **刷机流程调整**：从 Release 下载 `boot.img`、`kernel.img` 与 rootfs 三个镜像依次刷入；
+  `boot` 与 `kernel.img` 必须成对刷入，只换内核时仅刷 system。
+- **硬件支持状态更新**：视频解码可用，视频编码部分可用（ffmpeg 会段错误），Modem/IPA 可用。
+- 5GHz WiFi 的 BDF 固件换成与手机实测一致的版本。
+- WiFi 改用持久化的出厂 MAC，不再随机化，避免 DHCP 与路由器绑定失效。
+- rootfs 构建的默认 apt 源改为清华镜像。
+- 子模块更新：`kernel/linux-sirius`、`orbital/orbital-src`；新增 `uboot` 子模块。
+
+### 移除
+
+- 移除 ABL 直启方案及其构建脚本。
+- vendor 分区不再用于存放内核模块与固件。
+
+### 修复
+
+- 出厂 MAC 地址持久化并保持稳定，此前重启后会变化并导致 IP 漂移。
+- USB 网卡识别更稳定。
+- 修复开机阶段的 dmesg 报错。
+- 修复 5GHz WiFi 与 USB host 模式的相关问题。
+
+[Unreleased]: https://github.com/57UU/sirius-distro/compare/v1.3.2...HEAD

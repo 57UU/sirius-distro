@@ -42,6 +42,7 @@ fastboot reboot
 
 刷完后，使用fastboot reboot重启，可能会有假死的状态，请耐心等待，避免eMMC还没完成写入。
 
+default password is 1234.
 
 # status
 
