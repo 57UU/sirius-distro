@@ -71,7 +71,7 @@ sirius_overlay() {
   ln -sf libadsprpc.so.1.0.0 $R/usr/local/lib/libadsprpc.so.1
   ln -sf libadsprpc.so.1 $R/usr/local/lib/libadsprpc.so
   ln -sf libyaml-0.so.2.0.9 $R/usr/local/lib/libyaml-0.so.2
-  chmod 755 $R/usr/local/sbin/sirius-screen $R/usr/local/sbin/sirius-remodeset $R/usr/local/sbin/sirius-bt-auto $R/usr/local/sbin/sirius-wifi-add $R/usr/local/sbin/safe-reboot $R/usr/local/bin/wifi-shutdown $R/usr/local/sbin/sirius-gnome-blank $R/usr/local/sbin/sirius-otg $R/usr/local/sbin/sirius-usb-bind $R/usr/local/sbin/sirius-bt-addr $R/usr/local/sbin/sirius-wifi-auto $R/usr/local/sbin/sirius-zram
+  chmod 755 $R/usr/local/sbin/sirius-screen $R/usr/local/sbin/sirius-remodeset $R/usr/local/sbin/sirius-bt-auto $R/usr/local/sbin/sirius-wifi-add $R/usr/local/sbin/safe-reboot $R/usr/local/bin/wifi-shutdown $R/usr/local/sbin/sirius-gnome-blank $R/usr/local/sbin/sirius-otg $R/usr/local/sbin/sirius-usb-bind $R/usr/local/sbin/sirius-bt-addr $R/usr/local/sbin/sirius-wifi-auto $R/usr/local/sbin/sirius-zram $R/usr/local/sbin/sirius-powerd
   mkdir -p $R/var/lib/rmtfs
   ln -sf /dev/disk/by-partlabel/modemst1 $R/var/lib/rmtfs/modem_fs1
   ln -sf /dev/disk/by-partlabel/modemst2 $R/var/lib/rmtfs/modem_fs2

@@ -34,11 +34,11 @@ rm -f $R/usr/bin/qemu-aarch64-static
 sirius_overlay
 sirius_netconf
 sirius_apt_mirror
-# Idle + power key are native GNOME/logind on this flavor. Give logind the
-# GNOME key policy: short-press power = lock -> screensaver blank ->
-# sirius-gnome-blank cuts backlight (lock asks no password, see gschema
-# below, so any input wakes); long-press = poweroff. Touch/volume wake by
-# resetting GNOME idle like a normal desktop.
+# Idle + power key are owned by sirius-powerd on this flavor (see
+# docs/POWER.md): it grabs the pmic power key, flips the OLED panel with
+# brightness only, and blanks after 60s of input quiet. GNOME stays out of
+# the blank path (no KMS disable, no dim). Manual lock still wakes through
+# the power key. Long-press = PMIC hard poweroff.
 rm -f $R/etc/systemd/logind.conf.d/sirius-server.conf
 cat > $R/etc/systemd/logind.conf.d/sirius-gnome.conf <<'EOF2'
 [Login]
@@ -68,29 +68,34 @@ AutomaticLoginEnable=True
 AutomaticLogin=$SIRIUS_USER
 EOF3
 systemctl enable $SIRIUS_BASE_UNITS gdm || true
-# Blank timing AND power key belong to GNOME/logind on this flavor
+systemctl enable sirius-powerd || true
+# Blank timing AND power key belong to sirius-powerd on this flavor
 # (server uses the Orbital built-in timer instead).
-# The real backlight follows the screensaver via the --user hook below;
-# idle timeout stays user-adjustable (Settings -> Power -> Screen Blank).
+# sirius-gnome-blank stays installed but inert: the saver never activates
+# (see gschema below), the panel is driven brightness-only by powerd.
 mkdir -p /home/$SIRIUS_USER/.config/systemd/user/graphical-session.target.wants
 ln -sf /etc/systemd/user/sirius-gnome-blank.service /home/$SIRIUS_USER/.config/systemd/user/graphical-session.target.wants/sirius-gnome-blank.service
+
 chown -R "$SIRIUS_USER":"$SIRIUS_USER" /home/$SIRIUS_USER/.config
 # Logind policy is sirius-gnome.conf (written above, replaces the overlay server one).
-# GNOME-side knobs only: never suspend, never demand unlock password,
-# settings-daemon takes no power-button action (logind owns the key).
+# The power key never reaches logind (powerd grabs it); the conf stays as
+# backstop. GNOME-side knobs: never suspend, never dim, never KMS-blank,
+# no unlock password, no power-button action.
 systemctl mask suspend.target hibernate.target hybrid-sleep.target suspend-then-hibernate.target
 cat > /usr/share/glib-2.0/schemas/90-sirius-power.gschema.override <<'EOF3'
 [org.gnome.settings-daemon.plugins.power]
 power-button-action="nothing"
 sleep-inactive-ac-type="nothing"
 sleep-inactive-battery-type="nothing"
+idle-dim=false
 [org.gnome.desktop.session]
 idle-delay=uint32 120
 [org.gnome.desktop.screensaver]
-# Power key = logind lock, so the blank must not ask for
-# a password (same no-auth toggle semantics as before; any input wakes).
+# Blank timing belongs to powerd, so the saver must never KMS-blank
+# (rapid blank/unblank breaks atomic commits on this panel driver).
+# Manual lock still works and wakes through the power key (see POWER.md).
 lock-enabled=false
-idle-activation-enabled=true
+idle-activation-enabled=false
 EOF3
 glib-compile-schemas /usr/share/glib-2.0/schemas/
 ldconfig
