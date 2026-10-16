@@ -32,6 +32,8 @@
 - 5GHz WiFi 的 BDF 固件换成与手机实测一致的版本。
 - WiFi 改用持久化的出厂 MAC，不再随机化，避免 DHCP 与路由器绑定失效。
 - rootfs 构建的默认 apt 源改为清华镜像。
+- **开机更快**：系统服务改为并行启动，开机就绪 7.5s→5.9s。
+- **内核版本号固定**：`uname -r` 恒为 `7.2.3-sdm670+`，不再随构建变化。
 - 子模块更新：`kernel/linux-sirius`、`orbital/orbital-src`；新增 `uboot` 子模块。
 
 ### 移除
@@ -48,5 +50,6 @@
 - gnome版本:修复电源键行为：之前按电源只会进出 suspend 空转（多按几次才亮），
   现在按一下灭/亮即时翻转；托盘锁屏后按电源可唤醒。
 - 修复 5GHz WiFi 与 USB host 模式的相关问题。
+- **关机更快**：关机耗时从 25 秒以上缩短到 5 秒左右。
 
 [Unreleased]: https://github.com/57UU/sirius-distro/compare/v1.3.2...HEAD
