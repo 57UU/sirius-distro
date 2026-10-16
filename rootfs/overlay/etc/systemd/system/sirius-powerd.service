@@ -1,6 +1,9 @@
 [Unit]
 Description=Sirius power key and panel daemon
-After=multi-user.target
+# Order on the one device powerd needs (pmic pwrkey probes in the
+# kernel before userspace) instead of multi-user.target, so the power
+# key also works during late boot.
+After=dev-input-event0.device
 
 [Service]
 Type=simple

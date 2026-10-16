@@ -6,7 +6,9 @@ Description=Sirius speaker route init (UCM HiFi/Speaker)
 # The service once ran the same second the card appeared and failed with
 # "no soundcards found". So order on the card device unit itself; the
 # Restart below stays as backstop for re-probe flaps.
-After=sound.target dev-snd-controlC0.device
+# multi-user.target keeps boot from waiting ~30s for the late card;
+# the same Restart covers the route once the card appears.
+After=sound.target dev-snd-controlC0.device multi-user.target
 Requires=dev-snd-controlC0.device
 ConditionPathExists=/usr/share/alsa/ucm2/SE/SE.conf
 

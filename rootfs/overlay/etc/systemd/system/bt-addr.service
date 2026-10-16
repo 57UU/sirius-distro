@@ -1,5 +1,8 @@
 [Unit]
 Description=Set stable Bluetooth public address (sirius)
+# Pulled by bluetooth.service itself (not multi-user.target): the
+# address must be set before bluetoothd starts, but nothing else waits
+# for it, so the hci0 firmware wait stays off the boot critical path.
 After=sys-subsystem-bluetooth-devices-hci0.device
 Wants=sys-subsystem-bluetooth-devices-hci0.device
 Before=bluetooth.service
@@ -12,4 +15,4 @@ TimeoutStartSec=45
 ExecStartPre=-/usr/bin/pkill -9 -x btmgmt
 ExecStart=/usr/local/sbin/sirius-bt-addr
 [Install]
-WantedBy=multi-user.target
+WantedBy=bluetooth.service

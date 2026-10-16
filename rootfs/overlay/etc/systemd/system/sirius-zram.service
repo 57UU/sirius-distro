@@ -1,6 +1,7 @@
 [Unit]
 Description=Sirius zram swap (lz4, 50 percent of RAM)
-After=systemd-modules-load.service
+# No After=: the script modprobes zram itself, so there is no ordering
+# need on systemd-modules-load.service; start as early as possible.
 
 [Service]
 Type=oneshot

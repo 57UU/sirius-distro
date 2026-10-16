@@ -1,7 +1,8 @@
 [Unit]
 Description=Orbital mobile dashboard (default UI for sirius server)
-After=multi-user.target
-Wants=multi-user.target
+# No After=multi-user.target: the UI comes up in parallel with late boot,
+# not after it. DSI/input probe in the kernel long before userspace; if a
+# node is still missing, Orbital exits and Restart retries.
 [Service]
 Type=simple
 WorkingDirectory=/opt/orbital
