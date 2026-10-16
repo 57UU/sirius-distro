@@ -1,7 +1,7 @@
 # sirius-powerd：电源键 + panel 常驻服务（自研）
 
 独占 pmic 电源键（EVIOCGRAB event0），按一下翻转 OLED（只写 brightness，
-永不碰 bl_power），监听全部 input 做 60 秒无操作自动灭屏。
+永不碰 bl_power），监听全部 input 做无操作自动灭屏，时长跟随 GNOME 的 Screen Blank 设置（idle-delay，0=Never）。
 GNOME 彻底退出灭屏链。裸 libc 实现，无第三方依赖。
 
 ```bash

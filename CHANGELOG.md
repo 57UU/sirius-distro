@@ -16,6 +16,8 @@
 - **重启模式**：新增 `sirius-reboot`，可重启进 fastboot 或启动菜单。
 - **自定义开机 logo**：新增可选的 `boot-logo/`。
 - **固件**：新增视频编解码、Modem/IPA、CDSP 固件。
+- **电源键服务**：新增 sirius-powerd（gnome版专属），独占电源键，
+  按一下翻转 OLED（只写 brightness），60 秒无操作自动灭屏；GNOME 退出灭屏链。
 
 ### 变更
 
@@ -36,12 +38,15 @@
 
 - 移除 ABL 直启方案及其构建脚本。
 - vendor 分区不再用于存放内核模块与固件。
+- 移除 snd_soc_sm8250 的 modprobe 黑名单（实际声卡驱动是 sdm660-int，黑名单打空）。
 
 ### 修复
 
 - 出厂 MAC 地址持久化并保持稳定，此前重启后会变化并导致 IP 漂移。
 - USB 网卡识别更稳定。
 - 修复开机阶段的 dmesg 报错。
+- gnome版本:修复电源键行为：之前按电源只会进出 suspend 空转（多按几次才亮），
+  现在按一下灭/亮即时翻转；托盘锁屏后按电源可唤醒。
 - 修复 5GHz WiFi 与 USB host 模式的相关问题。
 
 [Unreleased]: https://github.com/57UU/sirius-distro/compare/v1.3.2...HEAD

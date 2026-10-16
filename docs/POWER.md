@@ -1,7 +1,7 @@
-# 电源键与灭屏 (sirius)
+# 电源键与灭屏 (sirius，GNOME 版专属，server 版不启用)
 
 sirius-powerd 独占 pmic 电源键，按一下翻转 OLED panel，只写 brightness，
-永不碰 `bl_power`；监听全部 input 做 60 秒无操作自动灭屏。
+永不碰 `bl_power`；监听全部 input 做无操作自动灭屏（时长跟随 Screen Blank 设置）。
 GNOME 彻底退出灭屏链（不 KMS blank、不 dim）。
 长按硬关机是 PMIC 硬件，不受影响。
 
@@ -52,7 +52,7 @@ GNOME 彻底退出灭屏链（不 KMS blank、不 dim）。
 
 ## 已知问题
 
-- powerd 的 60 秒是常量，Settings 里 Screen Blank 改动影响不到它。
+- 灭屏时长跟随 Settings → Screen Blank（idle-delay），改完一分钟内生效；设 Never 则只手动灭屏。
 - suspend-on-power 已死（by design）；真要 suspend 只能手动。
 - 从 mutter KMS-blank 态恢复只在 settle 后可靠，锁屏后立刻秒按可能撞上
   blank commit 在途，多按一次即可。

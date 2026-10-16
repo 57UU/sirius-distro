@@ -22,6 +22,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <sys/stat.h>
 #include <sys/types.h>
 #include <sys/wait.h>
 #include <time.h>
@@ -31,8 +32,10 @@
 #define INPUT_DIR "/dev/input"
 #define KEY_POWER_CODE 116
 #define IDLE_SEC 60
+static long idle_sec = IDLE_SEC;
+static double last_cfg = 0;
 #define BL_BRIGHTNESS "/sys/class/backlight/ae94000.dsi.0/brightness"
-#define SESS_UID 1000
+#define SESS_UID_FALLBACK 1000
 #define MAXFDS 32
 
 static double mono(void)
@@ -42,6 +45,48 @@ static double mono(void)
 	return ts.tv_sec + ts.tv_nsec / 1e9;
 }
 
+/* session owner = uid running gnome-shell (any username); human
+   sessions (uid >= 1000) win over the login screen. */
+static uid_t sess_uid(void)
+{
+	DIR *d = opendir("/proc");
+	struct dirent *e;
+	uid_t found = 0, human = 0;
+	struct stat st;
+	char path[64], comm[64];
+	int fd;
+	ssize_t n;
+	if (!d)
+		return SESS_UID_FALLBACK;
+	while ((e = readdir(d))) {
+		if (e->d_name[0] < '0' || e->d_name[0] > '9' ||
+		    strlen(e->d_name) > 16)
+			continue;
+		snprintf(path, sizeof(path), "/proc/%s/comm", e->d_name);
+		fd = open(path, O_RDONLY);
+		if (fd < 0)
+			continue;
+		n = read(fd, comm, sizeof(comm) - 1);
+		close(fd);
+		if (n <= 0)
+			continue;
+		comm[n] = 0;
+		if (strcmp(comm, "gnome-shell\n"))
+			continue;
+		snprintf(path, sizeof(path), "/proc/%s", e->d_name);
+		if (stat(path, &st) < 0)
+			continue;
+		found = st.st_uid;
+		if (found >= 1000) {
+			human = found;
+			break;
+		}
+	}
+	closedir(d);
+	if (human)
+		return human;
+	return found ? found : SESS_UID_FALLBACK;
+}
 static void ensure_bus(void)
 {
 	char addr[64];
@@ -50,7 +95,7 @@ static void ensure_bus(void)
 		return;
 	uid = getuid();
 	if (uid == 0)
-		uid = SESS_UID;
+		uid = sess_uid();
 	snprintf(addr, sizeof(addr), "unix:path=/run/user/%u/bus",
 		 (unsigned)uid);
 	setenv("DBUS_SESSION_BUS_ADDRESS", addr, 1);
@@ -114,6 +159,63 @@ static int saver_active(void)
 	return strstr(buf, "(true,") != NULL;
 }
 
+/* follow org.gnome.desktop.session idle-delay (Settings -> Screen Blank);
+   0 means Never -> no auto blank. Re-read at most once a minute. */
+static void read_idle_delay(void)
+{
+	int fds[2], st = -1;
+	pid_t pid;
+	char buf[64], addr[96], ubuf[32], *p;
+	ssize_t n;
+	size_t got = 0;
+	long v;
+		uid_t uid = sess_uid();
+	snprintf(addr, sizeof(addr),
+		 "DBUS_SESSION_BUS_ADDRESS=unix:path=/run/user/%u/bus",
+		 (unsigned)uid);
+	snprintf(ubuf, sizeof(ubuf), "#%u", (unsigned)uid);
+	if (pipe(fds) < 0)
+		return;
+	pid = fork();
+	if (pid < 0) {
+		close(fds[0]);
+		close(fds[1]);
+		return;
+	}
+	if (pid == 0) {
+		dup2(fds[1], STDOUT_FILENO);
+		close(fds[0]);
+		close(fds[1]);
+		execlp("sudo", "sudo", "-u", ubuf, addr, "gsettings",
+			"get", "org.gnome.desktop.session", "idle-delay",
+			(char *)NULL);
+		_exit(127);
+	}
+	close(fds[1]);
+	while (got + 1 < sizeof(buf)) {
+		n = read(fds[0], buf + got, sizeof(buf) - 1 - got);
+		if (n <= 0)
+			break;
+		got += (size_t)n;
+	}
+	close(fds[0]);
+	while (waitpid(pid, &st, 0) < 0 && errno == EINTR)
+		;
+	if (st != 0)
+		return;
+	buf[got] = 0;
+	p = strstr(buf, "uint32");
+	if (!p || sscanf(p + 6, "%ld", &v) != 1)
+		return;
+	if (v <= 0)
+		v = -1;
+	if (v > 86400)
+		v = 86400;
+	if (v != idle_sec) {
+		fprintf(stderr, "sirius-powerd: idle timeout %lds (uid %u)\n", v, (unsigned)uid);
+		idle_sec = v;
+	}
+}
 static int bl_read(void)
 {
 	char buf[32];
@@ -289,7 +391,12 @@ int main(void)
 			}
 			if (dead)
 				break;
-			if (mono() - last_activity >= IDLE_SEC && !pnl.off) {
+			if (mono() - last_cfg > 60) {
+				read_idle_delay();
+				last_cfg = mono();
+			}
+			if (idle_sec >= 0 &&
+			    mono() - last_activity >= idle_sec && !pnl.off) {
 				fprintf(stderr, "sirius-powerd: idle blank\n");
 				panel_set(&pnl, 0);
 			}
