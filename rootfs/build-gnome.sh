@@ -18,6 +18,7 @@ set -e
 DISTRO="$(cd "$(dirname "$0")/.." && pwd)"
 DSP_BIN=$DISTRO/rootfs/dsp-bin
 OVERLAY=$DISTRO/rootfs/overlay
+POWERD_PKG=$DISTRO/rootfs/powerd-pkg
 WORK=${SIRIUS_WORK:-$DISTRO/work}
 SRC=${SIRIUS_BASE:-}
 test -n "$SRC" || { echo "set SIRIUS_BASE to a pristine trixie arm64 tree"; exit 1; }
@@ -39,6 +40,11 @@ sirius_apt_mirror
 # brightness only, and blanks after 60s of input quiet. GNOME stays out of
 # the blank path (no KMS disable, no dim). Manual lock still wakes through
 # the power key. Long-press = PMIC hard poweroff.
+# Installed here (not in the shared overlay): server never ships it.
+mkdir -p $R/usr/local/sbin $R/etc/systemd/system
+cp -f $POWERD_PKG/sirius-powerd $R/usr/local/sbin/sirius-powerd
+cp -f $POWERD_PKG/sirius-powerd.service $R/etc/systemd/system/sirius-powerd.service
+chmod 755 $R/usr/local/sbin/sirius-powerd
 rm -f $R/etc/systemd/logind.conf.d/sirius-server.conf
 cat > $R/etc/systemd/logind.conf.d/sirius-gnome.conf <<'EOF2'
 [Login]

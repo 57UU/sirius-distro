@@ -27,10 +27,10 @@ GNOME 彻底退出灭屏链（不 KMS blank、不 dim）。
 
 ## 文件与设置
 
-- `rootfs/overlay/usr/local/sbin/sirius-powerd`（C，源码见 `src/sirius-powerd`，裸 libc）：抓 event0（EVIOCGRAB），
+- `rootfs/powerd-pkg/sirius-powerd`（gnome bake 装机，server 不带）（C，源码见 `src/sirius-powerd`，裸 libc）：抓 event0（EVIOCGRAB），
   按键翻 panel（brightness 0 / 恢复），监听全部 event* 做 idle，
   saver Active 时（手动锁屏）按=经 saver 唤醒并强制 panel on。
-- `rootfs/overlay/etc/systemd/system/sirius-powerd.service`：
+- `rootfs/powerd-pkg/sirius-powerd.service`：
   root system 服务，直写 backlight sysfs（无 sudo），
   multi-user 下自启（build-gnome 里 systemctl enable）。
 - `90-sirius-power.gschema.override`：`power-button-action=nothing`，
