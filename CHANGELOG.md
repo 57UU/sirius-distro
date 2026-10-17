@@ -5,9 +5,8 @@
 本文档格式基于 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.0.0/)，
 本项目遵循[语义化版本规范](https://semver.org/spec/v2.0.0.html)。
 
-## [Unreleased]
+## [2.0] - 2026-10-17
 
-> v1.3.2 之后、尚未打 tag 的变更，预计作为 v2.0 发布。
 > 本次更新重做了引导方式，**升级必须换刷机流程**，请先读完「变更」中的破坏性变更条目。
 
 ### 新增
@@ -51,4 +50,9 @@
 - 修复 5GHz WiFi 与 USB host 模式的相关问题。
 - **关机更快**：关机耗时从 25 秒以上缩短到 5 秒左右。
 
-[Unreleased]: https://github.com/57UU/sirius-distro/compare/v1.3.2...HEAD
+### known issue
+
+GNOME Version: 目前的电源键方案有点别扭，体验也不是很好
+
+[Unreleased]: https://github.com/57UU/sirius-distro/compare/v2.0...HEAD
+[2.0]: https://github.com/57UU/sirius-distro/compare/v1.3.2...v2.0
