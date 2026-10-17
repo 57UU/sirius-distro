@@ -64,7 +64,7 @@ default password is 1234.
 | Speaker     | Working |
 | Video decode | Working, H.264 VP8 VP9 HEVC MPEG-2, H.264 HEVC  |
 | Video encode | Partial, verified via v4l2-ctl, ffmpeg segfaults |
-| Modem/IPA   | Working |
+| Modem/IPA   | Partial |
 | Microphone  | Broken |
 
 USB 自动切换目前有缺陷：普通线连电脑走 gadget 网卡，OTG 线接外设走 host；部分线材可能要翻面插才认得出来。详情见 docs/USB-HOST-FIX.md，切换一律用 sirius-otg。
