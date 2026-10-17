@@ -1,10 +1,14 @@
 [Unit]
 Description=Teardown WiFi before modem stops (sirius shutdown fix)
-DefaultDependencies=no
-Before=shutdown.target reboot.target poweroff.target halt.target
-Before=NetworkManager.service ModemManager.service rmtfs.service tqftpserv.service pd-mapper.service
+# Stop-job ordering is the reverse of startup: After= here means this
+# ExecStop runs BEFORE NM/MM/modem stop. (A start-job with Before=
+# cannot do that: on shutdown it runs after everything stopped, as
+# shipped images demonstrated: wifi-shutdown started 10s after rmtfs died.)
+After=NetworkManager.service ModemManager.service rmtfs.service tqftpserv.service pd-mapper.service
 [Service]
 Type=oneshot
-ExecStart=/usr/local/bin/wifi-shutdown
+RemainAfterExit=yes
+ExecStart=/bin/true
+ExecStop=/usr/local/bin/wifi-shutdown
 [Install]
-WantedBy=halt.target reboot.target poweroff.target shutdown.target
+WantedBy=multi-user.target

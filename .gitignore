@@ -23,3 +23,5 @@ workspace/
 # ide
 .vscode/
 .trae/
+work/
+.workbuddy/

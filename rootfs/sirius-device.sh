@@ -4,8 +4,8 @@
 #   R         target tree being built
 #   FIRMWARE  $DISTRO/firmware
 #   DSP_BIN   $DISTRO/rootfs/dsp-bin
-#   Kernel modules + firmware live in the vendor-partition store
-#   (kernel/build-vendormod.sh), not in the rootfs tree.
+#   Kernel modules + firmware live in the system-partition store
+#   (kernel/build-kernel-img.sh), not in the rootfs tree.
 # Flavor-specific bits (desktop packages, DM login, service enables)
 # stay in each build-*.sh chroot section.
 
@@ -128,7 +128,7 @@ EOF2
 }
 
 sirius_apt_mirror() {
-  MIRROR=${SIRIUS_MIRROR:-https://mirrors.cernet.edu.cn}
+  MIRROR=${SIRIUS_MIRROR:-https://mirrors.tuna.tsinghua.edu.cn}
   rm -f $R/etc/apt/sources.list.d/*.sources
   cat > $R/etc/apt/sources.list <<EOF2
 deb $MIRROR/debian trixie main contrib non-free non-free-firmware

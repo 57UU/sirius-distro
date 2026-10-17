@@ -96,10 +96,10 @@ Debian trixie `firmware-atheros 20250410` 自带，已取到，主流 mainline �
 `variant=xiaomi_sirius` 的 payload 由 `bdwlan.bin` 换成 `bdf_e2.bin`
 （md5 `4002bddb…`→`63bb8000fe1f…`，与手机实测 358M 的版本逐字节一致，容器其余 27 条＋头部未动）；
 `firmware/MANIFEST.sha256` 同步新 sha256（`3f1c7301…`，全量 `sha256sum -c` 通过）；
-`kernel/build-vendormod.sh:63` 门禁 md5 同步更新。
-- 生效方式：下次在构建机跑 `bash kernel/build-vendormod.sh`（需 kernel submodule kernel/linux-sirius 已构建，
-本机没有）重打 vendormod.img 并 `fastboot flash vendor`，手机即永久 e2。
-手机当前 vendor 分区手改版与仓库一致，重启保持。
+`kernel/build-kernel-img.sh:72` 门禁 md5 同步更新。
+- 生效方式：下次在构建机跑 `bash kernel/build-kernel-img.sh`（需 kernel submodule kernel/linux-sirius 已构建，
+本机没有）重打 kernel.img 并 `fastboot flash system`，手机即永久 e2。
+手机当前 system 分区手改版与仓库一致，重启保持。
 
 ## 9. vendormod 重打记录（2026-10-02，手机原生构建）
 

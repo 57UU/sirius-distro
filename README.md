@@ -4,34 +4,35 @@
 内核源码在 [57UU/linux-sirius](https://github.com/57UU/linux-sirius)（分支 `feat/sirius-7.2`），
 
 ```text
-boot/       boot_sys.img 组装脚本以及initrd源码
+boot/       U-Boot 启动镜像（uboot/sirius-build.sh 打包）以及initrd源码
 firmware/   设备固件
 rootfs/     rootfs 烘焙：overlay（开机会拷进 / 的文件）+ 构建脚本
 src/        自研源码（sirius-remodeset）；第三方源码只留获取说明
 orbital/    上游仪表盘（获取说明，用于server系统的简易管理GUI）
-kernel/     内核区：build-vendormod.sh（vendor 分区仓库打包）+ linux-sirius/（上游内核submodule，57UU/linux-sirius feat/sirius-7.2，需git submodule update --init）
+kernel/     内核区：build-kernel-img.sh（system 分区仓库打包）+ linux-sirius/（上游内核submodule，57UU/linux-sirius feat/sirius-7.2，需git submodule update --init）
 docs/       相关文档以及一些修复经验
 ```
 制作过程见：https://blog.57u.tech/2026/03/18/install-linux-on-android-device-mi8se/
 
 # 刷机指南
-在Release中下载boot,vendormod以及rootfs(debian-xxx)镜像。
+在Release中下载boot,kernel.img以及rootfs(debian-xxx)镜像。
 解锁bootloader并进入fastboot模式
 
-## step1: 刷写 boot_sys.img
+## step1: 刷写 U-Boot（boot 分区）
 ```bash
 fastboot erase dtbo
-fastboot flash boot boot_sys.img
+fastboot flash boot boot.img
 ```
-需要清空dtbo，设备才会加载boot中的设备树。
+需要清空dtbo，启动连才会加载boot中的设备树
 
-## step2：刷写 vendor（模块+固件仓库 vendormod）
+只换内核时不用重刷 boot，只刷 system 即可。
 
-内核模块和设备固件在 vendor 分区，刷入：
+## step2：刷写 system（kernel.img：内核+模块+固件）
+
+内核模块和设备固件在 system 分区，刷入：
 ```bash
-fastboot flash vendor vendormod.img
+fastboot flash system kernel.img
 ```
-只换内核时： 刷 vendor + boot 即可。但注意boot与vendor必须成对刷入，因为内核模块与内核版本强绑定。
 
 ## step3：刷写 rootfs.img
 解压出simg文件
@@ -44,6 +45,7 @@ fastboot reboot
 
 刷完后，使用fastboot reboot重启，可能会有假死的状态，请耐心等待，避免eMMC还没完成写入。
 
+default password is 1234.
 
 # status
 
@@ -60,6 +62,9 @@ fastboot reboot
 | Battery     | Working |
 | LED         | Working |
 | Speaker     | Working |
+| Video decode | Working, H.264 VP8 VP9 HEVC MPEG-2, H.264 HEVC  |
+| Video encode | Partial, verified via v4l2-ctl, ffmpeg segfaults |
+| Modem/IPA   | Partial |
 | Microphone  | Broken |
 
 USB 自动切换目前有缺陷：普通线连电脑走 gadget 网卡，OTG 线接外设走 host；部分线材可能要翻面插才认得出来。详情见 docs/USB-HOST-FIX.md，切换一律用 sirius-otg。
@@ -92,6 +97,7 @@ kernel for sdm710: https://gitlab.com/sdm670-mainline/linux
 initrd: https://gitlab.com/sdm845-mainline/initrd
 orbital(lite panel): https://github.com/AthBe1337/Orbital
 firmware & config: https://wiki.nura.eco/wiki/Xiaomi_Mi_9_Lite_(xiaomi-pyxis)
+uboot: https://gitlab.postmarketos.org/ellyq/u-boot
 
 android reference: https://github.com/Rocky7842/android_kernel_xiaomi_sdm710
 

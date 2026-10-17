@@ -1,6 +1,9 @@
 [Unit]
 Description=Sirius BT auto power-on (headless server)
-After=bluetooth.service
+# Ordered after bluetooth.service but off the boot critical path:
+# power-on is belt-and-braces and worst case costs ~30s (hci poll +
+# btmgmt + bluetoothctl). Nothing waits for it.
+After=bluetooth.service multi-user.target
 Wants=bluetooth.service
 [Service]
 Type=oneshot
