@@ -24,8 +24,7 @@
 - **破坏性变更：内核与固件改存 system 分区**。产物镜像改名 `kernel.img`，
   刷写命令由 `fastboot flash vendor ...` 改为 `fastboot flash system ...`；
   `vendor` 分区不再参与启动。
-- **刷机流程调整**：从 Release 下载 `boot.img`、`kernel.img` 与 rootfs 三个镜像依次刷入；
-  `boot` 与 `kernel.img` 必须成对刷入，只换内核时仅刷 system。
+- **刷机流程调整**：从 Release 下载 `boot.img`、`kernel.img` 与 rootfs 三个镜像依次刷入；只换内核时仅刷 system。
 - **硬件支持状态更新**：视频解码可用，视频编码部分可用（ffmpeg 会段错误），Modem/IPA 可用。
 - 5GHz WiFi 的 BDF 固件换成与手机实测一致的版本。
 - WiFi 改用持久化的出厂 MAC，不再随机化，避免 DHCP 与路由器绑定失效。
