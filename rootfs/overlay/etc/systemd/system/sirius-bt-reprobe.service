@@ -1,0 +1,8 @@
+[Unit]
+Description=Re-apply BT public address after hci0 re-probe (sirius)
+# Fired by 70-sirius-bt.rules on every hci add event. Deliberately NOT
+# ordered against bluetooth.service (that is boot-time bt-addr.service's
+# job); this one exists so udev can fire it at any moment with --no-block.
+[Service]
+Type=oneshot
+ExecStart=/usr/local/sbin/sirius-bt-addr

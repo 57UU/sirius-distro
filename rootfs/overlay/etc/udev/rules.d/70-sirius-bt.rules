@@ -1,0 +1,6 @@
+# A re-probed hci0 (driver unbind/bind, or a BT SSR that re-registered the
+# controller) starts UNCONFIGURED and is invisible to bluetoothd -- the
+# boot-time bt-addr.service is a oneshot and will not run again
+# (docs/BLUETOOTH.md §4.2). Converge it here; sirius-bt-addr is idempotent
+# (verify-or-set) and flock-guarded, so this is safe at any time.
+ACTION=="add", SUBSYSTEM=="bluetooth", KERNEL=="hci[0-9]*", RUN+="/bin/systemctl --no-block start sirius-bt-reprobe.service"

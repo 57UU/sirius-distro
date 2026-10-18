@@ -11,6 +11,12 @@
 # Discipline kept from sirius-bt-auto: btmgmt HANGS on /dev/null stdin,
 # so feed it an open silent stdin via a sleep pipe, always timeout -s KILL.
 LAA=02:57:55:08:5E:02
+# Single-flight: boot ordering, the udev re-probe trigger (70-sirius-bt.rules)
+# and sirius-bt-watch can all run this concurrently; two btmgmt instances
+# racing on public-addr would be worse than either alone. Loser exits 0 --
+# the winner's verify-or-set covers both.
+exec 9>/run/sirius-bt-addr.lock
+flock -n 9 || exit 0
 upper() { echo "$1" | tr 'a-f' 'A-F'; }
 mgmt() { sleep 0.2 | timeout -s KILL 3 btmgmt --index 0 "$@" 2>&1; }
 i=0
@@ -43,9 +49,27 @@ if [ -n "$CUR" ] && [ "$(upper "$CUR")" = "$(upper "$EXP")" ]; then
 	echo VERIFIED
 	exit 0
 fi
-mgmt public-addr "$EXP" || echo SET-FAILED
+# public-addr IS the readiness probe. Between hci0 device-add and the
+# kernel's "Unconfigured Index Added" (setup needs ~3s of firmware
+# download), --index 0 commands fail with "Invalid Index" (0x11) --
+# measured on a driver re-probe 2026-10-18; a plain `mgmt info` cannot
+# distinguish this window because it exits 0 on an empty index list.
+# Retry until the command reports "complete" (typ. 2-3 loops; cap ~42s
+# worst case with a dead chip). After the set succeeds the kernel still
+# runs a second setup before the controller turns up configured, so the
+# verify loop below gets a generous cap too.
 i=0
-while [ $i -lt 8 ]; do
+while [ $i -lt 12 ]; do
+	OUT="$(mgmt public-addr "$EXP")"
+	case "$OUT" in
+	*complete*) break ;;
+	esac
+	sleep 0.5
+	i=$((i + 1))
+done
+if [ $i -ge 12 ]; then echo SET-FAILED; fi
+i=0
+while [ $i -lt 24 ]; do
 	mgmt info > /tmp/btinfo3 2>&1
 	if grep -qi "$EXP" /tmp/btinfo3; then echo VERIFIED; exit 0; fi
 	sleep 0.5

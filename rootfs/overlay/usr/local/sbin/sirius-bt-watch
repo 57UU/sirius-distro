@@ -1,0 +1,102 @@
+#!/bin/sh
+# sirius-bt-watch: auto-recover the WCN3990 BT chip after a wedged crash.
+#
+# Background (docs/BLUETOOTH.md §7): the chip can crash spontaneously and
+# its own warm restart may hang; the kernel's built-in retry ("Retry BT
+# power ON") cannot help because bt_en is hard-wired high on sirius and
+# the host cannot cold-reset. The only working recovery is a real power
+# cycle: unbind/rebind hci_uart_qca (cuts the chip regulators), then
+# re-apply the public address (a re-probed controller starts UNCONFIGURED
+# and is invisible to bluetoothd, docs/BLUETOOTH.md §4.2), then power on.
+#
+# Event-driven: tails the kernel log and triggers only on markers that
+# appear when the in-driver recovery has failed/exhausted:
+#   hci0: Retry BT power ON:N          <- setup retrying a dead chip
+#   hci0: Opcode 0x0c03 failed: -110   <- reset given up entirely
+# A successful driver self-recovery (fw re-downloaded) does not trigger
+# us and is left alone (checked via the "setup on UART is completed"
+# counter before/after the settle window).
+#
+# Usage: sirius-bt-watch          watch mode (run from the systemd unit)
+#        sirius-bt-watch recover  one recovery cycle, then exit (testing)
+set -u
+
+DEV=serial0-0
+DRV=/sys/bus/serial/drivers/hci_uart_qca
+SETTLE=20       # let the driver's retry loop finish before judging
+COOLDOWN=300    # a chip that wedges again must not loop resets
+
+log() { logger -t sirius-bt-watch "$*"; }
+
+recover() {
+	# Single-flight: udev (sirius-bt-reprobe), manual runs and this
+	# watcher share sirius-bt-addr via its flock; we still serialize
+	# the reset itself so two triggers never unbind twice.
+	exec 9>/run/sirius-bt-watch.lock
+	flock -n 9 || return 0
+	NOW=$(date +%s)
+	if [ "${COOL_UNTIL:-0}" -gt "$NOW" ]; then
+		log "cooldown, skipping recovery"
+		return 0
+	fi
+
+	if [ ! -d /sys/class/bluetooth/hci0 ]; then
+		log "hci0 gone, nothing to recover"
+		return 0
+	fi
+
+	# Give the driver's own retry loop a settle window, then compare
+	# the success counter: if a "QCA setup on UART is completed" showed
+	# up meanwhile, the chip came back on its own -- hands off.
+	S0=$(dmesg 2>/dev/null | grep -c "QCA setup on UART is completed")
+	sleep "$SETTLE"
+	S1=$(dmesg 2>/dev/null | grep -c "QCA setup on UART is completed")
+	if [ "$S1" -gt "$S0" ]; then
+		log "driver self-recovered, no reset needed"
+		return 0
+	fi
+
+	log "wedged chip confirmed, hard reset (unbind/bind $DEV)"
+	if [ -d "$DRV" ]; then
+		echo "$DEV" > "$DRV/unbind" 2>/dev/null
+		sleep 3
+		echo "$DEV" > "$DRV/bind" 2>/dev/null
+	else
+		log "driver dir missing, skipping reset"
+	fi
+
+	# Firmware reload takes ~3s; sirius-bt-addr polls mgmt-ready itself
+	# (cap ~12s) before converging the address.
+	i=0
+	while [ "$i" -lt 30 ] && [ ! -d /sys/class/bluetooth/hci0 ]; do
+		sleep 1
+		i=$((i + 1))
+	done
+	if [ -x /usr/local/sbin/sirius-bt-addr ]; then
+		/usr/local/sbin/sirius-bt-addr || true
+	fi
+
+	# A chip that wedged was in use, so restore the pre-crash power
+	# state (same stdin discipline as sirius-bt-auto: bluetoothctl
+	# gets a real stdin via printf pipe).
+	printf "power on\nquit\n" | timeout 10 bluetoothctl > /dev/null 2>&1 || true
+	COOL_UNTIL=$((NOW + COOLDOWN))
+	log "recovery cycle done"
+	return 0
+}
+
+if [ "${1:-}" = "recover" ]; then
+	recover
+	exit 0
+fi
+
+log "watching kernel log for wedged-chip markers"
+# journalctl -f never exits on its own; if it dies (journal restart),
+# systemd brings us back (Restart=always in the unit).
+journalctl -k -f -n 0 2>/dev/null | while read -r LINE; do
+	case "$LINE" in
+	*"Retry BT power ON"*|*"Opcode 0x0c03 failed"*)
+		recover
+		;;
+	esac
+done

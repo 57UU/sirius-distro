@@ -1,0 +1,16 @@
+[Unit]
+Description=Sirius BT crash auto-recovery (hard-reset WCN3990 after wedged SSR)
+# Event-driven: tails the kernel log (zero polling). A wedged chip is
+# detected by its kernel retry markers and cold-reset via unbind/bind,
+# then re-addressed and powered on (rationale: docs/BLUETOOTH.md §5/§7).
+# Nothing waits for it; recovery adds no boot cost.
+After=bluetooth.service multi-user.target
+
+[Service]
+Type=simple
+Restart=always
+RestartSec=5
+ExecStart=/usr/local/sbin/sirius-bt-watch
+
+[Install]
+WantedBy=multi-user.target
