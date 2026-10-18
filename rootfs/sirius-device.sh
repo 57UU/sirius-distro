@@ -40,7 +40,7 @@ export SIRIUS_VULKAN_PKGS
 # `apt-get install -y $SIRIUS_BASE_PKGS` first, then its flavor-only extras
 # (server: evtest/rfkill/auditd/kbd + Qt runtime; gnome:
 # gnome-core/gdm3/firmware). Flavor lines must not repeat these.
-SIRIUS_BASE_PKGS=${SIRIUS_BASE_PKGS:-"sudo openssh-server network-manager nano wpasupplicant bluez rmtfs tqftpserv qrtr-tools libbsd0 wireless-tools pipewire wireplumber modemmanager libqmi-utils $SIRIUS_AUDIO_PKGS $SIRIUS_VULKAN_PKGS systemd-timesyncd systemd-resolved util-linux-extra e2fsprogs"}
+SIRIUS_BASE_PKGS=${SIRIUS_BASE_PKGS:-"sudo openssh-server network-manager nano wpasupplicant bluez rmtfs tqftpserv qrtr-tools libbsd0 wireless-tools pipewire wireplumber modemmanager libqmi-utils mobile-broadband-provider-info $SIRIUS_AUDIO_PKGS $SIRIUS_VULKAN_PKGS systemd-timesyncd systemd-resolved util-linux-extra e2fsprogs"}
 export SIRIUS_BASE_PKGS
 
 # Shared service enables for every flavor: each build-*.sh runs
