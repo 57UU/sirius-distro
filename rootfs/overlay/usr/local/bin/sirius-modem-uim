@@ -1,0 +1,147 @@
+#!/bin/sh
+# sirius-modem-uim: 开机建立 UIM provisioning session。
+#
+# 必须在 ModemManager 启动前跑完：ModemManager 只在初始化时读一次卡状态，
+# 看不到 provisioning session 就会把 modem 判成 sim-missing 并放弃。
+#
+# 行为约定：
+#   - 无卡 / 卡上没有 usim 应用（纯 CSIM 卡）→ 静默退出，不报错
+#   - 已有 Primary GW session → 什么都不做（幂等）
+#   - 否则读出该卡的 usim AID 建 primary-gw 会话
+#
+# AID 必须每次现读：不同卡的 USIM AID 第 12 字节可能不同（模板 FF / 本机卡 03）。
+set -u
+
+QRTR=qrtr://0
+UIMSEL=/usr/local/bin/uimsel
+# 冷却标记（/run 是 tmpfs，重启清空）
+STAMP=/run/sirius-modem-uim.stamp
+log() { echo "sirius-modem-uim: $*"; }
+
+# 互斥锁：本脚本会被三条路径触发——开机 oneshot、timer、uimwatch 事件，
+# 其中 uimwatch 是直接 exec（绕过 systemd），所以不能指望 systemd 帮我们串行化。
+# 一次拔插会产生十几条事件，没有这把锁就会并发跑十几个实例同时发 QMI。
+# 抢不到锁说明已有实例在处理，直接退出即可（本脚本幂等，重复执行没有意义）。
+exec 9>/run/sirius-modem-uim.lock
+if ! flock -n 9; then
+    exit 0
+fi
+
+# 重启 ModemManager 唤醒它重新探测。
+# 必须用 --no-block：MM 停止过程很慢（实测 >25s，会等 QMI 请求收尾），
+# 阻塞调用会把本脚本拖到 TimeoutStartSec 被杀，restart 反而做不完。
+restart_mm() {
+    systemctl is-active --quiet ModemManager 2>/dev/null || return 0
+    log "重启 ModemManager 以重新探测 modem"
+    date +%s > "$STAMP" 2>/dev/null || true
+    systemctl try-restart --no-block ModemManager 2>/dev/null || true
+}
+
+# ---- 1. 等 modem 的 UIM 服务可用 ----
+# 本 service 带 Before=ModemManager，这段等待位于启动关键路径上：
+# qrtr-ns/rmtfs → 本脚本 → ModemManager → NetworkManager。
+# 实测 modem 从开机到 QMI 可服务约 10~20s，这里留一倍余量取 40s：
+# 正常时循环很早就 break，无感；只有基带真起不来才会等满，
+# 那时宁可早点放行让 MM/NM 起来，也好过把整个网络栈拖住。
+# 用时间戳而不是计数：单轮 = sleep 2 + qmicli 耗时(约 0.5s)，按次数算会超时。
+deadline=$(( $(date +%s) + 40 ))
+out=""
+while [ "$(date +%s)" -lt "$deadline" ]; do
+    out=$(qmicli -d "$QRTR" --uim-get-card-status 2>&1)
+    case "$out" in
+        *"Card state"*) break ;;
+    esac
+    sleep 2
+done
+if ! printf '%s' "$out" | grep -q "Card state"; then
+    log "modem/UIM 40s 内未就绪，跳过"
+    exit 0
+fi
+
+# ---- 2. 置 online（上次 MM 失败可能把基带留在 shutting-down）----
+mode=$(qmicli -d "$QRTR" --dms-get-operating-mode 2>&1 | sed -n "s/.*Mode: '\([^']*\)'.*/\1/p")
+if [ "${mode:-unknown}" != "online" ]; then
+    log "operating mode=${mode:-unknown}，置为 online"
+    qmicli -d "$QRTR" --dms-set-operating-mode=online >/dev/null 2>&1
+    sleep 2
+    out=$(qmicli -d "$QRTR" --uim-get-card-status 2>&1)
+fi
+
+# ---- 3. 已经有会话：只需确认 ModemManager 是否还活着 ----
+if printf '%s' "$out" | grep -q "Primary GW:   slot"; then
+    if systemctl is-active --quiet ModemManager 2>/dev/null; then
+        # MM 正在启停时不要插手：它的 stop 要等 QMI 请求收尾（实测 >25s），
+        # 这期间 mmcli -L 必然是空的，误判成"无 modem"会导致反复重启。
+        sub=$(systemctl show ModemManager -p SubState --value 2>/dev/null)
+        case "${sub:-}" in
+            start*|stop*) exit 0 ;;
+        esac
+        if ! mmcli -L 2>/dev/null | grep -q "Modem/"; then
+            now=$(date +%s)
+            last=0
+            [ -f "$STAMP" ] && last=$(cat "$STAMP" 2>/dev/null || echo 0)
+            case "$last" in ''|*[!0-9]*) last=0 ;; esac
+            if [ $((now - last)) -gt 60 ]; then
+                restart_mm
+            else
+                log "MM 暂无 modem，冷却中（$((60 - (now - last)))s 后再试）"
+            fi
+        fi
+    fi
+    exit 0
+fi
+
+# ---- 4. 找第一个带 usim 应用的槽位与它的 AID ----
+# 卡刚插入时 modem 还没把应用列表读出来，这时候读到的是空列表——必须等一会儿重试，
+# 否则事件触发的那一次必然空跑（实测插卡后 2~6 秒才出现 usim 应用）。
+slot_aid=""
+waited=0
+while :; do
+    slot_aid=$(printf '%s' "$out" | awk '
+        /^Slot \[[0-9]+\]:/ { s = $0; sub(/^Slot \[/, "", s); sub(/\].*/, "", s); slot = s; next }
+        /Application type:  .usim/ { usim_slot = slot; next }
+        usim_slot != "" && /Application ID:/ {
+            getline
+            gsub(/[ \t:\r]/, "", $0)
+            if (length($0) >= 10) { print usim_slot, $0; exit }
+        }
+    ')
+    [ -n "$slot_aid" ] && break
+
+    # 卡根本不在就别等了（这是真的没卡，不是没读完）
+    if ! printf '%s' "$out" | grep -q "Card state: 'present'"; then
+        log "卡不在，跳过"
+        exit 0
+    fi
+    [ "$waited" -ge 10 ] && break
+    waited=$((waited + 1))
+    sleep 1
+    out=$(qmicli -d "$QRTR" --uim-get-card-status 2>&1)
+done
+
+if [ -z "$slot_aid" ]; then
+    log "等 ${waited}s 仍未读到 usim 应用（可能是纯 CSIM 卡），跳过"
+    exit 0
+fi
+
+slot=$(echo "$slot_aid" | awk '{print $1}')
+aid=$(echo "$slot_aid" | awk '{print $2}')
+
+# ---- 5. 建 primary GW provisioning session ----
+log "slot=$slot aid=$aid，建立 primary-gw session"
+res=$(UIMSEL_AID="$aid" UIMSEL_ST=0 "$UIMSEL" "$slot" 2>&1)
+case "$res" in
+    *SUCCESS*)
+        log "会话建立成功"
+        # 热插拔场景：此时 ModemManager 早就因为看不到卡而放弃了这个 modem，
+        # 它不会自己重试，必须重启才能让它重新探测（现在 session 已经在位）。
+        # 开机场景 MM 还没起来，restart_mm 内部会直接返回——顺序由 Before= 保证。
+        restart_mm
+        ;;
+    *)
+        log "会话建立失败: $res"
+        ;;
+esac
+
+# 无论如何都返回 0：这里失败不应阻塞开机和 ModemManager 启动
+exit 0

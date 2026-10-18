@@ -1,0 +1,14 @@
+[Unit]
+Description=Watch SIM hotplug and rebuild UIM session (sirius)
+
+[Timer]
+# 兜底用。正常热插拔由 sirius-modem-uim-watch（订阅 UIM indication）即时触发，
+# 这里只在事件丢失时保命，间隔放宽到 60s。
+# sirius-modem-uim 是幂等的：卡不在或已有 session 时只做一次只读判断就退出。
+OnBootSec=30s
+OnUnitActiveSec=60s
+AccuracySec=1s
+Unit=sirius-modem-uim.service
+
+[Install]
+WantedBy=timers.target

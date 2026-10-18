@@ -40,13 +40,13 @@ export SIRIUS_VULKAN_PKGS
 # `apt-get install -y $SIRIUS_BASE_PKGS` first, then its flavor-only extras
 # (server: evtest/rfkill/auditd/kbd + Qt runtime; gnome:
 # gnome-core/gdm3/firmware). Flavor lines must not repeat these.
-SIRIUS_BASE_PKGS=${SIRIUS_BASE_PKGS:-"sudo openssh-server network-manager nano wpasupplicant bluez rmtfs tqftpserv qrtr-tools libbsd0 wireless-tools pipewire wireplumber $SIRIUS_AUDIO_PKGS $SIRIUS_VULKAN_PKGS systemd-timesyncd systemd-resolved util-linux-extra e2fsprogs"}
+SIRIUS_BASE_PKGS=${SIRIUS_BASE_PKGS:-"sudo openssh-server network-manager nano wpasupplicant bluez rmtfs tqftpserv qrtr-tools libbsd0 wireless-tools pipewire wireplumber modemmanager libqmi-utils $SIRIUS_AUDIO_PKGS $SIRIUS_VULKAN_PKGS systemd-timesyncd systemd-resolved util-linux-extra e2fsprogs"}
 export SIRIUS_BASE_PKGS
 
 # Shared service enables for every flavor: each build-*.sh runs
 # `systemctl enable $SIRIUS_BASE_UNITS <flavor-extra>` (server: orbital;
 # gnome: gdm). Flavor lines must not repeat these.
-SIRIUS_BASE_UNITS=${SIRIUS_BASE_UNITS:-"ssh systemd-networkd systemd-resolved rmtfs tqftpserv pd-mapper adsprpcd-rootpd adsprpcd-audiopd adsprpcd-sensorspd wifi-shutdown bluetooth bt-addr systemd-timesyncd NetworkManager sirius-bt-auto sirius-usb-bind.service sirius-wifi-auto.timer sirius-zram.service sirius-audio-init"}
+SIRIUS_BASE_UNITS=${SIRIUS_BASE_UNITS:-"ssh systemd-networkd systemd-resolved rmtfs tqftpserv pd-mapper adsprpcd-rootpd adsprpcd-audiopd adsprpcd-sensorspd wifi-shutdown bluetooth bt-addr systemd-timesyncd NetworkManager ModemManager sirius-modem-uim sirius-modem-uim.timer sirius-modem-uim-watch sirius-bt-auto sirius-usb-bind.service sirius-wifi-auto.timer sirius-zram.service sirius-audio-init"}
 export SIRIUS_BASE_UNITS
 # Common device base for every flavor. Static files live in rootfs/overlay/
 # (edit there, not here); this only copies them in, fixes exec bits, and
@@ -59,10 +59,22 @@ sirius_overlay() {
   # Overlay checkout is user-owned; plain cp -a would stamp that owner onto every
   # shipped dir (phone / once ended up u57u, apt refused it). Copy as root instead.
   cp -a --no-preserve=ownership $OVERLAY/. $R/
+  # NetworkManager 只加载属主 root 且权限 600 的 keyfile，overlay 里带过来的
+  # 权限不符合就会被静默忽略（表现为 gsm 连接不存在）。
+  chmod 600 $R/etc/NetworkManager/system-connections/*.nmconnection 2>/dev/null || true
   cp -f $DSP_BIN/pd-mapper $R/usr/local/bin/pd-mapper
   chmod 755 $R/usr/local/bin/pd-mapper
   cp -f $DSP_BIN/adsprpcd $R/usr/local/bin/adsprpcd
   chmod 755 $R/usr/local/bin/adsprpcd
+  # 蜂窝 bring-up 工具（预编译随仓库走，做法同 rootfs/powerd-pkg；
+  # 源码在 src/modem/）。缺了它们 sirius-modem-uim 会因找不到命令而失效。
+  MODEM_PKG=${MODEM_PKG:-$DISTRO/rootfs/modem-pkg}
+  # 用 -f 而不是 -x：仓库在 Windows/NTFS 上检出时可能丢掉可执行位，
+  # 真正的权限由下面的 chmod 755 决定。
+  test -f $MODEM_PKG/uimsel   || { echo "missing $MODEM_PKG/uimsel"; exit 1; }
+  test -f $MODEM_PKG/uimwatch || { echo "missing $MODEM_PKG/uimwatch"; exit 1; }
+  cp -f $MODEM_PKG/uimsel $MODEM_PKG/uimwatch $R/usr/local/bin/
+  chmod 755 $R/usr/local/bin/uimsel $R/usr/local/bin/uimwatch
   mkdir -p $R/usr/local/lib
   cp -f $DSP_BIN/libadsp_default_listener.so.1.0.0 $DSP_BIN/libadsprpc.so.1.0.0 $DSP_BIN/libyaml-0.so.2.0.9 $R/usr/local/lib/
   chmod 644 $R/usr/local/lib/libadsp_default_listener.so.1.0.0 $R/usr/local/lib/libadsprpc.so.1.0.0 $R/usr/local/lib/libyaml-0.so.2.0.9
@@ -71,7 +83,10 @@ sirius_overlay() {
   ln -sf libadsprpc.so.1.0.0 $R/usr/local/lib/libadsprpc.so.1
   ln -sf libadsprpc.so.1 $R/usr/local/lib/libadsprpc.so
   ln -sf libyaml-0.so.2.0.9 $R/usr/local/lib/libyaml-0.so.2
-  chmod 755 $R/usr/local/sbin/sirius-screen $R/usr/local/sbin/sirius-remodeset $R/usr/local/sbin/sirius-bt-auto $R/usr/local/sbin/sirius-wifi-add $R/usr/local/sbin/safe-reboot $R/usr/local/bin/wifi-shutdown $R/usr/local/sbin/sirius-gnome-blank $R/usr/local/sbin/sirius-otg $R/usr/local/sbin/sirius-usb-bind $R/usr/local/sbin/sirius-bt-addr $R/usr/local/sbin/sirius-wifi-auto $R/usr/local/sbin/sirius-zram
+  # overlay 里的脚本在 git 里存的是 644（Windows 检出会丢可执行位），
+  # 统一在这里补 755。新增 overlay 脚本记得加进这个列表，否则 systemd
+  # 启动时会报 Permission denied。
+  chmod 755 $R/usr/local/sbin/sirius-screen $R/usr/local/sbin/sirius-remodeset $R/usr/local/sbin/sirius-bt-auto $R/usr/local/sbin/sirius-wifi-add $R/usr/local/sbin/safe-reboot $R/usr/local/bin/wifi-shutdown $R/usr/local/sbin/sirius-gnome-blank $R/usr/local/sbin/sirius-otg $R/usr/local/sbin/sirius-usb-bind $R/usr/local/sbin/sirius-bt-addr $R/usr/local/sbin/sirius-wifi-auto $R/usr/local/sbin/sirius-zram $R/usr/local/bin/sirius-modem-uim
   mkdir -p $R/var/lib/rmtfs
   ln -sf /dev/disk/by-partlabel/modemst1 $R/var/lib/rmtfs/modem_fs1
   ln -sf /dev/disk/by-partlabel/modemst2 $R/var/lib/rmtfs/modem_fs2

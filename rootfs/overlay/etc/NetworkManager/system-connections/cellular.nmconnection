@@ -1,0 +1,17 @@
+[connection]
+id=cellular
+uuid=040ec885-ab43-4e2c-b201-346f24061de7
+type=gsm
+interface-name=qrtr0
+
+[gsm]
+auto-config=true
+
+[ipv4]
+method=auto
+
+[ipv6]
+addr-gen-mode=default
+method=auto
+
+[proxy]

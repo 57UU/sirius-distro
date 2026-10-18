@@ -1,0 +1,18 @@
+[Unit]
+Description=Build UIM provisioning session before ModemManager (sirius)
+# 基带与 EFS 服务就绪后再动手；必须早于 ModemManager，否则 MM 会判 sim-missing 并放弃 modem。
+After=qrtr-ns.service rmtfs.service tqftpserv.service pd-mapper.service
+Before=ModemManager.service
+Wants=qrtr-ns.service rmtfs.service
+
+[Service]
+Type=oneshot
+# 故意不加 RemainAfterExit：跑完就回到 inactive，这样配套的 timer 才能
+# 再次触发它做兜底检查（RemainAfterExit 会让 service 常驻 active，timer 不再触发）。
+ExecStart=/usr/local/bin/sirius-modem-uim
+# 脚本内部等 UIM 就绪最长 40s（实测 modem 10~20s 就绪），这里留足余量。
+# 反过来说：基带起不来时开机最多被拖 40s（MM 要等这个 oneshot），是已知代价。
+TimeoutStartSec=60
+
+[Install]
+WantedBy=multi-user.target
