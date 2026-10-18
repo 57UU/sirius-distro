@@ -187,6 +187,25 @@ modem 对象每 20~30 秒被重建一轮（modem0 → modem1 → …），enable
 > 给排障者的提示：以后遇到"之前好好的，现在 No modems were found"，
 > 先问是不是插了两张卡。拔到单卡，`sirius-modem-uim` 的事件链路会自动恢复。
 
+### 4.6 物联网卡：searching 循环与强制注册
+
+实测卡（ICCID 898600 开头）是**物联网卡，归属 PLMN 46015**，该网段在多数位置
+没有可用小区。modem 自动选网先试归属网 → 被拒
+（`network rejection error: no-cells-in-location-area, operator id 46015`）→
+卡在 `registration: searching` 循环，NM 停在 connecting。信号质量、SIM 状态、
+provisioning session 全部正常，别往软件方向查。
+
+恢复一条命令（注册到标准移动网 46000，实测立即 connected）：
+
+```sh
+sudo mmcli -m 0 --3gpp-register-in-operator=46000
+```
+
+只对这张卡生效，**不要**把 network-id 写进 cellular.nmconnection 固化——
+换普通卡（归属网有覆盖）不需要它，固化反而会挡住别的卡。
+2026-10-18 两次"自行恢复"（13:50 / 17:20 注册上 CMCC 46000）都是 modem
+自己搜到 46000 注册的，同一天晚上又卡 searching，说明该卡行为不稳定属常态。
+
 ---
 
 ## 5. 操作步骤
