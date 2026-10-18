@@ -42,10 +42,9 @@ logind：    HandlePowerKey=ignore（按键归 Orbital，
 overlay/usr/local/sbin/  sirius-screen sirius-remodeset（救援用）
                          sirius-bt-auto sirius-wifi-add
 overlay/etc/systemd/system/  orbital.service（server 专用）
-overlay/etc/systemd/logind.conf.d/sirius-server.conf（server：按键归 Orbital；gnome 构建时换成 sirius-gnome.conf：短按 lock→屏保→背光跟随）
-overlay/etc/systemd/logind.conf.d/sirius-server.conf
+overlay/etc/systemd/logind.conf.d/sirius-server.conf（server：按键归 Orbital；gnome 构建时换成 sirius-gnome.conf：按键归 gsd，logind 只做 backstop）
 overlay/etc/NetworkManager/conf.d/sirius-server.conf
-build-server.sh（另有 build-gnome.sh GNOME 桌面版：计时归设置→电源→屏幕空白，电源键走 logind lock→GNOME 屏保（lock 不鉴权）→sirius-gnome-blank 背光跟随）
+build-server.sh（另有 build-gnome.sh GNOME 桌面版：计时/锁屏/灭屏全是 GNOME 原生，电源键归 gsd 弹关机对话框，见 docs/POWER.md）
 src/sirius-remodeset.c（救援工具源码）
 ```
 

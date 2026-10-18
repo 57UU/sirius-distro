@@ -18,7 +18,7 @@ set -e
 DISTRO="$(cd "$(dirname "$0")/.." && pwd)"
 DSP_BIN=$DISTRO/rootfs/dsp-bin
 OVERLAY=$DISTRO/rootfs/overlay
-POWERD_PKG=$DISTRO/rootfs/powerd-pkg
+POWERKEY_PKG=$DISTRO/rootfs/powerkey-pkg
 WORK=${SIRIUS_WORK:-$DISTRO/work}
 SRC=${SIRIUS_BASE:-}
 test -n "$SRC" || { echo "set SIRIUS_BASE to a pristine trixie arm64 tree"; exit 1; }
@@ -35,19 +35,17 @@ rm -f $R/usr/bin/qemu-aarch64-static
 sirius_overlay
 sirius_netconf
 sirius_apt_mirror
-# Idle + power key are owned by sirius-powerd on this flavor (see
-# docs/POWER.md): it grabs the pmic power key, flips the OLED panel with
-# brightness only, and blanks after 60s of input quiet. GNOME stays out of
-# the blank path (no KMS disable, no dim). Manual lock still wakes through
-# the power key. Long-press = PMIC hard poweroff.
-# Installed here (not in the shared overlay): server never ships it.
-mkdir -p $R/usr/local/sbin $R/etc/systemd/system
-cp -f $POWERD_PKG/sirius-powerd $R/usr/local/sbin/sirius-powerd
-cp -f $POWERD_PKG/sirius-powerd.service $R/etc/systemd/system/sirius-powerd.service
-chmod 755 $R/usr/local/sbin/sirius-powerd
+# Idle/lock/blank are 100% GNOME native on this flavor; the power key is
+# handled by the sirius-powerkey shim (see docs/POWER.md for the rationale).
+mkdir -p $R/usr/local/bin $R/etc/systemd/user
+cp -f $POWERKEY_PKG/sirius-powerkey $R/usr/local/bin/sirius-powerkey
+cp -f $POWERKEY_PKG/sirius-powerkey.service $R/etc/systemd/user/sirius-powerkey.service
+chmod 755 $R/usr/local/bin/sirius-powerkey
 rm -f $R/etc/systemd/logind.conf.d/sirius-server.conf
 cat > $R/etc/systemd/logind.conf.d/sirius-gnome.conf <<'EOF2'
 [Login]
+# gsd blocks the key before logind sees it, so this only fires when gsd is
+# gone (crash / manual stop) — same "lock instead of power off" policy.
 HandlePowerKey=lock
 HandlePowerKeyLongPress=poweroff
 HandleLidSwitch=ignore
@@ -74,22 +72,16 @@ AutomaticLoginEnable=True
 AutomaticLogin=$SIRIUS_USER
 EOF3
 systemctl enable $SIRIUS_BASE_UNITS gdm || true
-systemctl enable sirius-powerd || true
-# Blank timing AND power key belong to sirius-powerd on this flavor
-# (server uses the Orbital built-in timer instead).
-# sirius-gnome-blank stays installed but inert: the saver never activates
-# (see gschema below), the panel is driven brightness-only by powerd.
+# sirius-powerkey is a --user unit (talks to gnome-shell's ScreenSaver).
 mkdir -p /home/$SIRIUS_USER/.config/systemd/user/graphical-session.target.wants
-ln -sf /etc/systemd/user/sirius-gnome-blank.service /home/$SIRIUS_USER/.config/systemd/user/graphical-session.target.wants/sirius-gnome-blank.service
-
+ln -sf /etc/systemd/user/sirius-powerkey.service /home/$SIRIUS_USER/.config/systemd/user/graphical-session.target.wants/sirius-powerkey.service
 chown -R "$SIRIUS_USER":"$SIRIUS_USER" /home/$SIRIUS_USER/.config
-# Logind policy is sirius-gnome.conf (written above, replaces the overlay server one).
-# The power key never reaches logind (powerd grabs it); the conf stays as
-# backstop. GNOME-side knobs: never suspend, never dim, never KMS-blank,
-# no unlock password, no power-button action.
+# GNOME-side knobs: stock GNOME defaults so a fresh image is predictable
+# (blank+lock after 120 s, never suspend, no dimming; see docs/POWER.md).
 systemctl mask suspend.target hibernate.target hybrid-sleep.target suspend-then-hibernate.target
 cat > /usr/share/glib-2.0/schemas/90-sirius-power.gschema.override <<'EOF3'
 [org.gnome.settings-daemon.plugins.power]
+# power key handled by sirius-powerkey (see docs/POWER.md)
 power-button-action="nothing"
 sleep-inactive-ac-type="nothing"
 sleep-inactive-battery-type="nothing"
@@ -97,11 +89,8 @@ idle-dim=false
 [org.gnome.desktop.session]
 idle-delay=uint32 120
 [org.gnome.desktop.screensaver]
-# Blank timing belongs to powerd, so the saver must never KMS-blank
-# (rapid blank/unblank breaks atomic commits on this panel driver).
-# Manual lock still works and wakes through the power key (see POWER.md).
-lock-enabled=false
-idle-activation-enabled=false
+lock-enabled=true
+idle-activation-enabled=true
 EOF3
 glib-compile-schemas /usr/share/glib-2.0/schemas/
 ldconfig

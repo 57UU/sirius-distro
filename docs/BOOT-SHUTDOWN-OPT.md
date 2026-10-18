@@ -29,7 +29,7 @@
 - `bt-addr`：`WantedBy: multi-user.target → bluetooth.service`。地址必须在 bluetoothd 之前设好（`Before=` 保留），但没人等它；hci0 固件等待移出关键路径。附带修了无 BT 时 boot 卡 90s（JobTimeout）的坑。
 - `sirius-zram`：删 `After=systemd-modules-load`（脚本自己 modprobe，无依赖）。
 - `orbital`：删 `After/Wants=multi-user`。DSI/input 在 kernel 里远早于 userspace 就绪；缺节点就 crash，`Restart=always` 兜着，UI 早几秒出来。
-- `sirius-powerd`（gnome 才 enable）：`After: multi-user → dev-input-event0.device`。pwrkey 18.94s 就绪（journal 实测），按真实依赖排序；只做了 verify，没活测（gnome 没刷）。
+- `sirius-powerd`（gnome 才 enable）：`After: multi-user → dev-input-event0.device`。pwrkey 18.94s 就绪（journal 实测），按真实依赖排序；只做了 verify，没活测（gnome 没刷）。（2.1 起该服务已删除，gnome 版电源键/息屏回到 GNOME 原生，见 docs/POWER.md。）
 
 注意：`bt-addr` 换 `[Install]` 后要 `reenable` 一次（旧 symlink 还在）；**重 bake 会自动生成对的**（`SIRIUS_BASE_UNITS` 本来就 enable 它），构建脚本不用改。
 

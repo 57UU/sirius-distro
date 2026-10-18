@@ -31,13 +31,13 @@ build-gnome.sh   GNOME 桌面（GDM 自动登录）：加装 gnome-core/gdm3/fir
                  firmware-qcom-soc；GDM 自动登录 u57u；mask suspend 全套。
 ```
 
-电源键/息屏（见 docs/SERVER-MODE.md）：server 由 Orbital 内建 idle 计时 + 电源键处理
-（设置→Screen Off Time 可调）；gnome 用 `sirius-gnome-blank`（--user 服务）跟随
-GNOME 屏保状态，计时以 `org.gnome.desktop.session idle-delay` 为准（默认 120s，
-用户可在设置里改，设为从不则不自动息屏）。电源键短按经 logind 锁屏触发屏保，
-再由 sirius-gnome-blank 切背光（免密，任意输入唤醒），长按照旧关机。
-mutter 的 blank 关不掉本机 DSI 背光（只画黑屏），所以 gnome 的跟随动作仍走
-`sirius-screen` 切真背光（真机实测结论；server 上它只留手动救援）。
+电源键/息屏（见 docs/POWER.md、docs/SERVER-MODE.md）：
+- server：Orbital 内建 idle 计时 + 自己抓 KEY_POWER（设置→Screen Off Time
+  可调），背光走 `sirius-screen`。
+- gnome：整条链路是 GNOME 原生的——`idle-delay`（默认 120s）到点先锁屏再
+  让 mutter KMS 灭屏，任意输入唤醒回锁屏界面；电源键由 gsd 接管，
+  短按弹 shell 关机对话框，长按 PMIC 硬关机。userspace 没有任何进程写
+  `brightness`（2.0 的 sirius-powerd / sirius-gnome-blank 已删除）。
 
 ## 输入、产物
 

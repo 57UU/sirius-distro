@@ -85,8 +85,7 @@ sirius-remodeset                     # 手动救援：无头启动显示卡住�
 
 开机自启、无需手动（以下默认全开）：`sirius-usb-bind`（USB 角色事件跟随，udev 驱动）、
 `sirius-bt-auto` + `sirius-bt-addr`（蓝牙上电+固定地址）、
-`wifi-shutdown`（关机前干净下线 WiFi 卸载驱动）、
-`sirius-gnome-blank`（仅 gnome 口味：跟随系统息屏切真背光）。
+`wifi-shutdown`（关机前干净下线 WiFi 卸载驱动）。
 线材问题与原理见 `docs/USB-HOST-FIX.md`。
 
 

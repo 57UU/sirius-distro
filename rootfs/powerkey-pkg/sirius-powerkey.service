@@ -1,0 +1,16 @@
+[Unit]
+Description=Sirius power key to lock session
+# Runs inside the GNOME session so it can talk to gnome-shell's
+# org.gnome.ScreenSaver. Read-only on the evdev node (no grab), see
+# docs/POWER.md (repo).
+After=graphical-session.target
+PartOf=graphical-session.target
+
+[Service]
+Type=simple
+ExecStart=/usr/local/bin/sirius-powerkey
+Restart=always
+RestartSec=2
+
+[Install]
+WantedBy=graphical-session.target
