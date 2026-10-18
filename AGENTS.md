@@ -14,8 +14,9 @@ fastboot flash boot xxx.img && fastboot flash userdata xxx.simg && fastboot rebo
 
 # locations
 
-- img/simg 产物位置:build/
-- 工作区，放不入库的脚本、本地环境详情：workspace/
+- boot,system,rootfs打包得到最终的 img/simg 产物应当移动到:build/ 下
+
+工作区：如果当前目录存在workspace/ 文件夹，直接去里面工作，如果不存在，则自行创建文件夹。.gitignore已经加入了，不用担心污染git仓库。
 
 # SSH 连手机
 
