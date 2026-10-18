@@ -4,7 +4,7 @@
 （`mmcblk0p79`），开机由 initrd 绑定进新根。内核、模块、固件三者同版本一起走，
 rootfs 随便重刷不影响驱动。
 
-> 历史：仓库最早住 system 分区（mmcblk0p79，命名 sysmod），中间搬到过 vendor（mmcblk0p80）并改名 vendormod；2026-10-14 为统一从 system 分区启动（U-Boot sysboot mmc 0:4f），又搬回 system（mmcblk0p79）。刷机用 fastboot flash system kernel.img。
+> 历史：仓库最早住 system 分区（mmcblk0p79，命名 sysmod），中间搬到过 vendor（mmcblk0p80）并改名 vendormod；2026-10-14 为统一从 system 分区启动（U-Boot sysboot mmc 0:4f），又搬回 system（mmcblk0p79）。刷机用 fastboot flash system kernel.img。2026-10-18 名字改回 sysmod（cmdline 参数 `sysmod_part=`、挂载点 `/mnt/sysmod`），旧参数名 `vendor_part=` 在 initrd 里仍兼容。
 
 ## 布局（system 分区内）
 
@@ -18,10 +18,10 @@ lib/firmware/...          设备固件（映射关系见 rootfs/lib/sirius-devic
 
 ## 启动流程（boot/initrd/initramfs/init）
 
-1. `find_vendormod_dev`：直接用 `/dev/mmcblk0p79`（system 分区），cmdline `vendor_part=` 可覆盖。
-2. `mount --move` 把仓库挪进新根 `/mnt/vendormod`（不然 switch_root 会丢），
+1. `find_sysmod_dev`：直接用 `/dev/mmcblk0p79`（system 分区），cmdline `sysmod_part=` 可覆盖（旧名 `vendor_part=` 仍兼容）。
+2. `mount --move` 把仓库挪进新根 `/mnt/sysmod`（不然 switch_root 会丢），
    再把 `lib/modules/<uname -r>` 和 `lib/firmware` bind 进新根。
-3. 每步都写 kmsg：`dmesg | grep vendormod` 可查命中哪条分支。
+3. 每步都写 kmsg：`dmesg | grep sysmod` 可查命中哪条分支。
 
 ## 版本号 `+` 后缀说明
 
@@ -51,7 +51,7 @@ fastboot flash system kernel.img && fastboot reboot
 
 ```bash
 uname -r; ls /lib/modules/$(uname -r) | head
-dmesg | grep -E "vendormod|kmod store"
+dmesg | grep -E "sysmod|kmod store"
 cat /sys/class/power_supply/qcom-battery/charge_full_design  # 期望 3120000
 lsmod | grep -E "ath10k_snoc|qcom_fg|qcom_smbx"
 sudo sirius-otg status
@@ -60,5 +60,5 @@ sudo sirius-otg status
 ## rootfs 侧配合
 
 - rootfs 里旧 `/lib/modules/*` 保留当 fallback，别删。
-- 仓库挂载点开机后在 `/mnt/vendormod`（只读绑定的源头，挂载点名保留），
+- 仓库挂载点开机后在 `/mnt/sysmod`（只读绑定的源头，挂载点名保留），
   想往仓库加东西：重新跑 `build-kernel-img.sh` 并 fastboot 重刷 system。

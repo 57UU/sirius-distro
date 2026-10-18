@@ -106,7 +106,7 @@ persist 为 mmcblk0p68（备份 p69），全程只读挂载。
 
 ```text
 机制：initrd 新增 apply_persist_macs（boot/initrd/initramfs/
-init_functions.sh），跟在 bind_vendormod 后面对新 root 执行：
+init_functions.sh），跟在 bind_sysmod 后面对新 root 执行：
 - WiFi：解析文本地址并校验（12 位 hex、单播、非零），写入
   <新root>/etc/systemd/network/10-wlan0.link；udev 首次见到
   wlan0 即生效，无竞态。

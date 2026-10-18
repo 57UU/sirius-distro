@@ -222,7 +222,7 @@ inject_loop() {
 }
 
 # Read factory WiFi/BT MACs from the persist partition and apply them to the
-# new root. Called after bind_vendormod so the vendor store is already
+# new root. Called after bind_sysmod so the vendor store is already
 # visible. Idempotent: each file is only written when content differs, so a
 # normal boot performs zero writes. Fail-soft: anything unreadable keeps the
 # baked-in LAA addresses.
@@ -300,7 +300,7 @@ apply_persist_macs() {
 	# exactly the byte order of the BD_ADDR TLV (tag 2) at file offset
 	# 0x14 in qca/crnv21.bin. Patch the vendor copy only on difference.
 	_btmac=/persist_ro/wlan_bt/bt.mac
-	_nvm="$_root/mnt/vendormod/lib/firmware/qca/crnv21.bin"
+	_nvm="$_root/mnt/sysmod/lib/firmware/qca/crnv21.bin"
 	if [ -f "$_btmac" ] && [ -f "$_nvm" ]; then
 		_sz="$(stat -c %s "$_btmac" 2>/dev/null)"
 		_nsz="$(stat -c %s "$_nvm" 2>/dev/null)"
@@ -312,13 +312,13 @@ apply_persist_macs() {
 			elif dd if="$_nvm" of="$_stage/bdcur" bs=1 skip=20 count=6 2>/dev/null && [ "$(stat -c %s "$_stage/bdcur" 2>/dev/null)" = 6 ] && cmp -s "$_stage/bdcur" "$_btmac"; then
 				echo "persistmac: hci0 BD addr already applied" > /dev/kmsg
 			else
-					if mount -o remount,rw "$_root/mnt/vendormod" 2>/dev/null; then
+					if mount -o remount,rw "$_root/mnt/sysmod" 2>/dev/null; then
 						if dd if="$_btmac" of="$_nvm" bs=1 seek=20 count=6 conv=notrunc 2>/dev/null; then
 							echo "persistmac: hci0 BD addr updated from persist" > /dev/kmsg
 						else
 							echo "persistmac: NVM patch write failed" > /dev/kmsg
 						fi
-						mount -o remount,ro "$_root/mnt/vendormod" 2>/dev/null || true
+						mount -o remount,ro "$_root/mnt/sysmod" 2>/dev/null || true
 					else
 						echo "persistmac: vendor remount rw failed, keeping baked-in BD addr" > /dev/kmsg
 					fi

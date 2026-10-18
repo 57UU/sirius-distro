@@ -12,7 +12,7 @@ fastboot [boot: Image.gz + sirius dtb + initrd] [system: kernel.img] [userdata: 
 kernel (cmdline root=mmcblk0p81)
   +-- initrd：RNDIS 早联网（ssh 172.16.42.1）+ 挂 rootfs + switch_root
   +-- userdata rootfs：udev/systemd
-  |     /usr/lib/modules/<ver>  <- bind /mnt/vendormod（mmcblk0p79，ro）
+  |     /usr/lib/modules/<ver>  <- bind /mnt/sysmod（mmcblk0p79，ro）
   |     /usr/lib/firmware       <- 同上（modules + firmware 全在 system 分区）
   +-- remoteproc 起 ADSP（/lib/firmware/qcom/sdm710/pyxis/adsp.mbn，一次读入后进 fw cache）
   +-- adsprpcd x3（After qrtr-ns/pd-mapper，ADSP_LIBRARY_PATH=pyxis/adsp）推送用户 PD 的 so

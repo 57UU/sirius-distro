@@ -57,7 +57,7 @@ bootcmd=run do_boot
 
 1. `fastboot boot boot.img`（只进内存，不刷机，挂了重启就回来）。
 2. 看屏幕：U-Boot 日志直接打在显示屏上（vidconsole）。`sysboot` 会打印读 conf 和加载三件套，成功则进内核 earlycon 日志。
-3. 进系统后看 `cat /proc/cmdline` 有 `vendor_part=mmcblk0p79` 即走的 U-Boot/extlinux 路径；`mount | grep vendormod` 应为 p79。
+3. 进系统后看 `cat /proc/cmdline` 有 `sysmod_part=mmcblk0p79` 即走的 U-Boot/extlinux 路径；`mount | grep sysmod` 应为 p79。
 4. 确认无误再落盘：`fastboot flash boot boot.img && fastboot reboot`（eMMC 慢，写完等一会儿）。
 
 失败时屏幕就是诊断器：`Invalid partition 128`→分区号进制错；`bootflow ... efi_mgr ... failed`→没扫到盘（查 preboot/sysboot）；UFS 报错→dts 里没关干净；`Loading Boot0001 failed`→`bootefi bootmgr` 找不到 ESP，正常（sysboot 成功就不会走到它）。
