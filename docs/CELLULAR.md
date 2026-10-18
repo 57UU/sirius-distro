@@ -157,6 +157,36 @@ sudo systemctl restart ModemManager
 > （`too many WDS actions requested`）——所以任何"先 bind 再 start"的脚本都写不出来，
 > 只能自己写程序（`wdsup`）或走 ModemManager。
 
+### 4.5 双卡：UIM 层能认两张，MM 层不工作（已接受，不做支持）
+
+2026-10-18 实测双卡（槽 1 移动 + 槽 2 电信）。结论：**本机只保证单卡可用**，
+双卡不必再折腾，排障时先确认只插了一张卡。
+
+底层能看到的：
+
+- `--uim-get-slot-status`：两个 physical slot 均 `present` + `active`，槽 2 能读出完整 ICCID
+  （槽 1 的 ICCID 在槽位状态里只报前 6 位，属于固件上报行为，别当 bug 修）。
+- `--uim-get-card-status`：槽 1 USIM 应用 `ready`，槽 2 是 csim+usim 双应用卡（`detected`）。
+- provisioning session 正常建在槽 1（`Primary GW: slot '1', application '1'`）。
+
+卡掉在 MM 这一层：
+
+```
+[modem0] state changed (enabling -> enabled)
+[modem0] state changed (enabled -> disabling)      ← enable 成功后 1 秒内被放弃
+[modem4] port 'qrtr0' no longer controllable, reprobing
+```
+
+modem 对象每 20~30 秒被重建一轮（modem0 → modem1 → …），enable 后随即 disable，
+最终 `No modems were found`。`sirius-modem-uim` 的 timer 每 60 秒重启 MM 也救不回来，
+只会让上面的循环一直转。开关 MM debug 日志也只在
+`couldn't build device ids: Unknown device subsystem`（单卡时同样出现，无害）之外
+多不出决定性线索。单卡时同一套链路完全正常，故判定为 modem 固件/MM qcom-soc
+插件在双 active slot 下的固有限制，**不再投入**。
+
+> 给排障者的提示：以后遇到"之前好好的，现在 No modems were found"，
+> 先问是不是插了两张卡。拔到单卡，`sirius-modem-uim` 的事件链路会自动恢复。
+
 ---
 
 ## 5. 操作步骤
