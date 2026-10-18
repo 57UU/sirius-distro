@@ -88,6 +88,10 @@ sirius-remodeset                     # 手动救援：无头启动显示卡住�
 `wifi-shutdown`（关机前干净下线 WiFi 卸载驱动）。
 线材问题与原理见 `docs/USB-HOST-FIX.md`。
 
+# Extra Content
+
+if you want to change splash screen, refer to boot-logo/ folder.
+
 
 # Acknowledgements
 Thanks many opensource projects:
