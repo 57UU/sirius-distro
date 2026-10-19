@@ -52,6 +52,9 @@ vendor 是只读挂载，改文件先 remount rw，改完记得 ro 或重打镜�
   另 FW 内 PLL 按 BCLK 1.536M 调、ti,i2s-bits=16 互证。修法：DT 加 pri-mi2s-rx-link +
   q6afedai dai@16（qcom,sd-lines=<0>，否则 AFE 报 no line is assigned）；机器驱动照抄上游
   sdm845 PRIMARY_MI2S_RX（MCLK_1 9.6M + PRI IBIT 1.536M，cpu BP_FP，codec BC_FC|NB_NF）。
+- 喇叭是单颗：整机只有一颗扬声器，左右声道都混合经它出声（2026-10-20 实测，立体声素材两边
+  内容都能听到）。出厂 dtbo 的 `mono_speaker=right` 只是出厂混音策略，不是通路限制，不要按
+  「只响一边」去查。
 - S16 硬约束（PipeWire 静音案）：机器驱动 startup 约束 S16_LE。本机 LPASS 总线 16bit，
   FE 通告 S24，PipeWire 开 S24，ASM->AFE 不转换=跑着无声；aplay 默认 S16 所以一直是好的。
   失败偏方存档：asound.conf 包 plug + WP 改 api.alsa.path（ACP 只要 hw 路径，sink 直接消失）。
@@ -106,10 +109,4 @@ vendor 是只读挂载，改文件先 remount rw，改完记得 ro 或重打镜�
 - 出厂对照：stock vendor.img（sparse，用 simg2img 解）+ dtbo.img（52 overlay 逐个拆，sirius 是
   含 tas2557 的那两个）+ mixer/platform_info（speaker 后端以 intcodec 的 backend 表为准）。
 
-## 8. 固化与待办
 
-- 内核 SIRIUS-DBG 打印已清（531015c36）。server 树与手机 Image 的关系：打印是编进 Image 的，
-  下次重编 Image 才彻底消失，功能不受影响。
-- 2026-10-03 补：两 flavor 默认用户进 audio 组；server 加 alsa-utils + enable sirius-audio-init（此前三处都缺，实测表现为用户态 no soundcards / 路由 [off]）。组与音频包收敛在 sirius-device.sh（SIRIUS_GROUPS / SIRIUS_AUDIO_PKGS），各 build-*.sh 引用变量；sirius-audio-init 的 enable 留在各 flavor 的 enable 列表（flavor-specific）。运行中 Image（#5）里 SIRIUS-DBG 还在，佐证打印是编进 Image 的。
-- 待：耳机通路（INT0）未验证；单声道只响一边是否符合预期（出厂 mono_speaker=right）；
-  UCM 让 ACP 认出来后删 audio-init 服务；README 状态表用户自己改。
