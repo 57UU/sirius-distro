@@ -46,7 +46,7 @@ export SIRIUS_BASE_PKGS
 # Shared service enables for every flavor: each build-*.sh runs
 # `systemctl enable $SIRIUS_BASE_UNITS <flavor-extra>` (server: orbital;
 # gnome: gdm). Flavor lines must not repeat these.
-SIRIUS_BASE_UNITS=${SIRIUS_BASE_UNITS:-"ssh systemd-networkd systemd-resolved rmtfs tqftpserv pd-mapper adsprpcd-rootpd adsprpcd-audiopd adsprpcd-sensorspd wifi-shutdown bluetooth bt-addr systemd-timesyncd NetworkManager ModemManager sirius-modem-uim sirius-modem-uim.timer sirius-modem-uim-watch sirius-bt-auto sirius-bt-watch sirius-usb-bind.service sirius-wifi-auto.timer sirius-zram.service sirius-audio-init"}
+SIRIUS_BASE_UNITS=${SIRIUS_BASE_UNITS:-"ssh systemd-networkd systemd-resolved rmtfs tqftpserv pd-mapper adsprpcd-rootpd adsprpcd-audiopd adsprpcd-sensorspd wifi-shutdown bluetooth bt-addr systemd-timesyncd NetworkManager ModemManager sirius-modem-uim sirius-modem-uim.timer sirius-modem-uim-watch sirius-bt-auto sirius-bt-watch sirius-wifi-auto.timer sirius-zram.service sirius-audio-init"}
 export SIRIUS_BASE_UNITS
 # Common device base for every flavor. Static files live in rootfs/overlay/
 # (edit there, not here); this only copies them in, fixes exec bits, and
@@ -86,7 +86,7 @@ sirius_overlay() {
   # overlay 里的脚本在 git 里存的是 644（Windows 检出会丢可执行位），
   # 统一在这里补 755。新增 overlay 脚本记得加进这个列表，否则 systemd
   # 启动时会报 Permission denied。
-  chmod 755 $R/usr/local/sbin/sirius-screen $R/usr/local/sbin/sirius-remodeset $R/usr/local/sbin/sirius-bt-auto $R/usr/local/sbin/sirius-bt-watch $R/usr/local/sbin/sirius-wifi-add $R/usr/local/sbin/safe-reboot $R/usr/local/bin/wifi-shutdown $R/usr/local/sbin/sirius-otg $R/usr/local/sbin/sirius-usb-bind $R/usr/local/sbin/sirius-bt-addr $R/usr/local/sbin/sirius-wifi-auto $R/usr/local/sbin/sirius-zram $R/usr/local/bin/sirius-modem-uim
+  chmod 755 $R/usr/local/sbin/sirius-screen $R/usr/local/sbin/sirius-remodeset $R/usr/local/sbin/sirius-bt-auto $R/usr/local/sbin/sirius-bt-watch $R/usr/local/sbin/sirius-wifi-add $R/usr/local/sbin/safe-reboot $R/usr/local/bin/wifi-shutdown $R/usr/local/sbin/sirius-otg $R/usr/local/sbin/sirius-bt-addr $R/usr/local/sbin/sirius-wifi-auto $R/usr/local/sbin/sirius-zram $R/usr/local/bin/sirius-modem-uim
   mkdir -p $R/var/lib/rmtfs
   ln -sf /dev/disk/by-partlabel/modemst1 $R/var/lib/rmtfs/modem_fs1
   ln -sf /dev/disk/by-partlabel/modemst2 $R/var/lib/rmtfs/modem_fs2

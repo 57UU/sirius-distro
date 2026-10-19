@@ -3,6 +3,14 @@
 > 2026-09-26 定稿，手机实测通过。对应上游 `57UU/linux-sirius`
 > `feat/sirius-7.2 @ 3606aa01`，boot 镜像
 > `boot_sys-72-otg-20260926.img`（`E:\Tools\Device\8se\linux\boot-images\`）。
+>
+> **2026-10-19 更新**：角色判断已由内核 Type-C 栈（TCPM + PM660 CC 状态机）
+> 接管，本文描述的「用户态角色跟随」（`sirius-usb-bind` + `99-sirius-usb.rules`
+> + `sirius-otg` 的 manual pin）**已从仓库和设备上删除**。现行方案见
+> [`USB-TYPEC.md`](USB-TYPEC.md)。
+> 本文仍然有效的内容：§2 `dr_mode="otg"`、§3 OTG 自供电原理、§9 Windows
+> RNDIS 的 VID/PID 坑，以及 §7 里「别热替换 charger 驱动」的教训；
+> §5/§6/§8 仅作历史记录。
 
 ## 1. 背景：之前为什么只能当网卡
 
@@ -39,8 +47,10 @@
   运行时从不真正打开 boost（全文件唯一的 OTG 写操作在 init 表里）。
   下游 smb5 的等效操作是 `smblib_vbus_regulator_enable`：
   `DCDC_CMD_OTG_REG(0x1140) |= BIT(0)`。
-- 交付（已转正）：`qcom_smbx` 驱动上游已合入，供电走 `otg_boost` 属性，`sirius-otg` 脚本直接调驱动；`src/sirius-otg-boost/` 测试模块退役（kmod 包里的旧二进制下次刷新时删掉）。
-- 验证：`sirius-otg on`（dmesg 显示 `before=0x0 after=0x1`）→ 鼠标灯亮并枚举为
+- 交付（已转正）：`qcom_smbx` 驱动上游已合入，供电走 `otg_boost` 属性；
+  现在由 TCPM 的 `set_vbus()` 在切到 source 角色时自动打开，用户态不用管。
+  `src/sirius-otg-boost/` 测试模块退役（kmod 包里的旧二进制下次刷新时删掉）。
+- 验证（历史）：`sirius-otg on`（dmesg 显示 `before=0x0 after=0x1`）→ 鼠标灯亮并枚举为
   `USB OPTICAL MOUSE`（`hid-generic`，`REL_X/REL_Y + 左中右键`）；
   `rmmod` → 灯灭掉线。开关系双向验证通过。
 - 编译要求模块 vermagic 与手机内核严格一致
@@ -49,49 +59,67 @@
   按本库 defconfig `modules_prepare` 后编译，见模块目录 README。
 - 鼠标可直插使用（PMI660 boost 带得动）；U 盘待测。
 
-## 4. 手动切换命令（WiFi SSH 下执行）
+## 4. 查看状态（WiFi SSH 下执行）
+
+现在不需要手动切角色了，`sirius-otg` 只剩只读诊断：
 
 ```bash
-sudo sirius-otg on      # host + 自供电（OTG 头+外设），并钉住手动
-sudo sirius-otg off     # 关供电，回 gadget（RNDIS 用普通线），并钉住手动
-sudo sirius-otg auto    # 松开手动，回到事件驱动跟随
-sudo sirius-otg status  # 看 follow 模式/角色/供电/usb0
-
-# 以下裸命令仅备用（脚本已包好上面三件事）：
-# 切 host（先解绑 gadget）
-echo "" | sudo tee /sys/kernel/config/usb_gadget/g1/UDC
-echo host | sudo tee /sys/kernel/debug/usb/a600000.usb/mode
-echo 1 | sudo tee /sys/bus/platform/devices/c440000.spmi:pmic@0:charger@1000/otg_boost   # 开自供电（驱动属性）
-
-# 切回 gadget（RNDIS）
-echo 0 | sudo tee /sys/bus/platform/devices/c440000.spmi:pmic@0:charger@1000/otg_boost   # 先关供电
-echo device | sudo tee /sys/kernel/debug/usb/a600000.usb/mode
-echo a600000.usb | sudo tee /sys/kernel/config/usb_gadget/g1/UDC
-# 注：启动后手动重绑的 gadget，PC 侧需配静态 172.16.42.2/16
-#（initramfs 的 udhcpd 只在开机时跑一次）
+sudo sirius-otg status   # 角色归属、power/data role、partner、boost、usb0
+sudo sirius-otg watch 1  # 每秒刷新
 ```
 
-不要往内核 `mode` 文件里写 `auto`（会在 host/device 间来回抖）；`sirius-otg auto` 是用户态跟随开关，两回事。
+`on/off/auto` 已删除（会提示角色由线缆决定）。真要调试角色，直接写 dwc3
+的角色开关，TCPM 在下一次插拔时会重新接管：
 
-`on/off` 会在 `/run/sirius-usb-manual` 钉住手动状态，暂停 udev 事件跟随（`/run` 是 tmpfs，重启自动回到 auto）；`auto` 删掉钉子并跑一遍跟随。
+```bash
+echo host   | sudo tee /sys/class/usb_role/a600000.usb-role-switch/role
+echo device | sudo tee /sys/class/usb_role/a600000.usb-role-switch/role
+```
 
-## 5. 角色跟随（用户态闭环）
+（没有 Type-C 栈时，旧路径是 `echo host > /sys/kernel/debug/usb/a600000.usb/mode`，
+再配合 `otg_boost` 属性开关供电；现在只作应急。）
 
-`sirius-usb-bind` 按线缆事件摆角色（事件驱动，无轮询）：PMIC 见 Rd 且充电没在线就切 host（OTG 场景）；ID 接地那路不动，留给手动 `sirius-otg`；其余情况回 device 绑网卡。回 device 前先关 boost（防 backpower），boost 残留（cable 从没置位过、又没外设挂着）顺手扫掉。触发靠 `99-sirius-usb.rules` 三路 udev 事件（pm660-charger power_supply + usb_device 插拔 + qcom_smbx 的 platform/OTG_CABLE 事件）+ 开机跑一次的 `sirius-usb-bind.service`，两个口味构建脚本都已 enable service。
+不要往内核 `mode` 文件里写 `auto`（没有 CC 栈时会在 host/device 间来回抖）。
+现在角色由 TCPM 自动管，上面这些裸命令只在 `qcom_smb2_tcpm` 没加载时才有意义。
 
-实测 extcon 真实拔插不发 uevent（gpio38 中断没动静），extcon 规则已删，ID 边沿只能走手动；实际干活的是上述三路事件；UDC 绑定是软件状态，拔线不掉绑，只有角色翻转才踢。
+## 5. 角色跟随（已删除，2026-10-19）
 
-## 6. 局限
+这一节描述的是用户态伪 auto：`sirius-usb-bind` 按三路 udev 事件
+（pm660-charger power_supply + usb_device 插拔 + qcom_smbx 的
+platform/OTG_CABLE）摆角色，回 device 前先关 boost 防 backpower，再绑回
+UDC；`sirius-otg on/off` 用 `/run/sirius-usb-manual` 钉住手动状态。
 
-ID 是 Micro-USB 时代遗留的 OTG 识别针：接地表示当 host，悬空表示 device，只有 0/1 两种状态。CC 是 Type-C 的两根配置线（CC1/CC2），两端靠 Rd/Rp 上下拉协商正反面、角色和供电，是完整协商的输入，安卓走的就是这套。
+内核 Type-C 栈（`qcom_smb2_tcpm` + TCPM）上线后，这套东西变成纯负担：
+它和 TCPM 抢同一个角色、同一条 boost 位。所以 2026-10-19 一并删掉：
 
-本机没有 CC 栈：往 mode 里写 auto 会在 host/device 间来回抖，只能手动切；检测也被拆成两块单边信号——gpio38 只看 ID 是否接地，PMIC 只看 CC 上有没有 Rd，各管一面。而廉价头和 A-to-C 线接法混乱（有的两面都接地、有的悬空），翻个面就换了一组信号，这就是部分线要翻面、ID 接地的线钉死 host（RNDIS 必须用普通线）、ID 悬空的头认不出、只有 ID 接地不出 Rd 的那面切了角色还要手动开供电、拔线后还要手动关电的原因。
+- `usr/local/sbin/sirius-usb-bind`
+- `etc/systemd/system/sirius-usb-bind.service`
+- `etc/udev/rules.d/99-sirius-usb.rules`
+- `sirius-otg` 里的 manual pin / `on` / `off` / `auto` 分支（脚本只剩 status/watch）
 
-所以我们用用户态闭环模拟 auto：sirius-usb-bind 靠多路 udev 事件触发（power_supply 看 VBUS 上下线、usb_device 看外设枚举/拔掉，extcon 规则预留等驱动补 uevent），PMIC 见 Rd 且充电没在线就切 host，其余情况回 device 并把 gadget 的 UDC 绑回来（先关 boost 再切角色，读回确认才碰 UDC；未知 VBUS 时保持不动，不强切 host），boost 有残留（cable 从没置位、总线又没外设）就顺手关掉；拿不准就用 sirius-otg on/off 手动指定，auto 永远别往 mode 里写。
+角色现在只由 CC 线决定，`sirius-otg` 变成了只读的诊断命令
+（角色要强制就写 `usb_role/.../role`，纯内核调试）。
 
-## 7. 代办
-- CC 完整栈：角色跟随暂由 sirius-usb-bind 事件驱动实现（用户态 udev 多路）；otg_cable 翻转补 uevent/sysfs_notify 已落地并验证（Rd 侧插拔自动跟随）；剩余待办：extcon 边沿 change 事件（gpio38 中断在手机上没动静，ID 线继续走手动），内核级 Type-C 栈以后再说
-- 别热替换 charger 驱动：rmmod qcom_smbx 会在注销电源供应时吃 WARN（fg 还拿着引用），并可能在通知链里留坏表项，之后每次电源状态变化都 oops 掉一个 kworker，第二次 rmmod 直接 D 住卸不掉，只能重启；测驱动改动请走重启（新模块已进 lib/modules，重启即生效）。
+历史记录：实测 extcon 真实拔插不发 uevent（gpio38 中断没动静），所以旧方案
+里 extcon 规则一直是死的；UDC 绑定是软件状态，拔线不掉绑，只有角色翻转才踢。
+
+## 6. 局限（历史）
+
+ID 是 Micro-USB 时代遗留的 OTG 识别针（接地 host / 悬空 device），CC 才是
+Type-C 的完整协商输入。旧方案拿不到 CC 的完整状态，只能拼 ID + 「PMIC 看到
+Rd」两个单边信号，于是有「部分线要翻面」「ID 接地的线钉死 host」「切了角色
+还要手动开供电」这些毛病——这些都被内核 CC 栈取代了。
+
+物理限制仍然存在：本机只有 USB2（无 SS 差分对）、没有 SBU/DP 通路。
+
+## 7. 代办 / 注意事项
+
+- ~~CC 完整栈~~：2026-10-18 落地（`docs/USB-TYPEC.md`），2026-10-19 删掉
+  用户态跟随；`extcon` 节点保留但不再参与角色判断。
+- **别热替换 charger 驱动**：rmmod qcom_smbx 会在注销电源供应时吃 WARN
+  （fg 还拿着引用），并可能在通知链里留坏表项，之后每次电源状态变化都 oops
+  掉一个 kworker，第二次 rmmod 直接 D 住卸不掉，只能重启；测驱动改动请走
+  重启（新模块已进 lib/modules，重启即生效）。
 
 
 ## 8. 状态机

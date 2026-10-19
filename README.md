@@ -54,7 +54,7 @@ default password is 1234.
 | CPU         | Working |
 | GPU         | Working |
 | eMMC        | Working |
-| USB         | Partial, auto mode is partially implemented in userspace |
+| USB         | Working |
 | Bluetooth   | Working |
 | WiFi        | Working* |
 | Thermal     | Working |
@@ -67,14 +67,14 @@ default password is 1234.
 | Modem/IPA   | Working, Only support single SIM |
 | Microphone  | Broken |
 
-USB 自动切换目前有缺陷：普通线连电脑走 gadget 网卡，OTG 线接外设走 host；部分线材可能要翻面插才认得出来。详情见 docs/USB-HOST-FIX.md，切换一律用 sirius-otg。
+USB-C 已增加完整 Type-C 协议栈（角色自动识别、PD 协商），细节见 `docs/USB-TYPEC.md`。
 
 *: 5GHz WiFi 在开启帧保护后，会造成IO缓慢、延迟增大，详情见`docs/WIFI-5G-BDF-MFP.md`。
 
 ## 自制服务速查（`/usr/local/sbin`，需 root）
 
 ```bash
-sudo sirius-otg on|off|auto|status  # 默认 auto（事件跟随，开机跑一次）：on=host+自供电（OTG 头+外设），off=回 gadget（RNDIS 用普通线）
+sudo sirius-otg status|watch  # 只读诊断：角色归属、power/data role、boost、usb0（角色本身由内核自动管）
 sudo sirius-wifi-auto on|off|status # 默认 on（开机即看门狗，timer 每 5 分钟一轮）：开/关/看状态
 sudo sirius-zram start|stop|status  # 默认 on（开机即有 1.7G swap）：lz4，50% 内存
 sudo sirius-screen off|on|toggle|status  # 默认亮屏（只动背光，不碰 SoC/WiFi/BT/SSH）
@@ -83,10 +83,8 @@ sudo safe-reboot                     # 一次性：sysrq 安全重启（sync→r
 sirius-remodeset                     # 手动救援：无头启动显示卡住时跑一次（DSI modeset 解卡）
 ```
 
-开机自启、无需手动（以下默认全开）：`sirius-usb-bind`（USB 角色事件跟随，udev 驱动）、
-`sirius-bt-auto` + `sirius-bt-addr`（蓝牙上电+固定地址）、
+开机自启、无需手动（以下默认全开）：`sirius-bt-auto` + `sirius-bt-addr`（蓝牙上电+固定地址）、
 `wifi-shutdown`（关机前干净下线 WiFi 卸载驱动）。
-线材问题与原理见 `docs/USB-HOST-FIX.md`。
 
 # Extra Content
 
