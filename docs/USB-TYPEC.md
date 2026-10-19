@@ -1,23 +1,10 @@
 # USB Type-C：PM660 CC / PD 栈
 
-> 2026-10-18 实机 bring-up，对应 `kernel/linux-sirius` `feat/sirius-7.2`
-> 分支上的 `qcom_smb2_tcpm` 驱动。本文只讲这条栈怎么用、怎么调、边界在哪。
+> 2026-10-18 实机 bring-up，对应 `kernel/linux-sirius` `feat/sirius-7.2` 分支的 `qcom_smb2_tcpm` 驱动。
 
-## 1. 为什么要有它
+## 1. 背景
 
-以前的角色判断是「拼」出来的：
-
-- `gpio38` 只看 Micro-USB 时代的 ID 针是否接地，翻面/悬空就丢信号；
-- PMIC 只看 CC 上有没有 Rd，判断不出正反面和电流档位；
-- 于是 `dr_mode` 写 `auto` 会在 host/device 之间来回抖，只能用
-  `sirius-otg` 手动切，再靠 `sirius-usb-bind` 在用户态用 udev 事件模拟
-  跟随（见 `docs/USB-HOST-FIX.md`）。
-
-安卓侧的做法是：PM660 充电器的 Type-C 状态机 + `qpnp-pdphy` 上报
-extcon + `dwc3-msm` 跟随角色，PD 由 `drivers/usb/pd` 的 policy engine 谈。
-那套代码绑死在 4.9 的电源框架上，不能直接搬进 7.2。
-
-现在的做法是**内核主线的等价物**：
+旧方案：`gpio38` ID 针 + PMIC 的 Rd 判角色，`dr_mode=auto` 会抖，靠 `sirius-otg` + `sirius-usb-bind` 手动跟随（2026-10-19 删，见 `docs/USB-HOST-FIX.md`）；安卓侧 `qpnp-pdphy` + `dwc3-msm` 跟随角色、PD 走 `drivers/usb/pd`，绑死 4.9 电源框架。现方案 = 内核主线 TCPM 等价物：
 
 ```
 PM660 Type-C 状态机（硬件）
@@ -58,15 +45,9 @@ Type-C 块在充电器 USBIN 窗口（基址 `0x1300`）：
 | `TYPE_C_SW_CTRL` | `0x68` | 角色命令：`UFP_EN`/`DFP_EN`/`DISABLE`，全 0 = 硬件 DRP 自动翻转；VCONN 位也在这里 |
 | `DCDC_CMD_OTG` | `0x1140` | 主机态 5V boost（`BIT(0)`） |
 
-关键点：**CC 状态机是硬件跑的**，驱动只读结果、写角色命令，不像 TCPCI
-那样逐条 CC 采样。因此 `get_cc()` 返回的是「对端端接」的合成结果：
+CC 状态机由硬件跑，驱动只读结果、写角色命令。`get_cc()`：sink（UFP）→ `RP_DEF`/`RP_1_5`/`RP_3_0`，source（DFP）→ `TYPEC_CC_RD`；正反面 = `STATUS_4` bit1，VCONN 走另一根 CC。
 
-- 我们当 sink（硬件报 UFP）：返回对端 Rp 档位（`RP_DEF`/`RP_1_5`/`RP_3_0`）；
-- 我们当 source（硬件报 DFP）：返回对端 Rd（`TYPEC_CC_RD`）。
-
-正反面由 `STATUS_4` bit1 决定，VCONN 走另一根 CC。
-
-## 4. 现在插上线会发生什么
+## 4. 插上线后的行为
 
 | 场景 | 行为 |
 | --- | --- |
@@ -77,13 +58,11 @@ Type-C 块在充电器 USBIN 窗口（基址 `0x1300`）：
 | 支持 PD 的 PC | 先 PD 协商，必要时做 data/power role swap |
 | 供电 + 外设的 Type-C 分线器 | 对端按 AMA 处理：PD 谈好电压后做 **DR_SWAP**，电源支路让手机当 sink、外设支路让手机当 DFP（`power_role=sink` + `data_role=host`，此时 `boost` 保持 0）。注意分线器**只有下游接了设备才发 DR_SWAP**，空载时 `data_role` 仍是 device |
 
-开机时如果线已经插着，驱动会在 probe 后连打 6 次状态采样（间隔 400ms）
-让 TCPM 追上已经存在的连接——这段逻辑见 `smb2_typec_probe_kick()`。
+开机即插线：probe 后 6 次采样（间隔 400ms），见 `smb2_typec_probe_kick()`。
 
 ## 5. 旧脚本的去向
 
-用户态伪 auto 在 2026-10-19 随这套栈上线一并删除（它和 TCPM 抢角色、抢
-boost 位）：
+用户态伪 auto 于 2026-10-19 随本栈删除（与 TCPM 抢角色、抢 boost 位）：
 
 | 已删除 | 说明 |
 | --- | --- |
@@ -92,13 +71,7 @@ boost 位）：
 | `etc/udev/rules.d/99-sirius-usb.rules` | 喂给它事件的四条规则 |
 | `sirius-otg` 的 `on` / `off` / `auto` 与 manual pin | 脚本只剩 `status` / `watch` 只读诊断 |
 
-`rootfs/sirius-device.sh` 里的 enable 列表和 chmod 列表也同步去掉了。
-现在角色只由 CC 线决定，不需要任何用户态守护进程；`sirius-otg` 只报状态，
-传 `on/off/auto` 会直接提示已移除。
-
-`qcom_smbx` 的 2 秒 OTG 轮询仍然保留：它只在「检测到 Rd 且没有 VBUS」时开
-boost，和 TCPM 的 `set_vbus()` 写同一个寄存器位，两边都幂等，不冲突；万一
-TCPM 没加载，它自己也能把 OTG 头供上电。
+`rootfs/sirius-device.sh` 的 enable / chmod 列表同步去掉。`qcom_smbx` 的 2 秒 OTG 轮询保留（有 Rd 无 VBUS 时开 boost，与 `set_vbus()` 写同一位、幂等）。
 
 ## 6. 调试
 
@@ -120,28 +93,13 @@ echo host   | sudo tee /sys/class/usb_role/a600000.usb-role-switch/role
 echo device | sudo tee /sys/class/usb_role/a600000.usb-role-switch/role
 ```
 
-TCPM 状态机日志在 `/sys/kernel/debug/usb/tcpm-<dev>/log`（`<dev>` 是
-`c440000.spmi:pmic@0:typec@1300`）。注意它是 seq 文件，**读一次就清空**，
-要留档先 `cat > /tmp/tlog` 再分析；`head` 过之后再读会得到 0 字节。
+TCPM 日志 `/sys/kernel/debug/usb/tcpm-<dev>/log`（`<dev>` = `c440000.spmi:pmic@0:typec@1300`），seq 文件**读一次就清空**：先 `cat > /tmp/tlog` 留档，`head` 过之后再读会得到 0 字节。
 
-## 7. 源端（OTG host）为什么会抖，以及怎么压住的
+## 7. 源端（OTG host）抖动与压制
 
-这是接鼠标/键盘时才暴露的坑，现象是每 1 秒左右 `role` 在 host/device 之间翻，
-`xhci-hcd.1.auto` 反复 init/teardown，外设一直枚举不上。
+现象：接鼠标/键盘，`role` 每秒左右在 host/device 间翻，`xhci-hcd.1.auto` 反复 init/teardown，枚举不上。
 
-根因链（全部在主线 `tcpm.c` 的行为里，不是本驱动的私货）：
-
-1. 主线 `run_state_machine()` 的 `SRC_ATTACHED` 分支本身就是
-   `tcpm_set_state(SRC_UNATTACHED, PD_T_PS_SOURCE_ON /*480ms*/)`；
-2. 能取消这个 480ms 定时回落的，只有 VBUS 上升沿：`_tcpm_pd_vbus_on()`
-   在 `SRC_ATTACHED` 状态下会把状态推到 `SRC_STARTUP`（`delay 0` 会清掉
-   `delayed_state`）；
-3. PM660 的 Type-C FSM 每次在 DFP 锁定 / boost 上电那一下，会把
-   `TYPE_C_STATUS_4` 的 VBUS 位连同 `CC_ATTACHED` 位一起清掉几百毫秒。
-   `get_vbus()` 照实返回 0，TCPM 在 480ms 窗口里看不到 VBUS 上升沿 → 准点
-   回落 → `SRC_UNATTACHED` → toggling → 又检测到 sink → 重新 attach → 循环。
-
-驱动里用四条互相兜底的措施压住：
+根因（主线 `tcpm.c` 的 `run_state_machine()`）：`SRC_ATTACHED` 到点回落 `SRC_UNATTACHED`（`tcpm_set_state(SRC_UNATTACHED, PD_T_PS_SOURCE_ON /*480ms*/)`），可取消它的只有 VBUS 上升沿（`_tcpm_pd_vbus_on()` → `SRC_STARTUP`，`delay 0` 清 `delayed_state`）；PM660 FSM 在 DFP 锁定/boost 上电时把 `TYPE_C_STATUS_4` 的 VBUS 位连同 `CC_ATTACHED` 清掉几百毫秒，`get_vbus()` 返回 0 → 回落 → toggling → 重连。
 
 | 措施 | 作用 |
 | --- | --- |
@@ -150,40 +108,22 @@ TCPM 状态机日志在 `/sys/kernel/debug/usb/tcpm-<dev>/log`（`<dev>` 是
 | `set_cc()`：已按目标角色锁存就不重写命令寄存器 | 避免重写重启 FSM、又制造一次瞬断 |
 | `set_vbus()` 幂等：同值不写寄存器 | 每次重连不再触发 boost 写 → FSM 重启 |
 
-另外 `get_cc()` 对 attach 做了 800ms 保持（`detach_check` work 到期再采样），
-盖住 FSM 的瞬断；代价是真拔线最多晚 0.8s 才被识别。
+`get_cc()` attach 保持 800ms（`detach_check`），真拔线最多晚 0.8s 识别。接非 PD 设备日志有 `PD TX complete, status: 2`（PHY 无 GoodCRC，重发 4 次 Source Caps 后进 `SRC_READY`），正常。
 
-接非 PD 设备（鼠标、U 盘、普通 hub）时，日志会出现
-`PD TX complete, status: 2`——这是 PHY 报「没收到 GoodCRC」，
-TCPM 会重发 4 次 Source Caps 然后进 `SRC_READY`，属于正常流程，不会重连。
+### 7.1 boost 位被充电器自己清掉（2026-10-19 补）
 
-### 7.1 boost 位会被充电器自己清掉（2026-10-19 补）
+TCPM 侧正常（`power_role=[source]`、`data_role=[host]`）但 **VBUS 实测 0 V**；鼠标停在 `usb 1-1: new full-speed USB device number 2`，10 秒后 `xHCI host not responding to stop endpoint command` → `HC died`，须重建控制器。
 
-第二个独立原因，症状更迷惑：TCPM 侧一切正常（`power_role=[source]`、
-`data_role=[host]`），但 **VBUS 实测 0 V**，鼠标只走到
-`usb 1-1: new full-speed USB device number 2` 就没了下文，10 秒后
-`xHCI host not responding to stop endpoint command` → `HC died`，
-之后插什么都不会再认，必须重建控制器。
-
-根因：boost 一打开，5 V 就出现在 SMB2 的 USBIN 上，充电器把它当成
-「插进来一个充电器」，自己的状态机重新初始化 DCDC 块，把
-`DCDC_CMD_OTG.bit0` 清掉——软件侧**没有**任何一次写 0（加日志确认过，
-全程只有 `set_vbus(1)` 一次调用）。TCPM 于是看到 VBUS 掉、480 ms 到点、
-detach → toggling → 再 attach → 再被清，xhci 就在这串抖动里卡死。
-
-两个措施：
+根因：boost 一开 5 V 出现在 SMB2 USBIN，充电器当成插入充电器，重新初始化 DCDC 块并清掉 `DCDC_CMD_OTG.bit0`（软件侧没写过 0，只有 `set_vbus(1)` 一次调用）→ VBUS 掉 → 480 ms 到点 → detach → toggling → 再 attach → 再被清。
 
 | 措施 | 作用 |
 | --- | --- |
-| `vbus_kick` 兼作 20 × 500 ms 的保持窗口，每轮读回 `DCDC_CMD_OTG`，被清就重新置位 | 熬过充电器重启 DCDC 的那几秒；只在真被清时打一条 `dev_dbg` |
-| `qcom_smbx` 新增 DT 开关 `qcom,typec-managed-vbus`（板级已加） | 置位后 2 秒一次的 OTG 轮询不再碰 boost 位——它看不到 Type-C 适配器的 Rd，会把 TCPM 刚打开的供电又关掉 |
+| `vbus_kick` 兼作 20 × 500 ms 保持窗口，每轮读回 `DCDC_CMD_OTG`，被清就重新置位 | 熬过充电器重启 DCDC 的那几秒；真被清时打 `dev_dbg` |
+| `qcom_smbx` 新增 DT 开关 `qcom,typec-managed-vbus`（板级已加） | 置位后 2 秒一次的 OTG 轮询不再碰 boost 位（它看不到适配器的 Rd，会关掉 TCPM 刚开的供电） |
 
-实测（OTG 头 + 鼠标，冷启动）：`boost=1`、VBUS 5.04 V、
-`event4: Gaming Mouse` / `event5: Gaming Mouse Keyboard`，
-日志里只有一次 `OTG boost was cleared, re-asserted`。
+实测（OTG 头 + 鼠标，冷启动）：`boost=1`、VBUS 5.04 V、`event4: Gaming Mouse` / `event5: Gaming Mouse Keyboard`，日志只有一次 `OTG boost was cleared, re-asserted`。
 
-排错提醒：一旦看到 `xHCI host not responding to stop endpoint command`，
-控制器已经死了，插拔不会恢复，用下面的命令重建即可（不用重启）：
+控制器死后插拔不恢复，重建（不用重启）：
 
 ```bash
 echo device | sudo tee /sys/class/usb_role/a600000.usb-role-switch/role
@@ -193,12 +133,7 @@ echo host   | sudo tee /sys/class/usb_role/a600000.usb-role-switch/role
 
 ## 8. 充电电流与电池温度（软件 JEITA）
 
-主线的 `qcom_smbx` 原本没有任何温度降额：PMIC 自带的 JEITA 块停在复位值，
-`qcom-smb-charger` 这个 cooling device 也没挂到热区（`qcom-battery` 是
-power_supply 自动建的虚拟热区，没有 trip、挂不上 cooling-maps）。所以驱动里
-补了一个 30 秒一轮的 `smb_jeita_work`：读电池热区温度，按表改
-`FAST_CHARGE_CURRENT_CFG (0x61)`，越界时用 `CHARGING_ENABLE_CMD (0x42)`
-直接停充。
+主线 `qcom_smbx` 无温度降额（PMIC JEITA 停复位值，`qcom-smb-charger` 未挂热区，`qcom-battery` 是无 trip 的虚拟热区）。驱动补 30 秒一轮 `smb_jeita_work`：读电池热区温度按表改 `FAST_CHARGE_CURRENT_CFG (0x61)`，越界用 `CHARGING_ENABLE_CMD (0x42)` 停充。
 
 | 电池温度 | 充电电流 | 说明 |
 | --- | --- | --- |
@@ -211,15 +146,12 @@ power_supply 自动建的虚拟热区，没有 trip、挂不上 cooling-maps）�
 | 48 – 55 °C | 0.5 A | 温控 4 档 |
 | ≥ 55 °C | 停充 | 过温保护，降回 55 °C 以下自动恢复 |
 
-细节：
+- 边界带 **1 °C 迟滞**（升温立刻降档，降温要低于边界 1 °C 才升档）；
+- 插拔线缆时 `smb_status_change_work` 立刻补跑，不等 30 秒；
+- 只影响 CC 阶段电流（CV 末尾只剩 200 mA）；
+- 表在 `drivers/power/supply/qcom_smbx.c` 的 `smb_jeita_table[]`。
 
-- 每档边界带 **1 °C 迟滞**（升温立刻降档保安全，降温要低于边界 1 °C 才升档，
-  避免在边界上反复横跳）；
-- 插拔线缆时 `smb_status_change_work` 会立刻补跑一次，不用等 30 秒；
-- 只影响 CC 阶段电流，CV 末尾本来就只剩 200 mA，不受影响；
-- 表在 `drivers/power/supply/qcom_smbx.c` 的 `smb_jeita_table[]`，改档位改这一处。
-
-测试不用真加热，热区支持注入假温度：
+热区支持注入假温度，不用真加热：
 
 ```bash
 Z=/sys/class/thermal/thermal_zone$(for z in /sys/class/thermal/thermal_zone*; do       [ "$(cat $z/type)" = "qcom-battery" ] && echo ${z##*thermal_zone}; done)
@@ -230,33 +162,18 @@ echo 0     | sudo tee $Z/emul_temp    # 取消伪造，恢复真实温度
 
 ## 9. 边界与已知限制
 
-- **只有 USB2**：板子没走 SS 差分对，sdm670-usb.dtsi 里 `ssusb@a800000`
-  是删掉的，跟 Type-C 栈无关。
+- **只有 USB2**：板子没走 SS 差分对，sdm670-usb.dtsi 里 `ssusb@a800000` 是删掉的，与 Type-C 栈无关。
 - **没有 DP alt mode**：PM660 侧没有 SBU/DP 通路，USB-C 转 HDMI 不工作。
-- **source 电流档位**：硬件广告的 Rp 电流由 PM660 内部配置决定，驱动只按
-  角色切换，不按 PDO 调档；`source-pdos` 只用于 PD 报文。
-- **sink 电流**：TCPM 把合约（Rp 档位或 PD PDO）通过
-  `tcpc->set_current_limit()` 写进充电器的 `USBIN_CURRENT_LIMIT_CFG`，
-  board DT 里 `qcom,typec-managed-icl` 让 qcom_smbx 不再用 APSD 猜的值覆盖
-  它。注意 SMB2 的 AICL 仍会在 VBUS 压降时把限流往下收（寄存器读数会比
-  合约值低），这是硬件保护，不是 bug。
-- **模拟音频附件**（Type-C 转 3.5mm）能识别成 audio accessory，但本机
-  3.5mm 走的是模拟耳机孔，没有 SBU 开关，不路由。
-- **PD 需要 PD 电源**：普通 5V 充电器只会走 Type-C 默认电流。
-- PD PHY 的 `sig-tx` 中断在本机是空事件（主线驱动里只打一行 dev_err），
-  驱动没申请它，避免每秒刷屏。
+- **source 电流档位**：硬件广告的 Rp 电流由 PM660 内部配置决定，驱动只按角色切换，不按 PDO 调档；`source-pdos` 只用于 PD 报文。
+- **sink 电流**：TCPM 把合约（Rp 档位或 PD PDO）经 `tcpc->set_current_limit()` 写入 `USBIN_CURRENT_LIMIT_CFG`；board DT 的 `qcom,typec-managed-icl` 让 qcom_smbx 不再用 APSD 的值覆盖。SMB2 的 AICL 在 VBUS 压降时仍会收小限流（读数低于合约值），属硬件保护。
+- **模拟音频附件**（Type-C 转 3.5mm）能识别成 audio accessory，但本机 3.5mm 走模拟耳机孔，没有 SBU 开关，不路由。
+- **PD 需要 PD 电源**：普通 5V 充电器只走 Type-C 默认电流。
+- PD PHY 的 `sig-tx` 中断在本机是空事件（主线驱动只打一行 dev_err），驱动没申请它，避免刷屏。
 
 ## 10. 回退
-
-不想要 Type-C 栈时：
 
 ```sh
 sudo rmmod qcom_smb2_tcpm        # 立刻退回 dr_mode 默认（peripheral）
 ```
 
-彻底回退：把 `&pm660_typec` 的 `status` 改回 `disabled`、`&usb_1_dwc3`
-去掉 `usb-role-switch;` 与 `ports` 节点、把 `extcon = <&extcon_usb>;` 加回，
-重新构建 `kernel.img` 刷入。注意用户态跟随脚本已经从仓库删除，彻底回退要先
-按 `git log -- rootfs/overlay/usr/local/sbin/sirius-usb-bind` 找回那三个文件
-（脚本、service、udev 规则），否则没有 Type-C 栈时只能手动写 dwc3 角色
-（`usb_role/.../role` 或 debugfs `mode`）+ `otg_boost`。
+彻底回退：`&pm660_typec` 的 `status` 改回 `disabled`、`&usb_1_dwc3` 去掉 `usb-role-switch;` 与 `ports` 节点、加回 `extcon = <&extcon_usb>;`，重建 `kernel.img` 刷入。用户态跟随脚本已删，需先按 `git log -- rootfs/overlay/usr/local/sbin/sirius-usb-bind` 找回那三个文件（脚本、service、udev 规则），否则只能手动写 dwc3 角色（`usb_role/.../role` 或 debugfs `mode`）+ `otg_boost`。

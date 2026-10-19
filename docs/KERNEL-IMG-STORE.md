@@ -1,16 +1,14 @@
 # system 分区仓库（kernel.img）：内核模块 + 固件与 rootfs 解耦
 
-`userdata` 上的 rootfs 只装系统；内核模块和设备固件住在 `system` 分区
-（`mmcblk0p79`），开机由 initrd 绑定进新根。内核、模块、固件三者同版本一起走，
-rootfs 随便重刷不影响驱动。
+`userdata` 的 rootfs 只装系统；内核模块 + 设备固件住 `system` 分区（`mmcblk0p79`），开机由 initrd 绑定进新根；内核/模块/固件同版本一起走。
 
-> 历史：仓库最早住 system 分区（mmcblk0p79，命名 sysmod），中间搬到过 vendor（mmcblk0p80）并改名 vendormod；2026-10-14 为统一从 system 分区启动（U-Boot sysboot mmc 0:4f），又搬回 system（mmcblk0p79）。刷机用 fastboot flash system kernel.img。2026-10-18 名字改回 sysmod（cmdline 参数 `sysmod_part=`、挂载点 `/mnt/sysmod`），旧参数名 `vendor_part=` 在 initrd 里仍兼容。
+> 历史：曾在 system（mmcblk0p79，sysmod）↔ vendor（mmcblk0p80，vendormod）间搬迁；2026-10-14 为 U-Boot sysboot mmc 0:4f 搬回 system；2026-10-18 名改回 sysmod（cmdline `sysmod_part=`、挂载点 `/mnt/sysmod`），旧名 `vendor_part=` 在 initrd 里仍兼容。刷机 `fastboot flash system kernel.img`。
 
 ## 布局（system 分区内）
 
 ```text
 lib/modules/<uname -r>/   内核模块 + depmod 数据库（构建机 modules_install 产物）
-lib/firmware/...          设备固件（映射关系见 rootfs/lib/sirius-device.sh 头注释：
+lib/firmware/...          设备固件（映射见 rootfs/lib/sirius-device.sh 头注释：
                           a615_zap/a630_sqe/a630_gmu、
                           st_fts_v521.ftb、pyxis-phone 整包、ath10k WCN3990 三件套、
                           qca 蓝牙两件套；pd-mapper 二进制仍在 rootfs，不搬）
@@ -18,18 +16,13 @@ lib/firmware/...          设备固件（映射关系见 rootfs/lib/sirius-devic
 
 ## 启动流程（boot/initrd/initramfs/init）
 
-1. `find_sysmod_dev`：直接用 `/dev/mmcblk0p79`（system 分区），cmdline `sysmod_part=` 可覆盖（旧名 `vendor_part=` 仍兼容）。
-2. `mount --move` 把仓库挪进新根 `/mnt/sysmod`（不然 switch_root 会丢），
-   再把 `lib/modules/<uname -r>` 和 `lib/firmware` bind 进新根。
-3. 每步都写 kmsg：`dmesg | grep sysmod` 可查命中哪条分支。
+1. `find_sysmod_dev`：用 `/dev/mmcblk0p79`（system 分区），cmdline `sysmod_part=` 可覆盖（旧名 `vendor_part=` 兼容）。
+2. `mount --move` 仓库进新根 `/mnt/sysmod`；再把 `lib/modules/<uname -r>`、`lib/firmware` bind 进新根。
+3. 每步写 kmsg：`dmesg | grep sysmod` 查命中分支。
 
 ## 版本号 `+` 后缀说明
 
-`uname -r` 形如 `7.2.3-sdm670-gcbbdbeb2ca53+` 时，末尾 `+` 是 kbuild
-给**脏树**（有未提交改动）打的标记。模块目录名必须带 `+` 才对得上。
-教训：内核和模块必须同一次构建一起发布；`qcom-battery`、`ath10k`、
-`qcom_smbx` 全是模块，目录错一位就全灭（WiFi 消失、无电池、otg 报错），
-且静默无日志——排错先看 `ls /lib/modules/$(uname -r)` 是否存在。
+`uname -r` 形如 `7.2.3-sdm670-gcbbdbeb2ca53+`，末尾 `+` 是 kbuild 给**脏树**（有未提交改动）打的标记，模块目录名必须带 `+`。内核与模块必须同一次构建一起发布；`qcom-battery`、`ath10k`、`qcom_smbx` 全是模块，目录错一位就全灭（WiFi 消失、无电池、otg 报错）且静默无日志——排错先看 `ls /lib/modules/$(uname -r)`。
 
 ## 构建与刷机
 
@@ -60,5 +53,4 @@ sudo sirius-otg status
 ## rootfs 侧配合
 
 - rootfs 里旧 `/lib/modules/*` 保留当 fallback，别删。
-- 仓库挂载点开机后在 `/mnt/sysmod`（只读绑定的源头，挂载点名保留），
-  想往仓库加东西：重新跑 `build-kernel-img.sh` 并 fastboot 重刷 system。
+- 仓库挂载点开机后在 `/mnt/sysmod`；加内容：重跑 `build-kernel-img.sh` 并 fastboot 重刷 system。
