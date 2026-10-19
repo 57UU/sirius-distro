@@ -39,7 +39,7 @@ TCPM（drivers/usb/typec/tcpm，主线）
 | `drivers/usb/typec/tcpm/qcom/qcom_pmic_typec_pdphy.c` | 只加了一行 `EXPORT_SYMBOL_GPL(qcom_pmic_typec_pdphy_probe)`，让新驱动能复用 PD PHY |
 | `arch/arm64/boot/dts/qcom/pm660.dtsi` | 新增 `typec@1300`：`reg = <0x1300>, <0x1700>`，CC 变化 + PD PHY 七条中断 |
 | `arch/arm64/boot/dts/qcom/sdm710-xiaomi-sirius.dts` | `&usb_1_dwc3` 打开 `usb-role-switch`、加 HS 端口；`&pm660_typec` 描述 `usb-c-connector`（DRP、sink/source PDO）；去掉 dwc3 的 ID extcon |
-| `drivers/power/supply/qcom_smbx.c` | 配合改动：`qcom,typec-managed-icl` 时不再用 APSD 猜输入限流（交给 TCPM 的 `set_current_limit()`）；新增软件 JEITA（见 §8） |
+| `drivers/power/supply/qcom_smbx.c` | 配合改动：`qcom,typec-managed-icl` 时不再用 APSD 猜输入限流（交给 TCPM 的 `set_current_limit()`）；`qcom,typec-managed-vbus` 时 2 秒 OTG 轮询不再碰 boost 位；新增软件 JEITA（见 §8） |
 | `defconfig` | `CONFIG_TYPEC_QCOM_SMB2=m`（`TYPEC_TCPM=m`、`TYPEC_QCOM_PMIC=m` 已有） |
 
 模块依赖：`qcom_smb2_tcpm.ko` → `qcom_pmic_tcpm.ko` → `tcpm.ko`。
@@ -156,6 +156,40 @@ TCPM 状态机日志在 `/sys/kernel/debug/usb/tcpm-<dev>/log`（`<dev>` 是
 接非 PD 设备（鼠标、U 盘、普通 hub）时，日志会出现
 `PD TX complete, status: 2`——这是 PHY 报「没收到 GoodCRC」，
 TCPM 会重发 4 次 Source Caps 然后进 `SRC_READY`，属于正常流程，不会重连。
+
+### 7.1 boost 位会被充电器自己清掉（2026-10-19 补）
+
+第二个独立原因，症状更迷惑：TCPM 侧一切正常（`power_role=[source]`、
+`data_role=[host]`），但 **VBUS 实测 0 V**，鼠标只走到
+`usb 1-1: new full-speed USB device number 2` 就没了下文，10 秒后
+`xHCI host not responding to stop endpoint command` → `HC died`，
+之后插什么都不会再认，必须重建控制器。
+
+根因：boost 一打开，5 V 就出现在 SMB2 的 USBIN 上，充电器把它当成
+「插进来一个充电器」，自己的状态机重新初始化 DCDC 块，把
+`DCDC_CMD_OTG.bit0` 清掉——软件侧**没有**任何一次写 0（加日志确认过，
+全程只有 `set_vbus(1)` 一次调用）。TCPM 于是看到 VBUS 掉、480 ms 到点、
+detach → toggling → 再 attach → 再被清，xhci 就在这串抖动里卡死。
+
+两个措施：
+
+| 措施 | 作用 |
+| --- | --- |
+| `vbus_kick` 兼作 20 × 500 ms 的保持窗口，每轮读回 `DCDC_CMD_OTG`，被清就重新置位 | 熬过充电器重启 DCDC 的那几秒；只在真被清时打一条 `dev_dbg` |
+| `qcom_smbx` 新增 DT 开关 `qcom,typec-managed-vbus`（板级已加） | 置位后 2 秒一次的 OTG 轮询不再碰 boost 位——它看不到 Type-C 适配器的 Rd，会把 TCPM 刚打开的供电又关掉 |
+
+实测（OTG 头 + 鼠标，冷启动）：`boost=1`、VBUS 5.04 V、
+`event4: Gaming Mouse` / `event5: Gaming Mouse Keyboard`，
+日志里只有一次 `OTG boost was cleared, re-asserted`。
+
+排错提醒：一旦看到 `xHCI host not responding to stop endpoint command`，
+控制器已经死了，插拔不会恢复，用下面的命令重建即可（不用重启）：
+
+```bash
+echo device | sudo tee /sys/class/usb_role/a600000.usb-role-switch/role
+sleep 1
+echo host   | sudo tee /sys/class/usb_role/a600000.usb-role-switch/role
+```
 
 ## 8. 充电电流与电池温度（软件 JEITA）
 
