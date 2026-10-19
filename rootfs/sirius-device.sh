@@ -36,11 +36,26 @@ export SIRIUS_GROUPS SIRIUS_AUDIO_PKGS
 SIRIUS_VULKAN_PKGS=${SIRIUS_VULKAN_PKGS:-"mesa-vulkan-drivers vulkan-tools"}
 export SIRIUS_VULKAN_PKGS
 
+# Mesa 默认取 trixie-backports 的版本（当前 26.1.6）：OpenGL 客户端比 trixie 自带的
+# 25.0.7 快约 15%，Vulkan 持平，没有发现回退（见 docs/GRAPHICS-BENCHMARK.md）。
+# 想固定用 trixie 自带版本时，构建前设 SIRIUS_MESA_BACKPORTS=0。
+# 这 6 个包必须同版本一起装：libgbm1/mesa-libgallium/libgl1-mesa-dri/libegl-mesa0/
+# libglx-mesa0 之间是 "=" 依赖；mesa-vulkan-drivers 可独立，但同批升级更一致。
+SIRIUS_MESA_BACKPORTS=${SIRIUS_MESA_BACKPORTS:-1}
+SIRIUS_MESA_PKGS=${SIRIUS_MESA_PKGS:-"libgbm1 mesa-libgallium libgl1-mesa-dri libegl-mesa0 libglx-mesa0 mesa-vulkan-drivers"}
+# 开关关闭时不把它们并进基础包列表，保持 trixie 自带版本。
+if [ "$SIRIUS_MESA_BACKPORTS" = 1 ]; then
+  SIRIUS_MESA_SEL=$SIRIUS_MESA_PKGS
+else
+  SIRIUS_MESA_SEL=
+fi
+export SIRIUS_MESA_BACKPORTS SIRIUS_MESA_PKGS SIRIUS_MESA_SEL
+
 # Shared base packages for every flavor: each build-*.sh runs
 # `apt-get install -y $SIRIUS_BASE_PKGS` first, then its flavor-only extras
 # (server: evtest/rfkill/auditd/kbd + Qt runtime; gnome:
 # gnome-core/gdm3/firmware). Flavor lines must not repeat these.
-SIRIUS_BASE_PKGS=${SIRIUS_BASE_PKGS:-"sudo openssh-server network-manager nano wpasupplicant bluez rmtfs tqftpserv qrtr-tools libbsd0 wireless-tools pipewire wireplumber modemmanager libqmi-utils mobile-broadband-provider-info $SIRIUS_AUDIO_PKGS $SIRIUS_VULKAN_PKGS systemd-timesyncd systemd-resolved util-linux-extra e2fsprogs"}
+SIRIUS_BASE_PKGS=${SIRIUS_BASE_PKGS:-"sudo openssh-server network-manager nano wpasupplicant bluez rmtfs tqftpserv qrtr-tools libbsd0 wireless-tools pipewire wireplumber modemmanager libqmi-utils mobile-broadband-provider-info $SIRIUS_AUDIO_PKGS $SIRIUS_VULKAN_PKGS $SIRIUS_MESA_SEL systemd-timesyncd systemd-resolved util-linux-extra e2fsprogs"}
 export SIRIUS_BASE_PKGS
 
 # Shared service enables for every flavor: each build-*.sh runs
@@ -150,6 +165,25 @@ deb $MIRROR/debian trixie main contrib non-free non-free-firmware
 deb $MIRROR/debian trixie-updates main contrib non-free non-free-firmware
 deb $MIRROR/debian-security trixie-security main contrib non-free non-free-firmware
 EOF2
+  # backports 是 NotAutomatic（默认优先级 100），普通 install 不会选它。
+  # 这里只把上面 6 个 Mesa 包钉到 990，其余包仍留在 trixie，不会整体漂到 backports。
+  PREF=$R/etc/apt/preferences.d/sirius-mesa-backports
+  rm -f "$PREF"
+  if [ "$SIRIUS_MESA_BACKPORTS" = 1 ]; then
+    echo "deb $MIRROR/debian trixie-backports main contrib non-free non-free-firmware" >> $R/etc/apt/sources.list
+    # 只把这 6 个包钉到 backports（其余仍走 trixie）。backports 本身是 NotAutomatic，
+    # 不加这段的话普通 apt-get install 仍会选 trixie 的旧版。
+    mkdir -p $R/etc/apt/preferences.d
+    : > "$PREF"
+    for _p in $SIRIUS_MESA_PKGS; do
+      cat >> "$PREF" <<PREF_EOF
+Package: $_p
+Pin: release n=trixie-backports
+Pin-Priority: 990
+
+PREF_EOF
+    done
+  fi
 }
 
 sirius_cleanup() {
