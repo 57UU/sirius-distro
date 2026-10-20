@@ -194,11 +194,12 @@ sirius_cleanup() {
 
 # qemu + mounts + resolv, with EXIT trap. Pair with sirius_chroot_end.
 sirius_chroot_begin() {
-  # Native aarch64 hosts (e.g. the phone itself) need no qemu; the cp would
+  # Native arm64 hosts (e.g. the phone itself) need no qemu; the cp would
   # fail under set -e, so only stage the static binary when emulating.
-  if [ "$(uname -m)" != aarch64 ]; then
-    cp -f /usr/bin/qemu-aarch64-static $R/usr/bin/
-  fi
+  case "$(uname -m)" in
+    aarch64|arm64) : ;;
+    *) cp -f /usr/bin/qemu-aarch64-static $R/usr/bin/ ;;
+  esac
   trap sirius_cleanup EXIT
   mount -t proc /proc $R/proc 2>/dev/null || true
   mount --rbind /sys $R/sys

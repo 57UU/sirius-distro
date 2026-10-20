@@ -8,8 +8,8 @@
 #   SIRIUS_BASE  pristine debian-trixie arm64 tree (e.g. linuxcontainers rootfs)
 #   Kernel modules + firmware are NOT baked here; they live in the system-partition
 #   store built by kernel/build-kernel-img.sh (see docs/KERNEL-IMG-STORE.md).
-#   SIRIUS_WORK  scratch/output dir for the tree (default: <distro>/work)
-# Run on an x86_64 Linux host with qemu-user + binfmt (needs sudo):
+#   SIRIUS_WORK  scratch/output dir for the tree (default: <distro>/workspace/build/rootfs)
+# Run on x86_64 (qemu-user + binfmt) or aarch64 Linux (native, no qemu); needs sudo:
 #   sudo SIRIUS_BASE=/path/to/base ./build-server.sh
 #
 # NOTE: default user/password come from sirius-device.sh (SIRIUS_USER /
@@ -19,7 +19,7 @@ DISTRO="$(cd "$(dirname "$0")/.." && pwd)"
 DSP_BIN=$DISTRO/rootfs/dsp-bin
 OVERLAY=$DISTRO/rootfs/overlay
 ORBITAL_PKG=$DISTRO/rootfs/orbital-pkg
-WORK=${SIRIUS_WORK:-$DISTRO/work}
+WORK=${SIRIUS_WORK:-${SCRATCH:-$DISTRO/workspace/build}/rootfs}
 SRC=${SIRIUS_BASE:-}
 test -n "$SRC" || { echo "set SIRIUS_BASE to a pristine trixie arm64 tree"; exit 1; }
 test -d $SRC || { echo "missing base tree $SRC"; exit 1; }

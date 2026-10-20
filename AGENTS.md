@@ -19,6 +19,7 @@ fastboot flash boot xxx.img && fastboot flash userdata xxx.simg && fastboot rebo
 # locations
 
 - boot,system,rootfs打包得到最终的 img/simg 产物应当移动到:build/ 下
+- 中间产物（initrd、U-Boot 构建目录、rootfs 工作树、SIRIUS_BASE 原始树、临时目录）统一放 workspace/build/ 下；构建走仓库根 ./build.sh <target>，不要在别处新建临时目录
 
 工作区：如果当前目录存在workspace/ 文件夹，直接去里面工作，如果不存在，则自行创建文件夹。.gitignore已经加入了，不用担心污染git仓库。
 

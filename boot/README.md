@@ -2,7 +2,8 @@
 
 只维护 U-Boot 启动链，不再维护 ABL 直启（boot/build_boot.sh 已删除）。
 
-- U-Boot 源码：`../uboot`（57UU/u-boot submodule），构建：`../uboot/sirius-build.sh`
+- U-Boot 源码：`../uboot`（57UU/u-boot submodule），构建：`../uboot/sirius-build.sh`（统一入口 `./build.sh boot`；
+ 中间件落 `workspace/build/uboot/`）
  （`qcom_defconfig + qcom-phone.config + sirius.config`，`DEVICE_TREE=qcom/sdm710-xiaomi-sirius`）。
 - 产物 `boot.img`（gzip nodtb + sirius dtb，经 mkbootimg 打包），刷入 boot 分区：
   `fastboot flash boot boot.img && fastboot reboot`

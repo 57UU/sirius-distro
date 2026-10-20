@@ -110,6 +110,24 @@ if you want to change splash screen, refer to boot-logo/ folder.
 
 infrared / haptics: see `docs/HAPTICS-IR.md`.
 
+# 构建
+
+```bash
+./build.sh initrd        # initramfs  -> workspace/build/initrd.cpio.gz
+./build.sh boot          # U-Boot     -> build/boot.img
+./build.sh kernel        # 模块+固件  -> build/kernel.img（需先 initrd）
+./build.sh rootfs-gnome  # GNOME rootfs -> build/debian-trixie-sirius-gnome-<日期时间>.simg
+./build.sh rootfs-server # server rootfs -> build/debian-trixie-sirius-server-<日期时间>.simg
+./build.sh all           # initrd -> boot -> kernel -> 两个 rootfs
+./build.sh clean         # 清 workspace/build/（中间产物；build/ 下的 img/simg 不动）
+```
+
+产物分两级：**最终产物（`*.img` / `*.simg`）落 `build/`**；其余中间产物（initrd、U-Boot 构建目录、
+rootfs 工作树、SIRIUS_BASE 原始树、临时目录）全部在 `workspace/build/` 下。
+
+内核 Image/dtb 仍需先在 `kernel/linux-sirius/`（submodule）里 `make` 出来，`build_kernel` 只做
+system 分区镜像的汇编。
+
 
 # Acknowledgements
 Thanks many opensource projects:

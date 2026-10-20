@@ -6,10 +6,13 @@
 #   lib/modules/<uname -r>/   modules + depmod db, from a built kernel tree
 #   lib/firmware/...          device blobs (same mapping as sirius_firmware_pre)
 #
-# Run on the kernel build host (needs the kernel tree already built):
+# Run on the kernel build host (needs the kernel tree already built).
+# Host arch is auto-detected: aarch64 builds natively (empty CROSS_COMPILE),
+# anything else (x86_64) uses the aarch64 cross toolchain.
 #   ./build-kernel-img.sh
 # Env overrides:
 #   KERNEL_SRC  built kernel tree (default: <distro>/kernel/linux-sirius)
+#   INITRD      packed initramfs (default: <distro>/workspace/build/initrd.cpio.gz)
 #   OUT         output image (default: <distro>/build/kernel.img, gitignored)
 #   IMG_SIZE    ext4 size (default: 256M; content is ~55M)
 #   IMG_LABEL   fs label (default: sirius_vendor)
@@ -22,7 +25,11 @@ OUT=${OUT:-$DISTRO/build/kernel.img}
 IMG_SIZE=${IMG_SIZE:-256M}
 IMG_LABEL=${IMG_LABEL:-sirius_vendor}
 ARCH=${ARCH:-arm64}
-CROSS_COMPILE=${CROSS_COMPILE:-aarch64-linux-gnu-}
+case "$(uname -m)" in
+  aarch64|arm64) DEF_CROSS= ;;
+  *)             DEF_CROSS=aarch64-linux-gnu- ;;
+esac
+CROSS_COMPILE=${CROSS_COMPILE-$DEF_CROSS}
 export PATH="/usr/sbin:/sbin:$PATH"
 DEPMOD=${DEPMOD:-depmod}
 MKFS=${MKFS:-mkfs.ext4}
@@ -90,9 +97,9 @@ test -f "$KIMG" || { echo "missing kernel Image $KIMG (build kernel first?)"; ex
 test -f "$KDTB" || { echo "missing dtb $KDTB"; exit 1; }
 cp -f "$KIMG" $PAYLOAD/Image
 cp -f "$KDTB" $PAYLOAD/dtb/sdm710-xiaomi-sirius.dtb
-# initrd is rebuilt by boot/initrd/build.sh into boot/.
-INITRD=$DISTRO/boot/initrd.cpio.gz
-test -f "$INITRD" || { echo "missing initrd $INITRD (run boot/initrd/build.sh first?)"; exit 1; }
+# initrd is a build intermediate (workspace/build/initrd.cpio.gz), not in build/.
+INITRD=${INITRD:-${SCRATCH:-$DISTRO/workspace/build}/initrd.cpio.gz}
+test -f "$INITRD" || { echo "missing initrd $INITRD (run ./build.sh initrd first?)"; exit 1; }
 cp -f "$INITRD" $PAYLOAD/initrd.cpio.gz
 cp -f $DISTRO/boot/extlinux.conf $PAYLOAD/extlinux/extlinux.conf
 chmod 644 $PAYLOAD/Image $PAYLOAD/dtb/*.dtb $PAYLOAD/initrd.cpio.gz $PAYLOAD/extlinux/extlinux.conf

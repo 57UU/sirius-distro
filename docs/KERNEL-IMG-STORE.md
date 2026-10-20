@@ -28,11 +28,11 @@ lib/firmware/...          设备固件（映射见 rootfs/lib/sirius-device.sh �
 
 ```bash
 # 远程构建机（内核树已编过）：
-./kernel/build-kernel-img.sh
+./build.sh kernel
 # 产物默认 build/kernel.img（256M，gitignored；首刷开机由 initrd 自动扩到整个 system 分区），附 md5。
 
-# init/extlinux 改过则重打 system 镜像（initrd 先就位）：
-(cd boot/initrd && ./build.sh ../initrd.cpio.gz) && ./kernel/build-kernel-img.sh
+# init/extlinux 改过则重打 system 镜像（initrd 是中间产物，先就位）：
+./build.sh initrd && ./build.sh kernel   # initrd -> workspace/build/initrd.cpio.gz
 
 # 刷机（fastboot）：
 fastboot flash system kernel.img && fastboot reboot

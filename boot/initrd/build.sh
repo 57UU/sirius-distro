@@ -1,6 +1,9 @@
 #!/bin/bash
-# $1: output file
-OUT="${1:-initrd.cpio.gz}"
+# Pack initramfs/ into a cpio.gz (a build intermediate: keep it out of build/).
+# $1: output file (default: $SCRATCH/initrd.cpio.gz, i.e. workspace/build/)
+DISTRO="$(cd "$(dirname "$0")/../.." && pwd)"
+OUT="${1:-${SCRATCH:-$DISTRO/workspace/build}/initrd.cpio.gz}"
+mkdir -p "$(dirname "$OUT")"
 # shellcheck disable=SC2164
 mkinitfs () {
 	OUT="$(realpath "$2")"

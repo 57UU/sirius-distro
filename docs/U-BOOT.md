@@ -17,6 +17,9 @@ PBL（ROM）→ XBL → ABL（官 fastboot 仍在，只做下载/启动跳转）
 
 ## 2. 构建（`uboot/sirius-build.sh`）
 
+统一入口：`./build.sh boot`（等价于 `uboot/sirius-build.sh`；中间件落 `workspace/build/uboot/`，
+产物 `build/boot.img`）。
+
 配方：
 
 ```bash
@@ -30,7 +33,7 @@ mkbootimg --kernel_offset 0x00008000 --pagesize 4096 --kernel uboot-payload -o b
 - `qcom_defconfig + qcom-phone.config`：带 `PANIC_HANG`、console record、`FASTBOOT_BUF_ADDR=0x1A000000`、`BUTTON_REMAP_PHONE_KEYS`；勿用手写 `xiaomi-sirius_defconfig`（已删，缺这些）。
 - `sirius.config`（`board/xiaomi/sirius/`）：比上游多三行 `BLKMAP`、`CMD_BLKMAP`、`ENV_DEFAULT_ENV_TEXT_FILE`→`sirius.env`。
 - payload 必须 `gzip(nodtb)+dtb`；用 `u-boot.bin` 当 kernel → `fastboot boot` 回 OKAY 但没起。
-- `mkbootimg` 参数照抄参考；`ARCH=arm64` **不要传**（源码无 `arch/arm64` → `asm/config.h` 报错）；CROSS_COMPILE 保持 `aarch64-linux-gnu-`。
+- `mkbootimg` 参数照抄参考；`ARCH=arm64` **不要传**（源码无 `arch/arm64` → `asm/config.h` 报错）；`CROSS_COMPILE` 按主机架构自适应（x86_64 主机用 `aarch64-linux-gnu-`，aarch64 主机留空走原生）。
 
 ## 3. 环境变量（`board/xiaomi/sirius/sirius.env`）
 

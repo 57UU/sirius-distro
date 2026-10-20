@@ -1,7 +1,8 @@
 # Pack a built rootfs tree into f2fs + simg (server/gnome share it).
-# Run on the x86_64 build host (needs sudo, f2fs-tools, img2simg).
+# Run on x86_64 or aarch64 host (needs sudo, f2fs-tools, img2simg).
 # Usage: ./pack-image.sh <tree-dir> <images-dir> <basename>
-# e.g.: ./pack-image.sh ~/sirius-build/work/debian-trixie-server ~/sirius-build/images debian-trixie-sirius-server-v6
+# e.g. (what ./build.sh rootfs-server runs):
+#   ./pack-image.sh workspace/build/rootfs/debian-trixie-server build debian-trixie-sirius-server-20261020-1530
 set -e
 TREE=$1; IMGDIR=$2; BASE=$3
 test -n "$TREE" -a -n "$IMGDIR" -a -n "$BASE" || { echo "usage: pack-image.sh <tree-dir> <images-dir> <basename>"; exit 1; }
