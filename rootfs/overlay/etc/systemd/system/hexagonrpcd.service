@@ -1,0 +1,17 @@
+[Unit]
+Description=hexagonrpcd - Snapdragon Sensor Core file server
+Documentation=https://github.com/linux-msm/hexagonrpc
+# sensorspd 必须由本服务独占：adsprpcd-sensorspd 会抢走 fastrpc 的 default listener
+After=adsprpcd-audiopd.service
+
+[Service]
+Type=simple
+# DSP 侧 sns_reg_config 要读 /socinfo/*，直接映射 /sys/devices/soc0（不拷贝）
+ExecStartPre=/bin/sh -c 'mkdir -p /usr/share/qcom/socinfo; mountpoint -q /usr/share/qcom/socinfo || mount --bind /sys/devices/soc0 /usr/share/qcom/socinfo'
+ExecStart=/usr/local/bin/hexagonrpcd -f /dev/fastrpc-adsp-secure -s -R /usr/share/qcom
+ExecStopPost=/bin/sh -c 'mountpoint -q /usr/share/qcom/socinfo && umount /usr/share/qcom/socinfo || true'
+Restart=on-failure
+RestartSec=2
+
+[Install]
+WantedBy=multi-user.target

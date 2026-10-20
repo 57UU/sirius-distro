@@ -54,20 +54,38 @@ default password is 1234.
 | CPU         | Working |
 | GPU         | Working |
 | eMMC        | Working |
-| USB         | Working |
-| Bluetooth   | Working |
-| WiFi        | Working* |
+| USB/USB-C   | Working |
 | Thermal     | Working |
 | Touchscreen | Working |
 | Battery     | Working |
-| LED         | Working |
+| LED         | Working, notification, rear flash, front fill |
 | Speaker     | Working |
+| Headphone   | Broken |
+| Haptics     | Working |
+| Microphone  | Broken |
+| Bluetooth   | Working |
+| WiFi        | Working* |
+| Modem/IPA   | Working, Only support single SIM |
+| GPS/GNSS    | Broken, not implemented |
+| NFC         | Broken, driver probes but no chardev/userland |
+| IR TX       | Working |
+| Camera      | Broken, CAMSS is up but no sensor driver |
+| Fingerprint | Broken, no driver / no DT node |
 | Video decode | Working, H.264 VP8 VP9 HEVC MPEG-2, H.264 HEVC  |
 | Video encode | Partial, verified via v4l2-ctl, ffmpeg segfaults |
-| Modem/IPA   | Working, Only support single SIM |
-| Microphone  | Broken |
+| Suspend     | Not supported, s2idle too shallow |
 
-USB-C 已增加完整 Type-C 协议栈（角色自动识别、PD 协商），细节见 `docs/USB-TYPEC.md`。
+## Sensors
+
+| Sensor | Status |
+| ----------- | ------- |
+| Accelerometer | Working |
+| Gyroscope | Working |
+| Magnetometer | Working |
+| Compass | Working |
+| Ambient Light | Broken |
+| Proximity | Broken |
+
 
 *: 5GHz WiFi 在开启帧保护后，会造成IO缓慢、延迟增大，详情见`docs/WIFI-5G-BDF-MFP.md`。
 
@@ -89,6 +107,8 @@ sirius-remodeset                     # 手动救援：无头启动显示卡住�
 # Extra Content
 
 if you want to change splash screen, refer to boot-logo/ folder.
+
+infrared / haptics: see `docs/HAPTICS-IR.md`.
 
 
 # Acknowledgements

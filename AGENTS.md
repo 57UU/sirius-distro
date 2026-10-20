@@ -3,6 +3,10 @@
 
 无需sha校验码，不用校验文件。
 
+## Forbidden
+
+禁止write手机persist、modem 等不可恢复分区，只允许只读挂载。
+
 # Fastboot 刷机
 
 使用flash,reboot命令时设备可能在写emmc，很慢，假死是正常现象。等待十几分钟就好，不要强制停止。
