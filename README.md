@@ -49,31 +49,31 @@ default password is 1234.
 
 # status
 
-| Components  | Status  |
-| ----------- | ------- |
-| CPU         | Working |
-| GPU         | Working |
-| eMMC        | Working |
-| USB/USB-C   | Working |
-| Thermal     | Working |
-| Touchscreen | Working |
-| Battery     | Working |
-| LED         | Working, notification, rear flash, front fill |
-| Speaker     | Working |
-| Headphone   | Broken |
-| Haptics     | Working |
-| Microphone  | Broken |
-| Bluetooth   | Working |
-| WiFi        | Working* |
-| Modem/IPA   | Working, Only support single SIM |
-| GPS/GNSS    | Broken, not implemented |
-| NFC         | Broken, driver probes but no chardev/userland |
-| IR TX       | Working |
-| Camera      | Broken, CAMSS is up but no sensor driver |
-| Fingerprint | Broken, no driver / no DT node |
-| Video decode | Working, H.264 VP8 VP9 HEVC MPEG-2, H.264 HEVC  |
-| Video encode | Partial, verified via v4l2-ctl, ffmpeg segfaults |
-| Suspend     | Not supported, s2idle too shallow |
+| Components   | Status        | Note |
+| ------------ | ------------- | ---- |
+| CPU          | Working       |      |
+| GPU          | Working       |      |
+| eMMC         | Working       |      |
+| USB/USB-C    | Working       |      |
+| Thermal      | Working       |      |
+| Touchscreen  | Working       |      |
+| Battery      | Working       |      |
+| LED          | Working       | notification, rear flash, front fill |
+| Speaker      | Working       |      |
+| Headphone    | Broken        |      |
+| Haptics      | Working       |      |
+| Microphone   | Broken        |      |
+| Bluetooth    | Working       |      |
+| WiFi         | Working*      | 5GHz slow IO / high latency with MFP on, see `*` |
+| Modem/IPA    | Working       | single SIM only |
+| GPS/GNSS     | Broken        |  |
+| NFC          | Broken        | driver probes but no chardev/userland |
+| IR TX        | Working       |      |
+| Camera       | Broken        | CAMSS is up but no sensor driver |
+| Fingerprint  | Broken        | no driver / no DT node |
+| Video decode | Working       | H.264 VP8 VP9 HEVC MPEG-2 |
+| Video encode | Partial       | verified via v4l2-ctl, ffmpeg segfaults |
+| Suspend      | Not supported | s2idle too shallow |
 
 ## Sensors
 
