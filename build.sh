@@ -45,7 +45,21 @@ TAG=${TAG:-$(date +%Y%m%d-%H%M)}
 SIRIUS_BASE=${SIRIUS_BASE:-$SCRATCH/base}
 export TAG SIRIUS_BASE
 
-as_root() { if [ "$(id -u)" = 0 ]; then "$@"; else sudo -E "$@"; fi; }
+as_root() {
+  # `sudo -E` is not universally supported (WSL sudo silently ignores it, so the
+  # exported vars never reach the root child); pass them explicitly via `env`.
+  # sbin dirs are appended because a normal user PATH often lacks them (chroot,
+  # mkfs.f2fs... live in /usr/sbin), and sudo's own secure_path is not used once
+  # we override PATH.
+  # TMPDIR is dropped on purpose: rootfs builds chroot into the tree, where the
+  # host scratch path does not exist (dpkg postinsts would fail on mktemp).
+  if [ "$(id -u)" = 0 ]; then "$@"; else
+    sudo env -u TMPDIR PATH="$PATH:/usr/sbin:/sbin" \
+      OUT_DIR="$OUT_DIR" SCRATCH="$SCRATCH" HOST_ARCH="$HOST_ARCH" \
+      SIRIUS_BASE="${SIRIUS_BASE:-}" SIRIUS_WORK="${SIRIUS_WORK:-}" \
+      TAG="${TAG:-}" CROSS_COMPILE="${CROSS_COMPILE:-}" "$@"
+  fi
+}
 
 cmd_initrd() { bash "$DISTRO/boot/initrd/build.sh" "$SCRATCH/initrd.cpio.gz"; }
 
@@ -71,8 +85,9 @@ cmd_rootfs() {                                    # $1 = gnome | server
   esac
   export SIRIUS_WORK="$SCRATCH/rootfs"
   as_root bash "$DISTRO/rootfs/build-$flavor.sh"
-  as_root bash "$DISTRO/rootfs/pack-image.sh" "$SCRATCH/rootfs/$tree" "$OUT_DIR" \
-    "debian-trixie-sirius-$flavor-$TAG"
+  # packing runs host-side (mktemp for the loop mount), so keep it in the scratch dir
+  as_root env TMPDIR="$TMPDIR" bash "$DISTRO/rootfs/pack-image.sh" "$SCRATCH/rootfs/$tree" \
+    "$OUT_DIR" "debian-trixie-sirius-$flavor-$TAG"
 }
 
 cmd_clean() { rm -rf "$SCRATCH"; mkdir -p "$SCRATCH"; }   # build/ 下 img/simg 是交付物，不删
