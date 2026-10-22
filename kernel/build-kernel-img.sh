@@ -14,7 +14,7 @@
 #   KERNEL_SRC  built kernel tree (default: <distro>/kernel/linux-sirius)
 #   INITRD      packed initramfs (default: <distro>/workspace/build/initrd.cpio.gz)
 #   OUT         output image (default: <distro>/build/kernel.img, gitignored)
-#   IMG_SIZE    ext4 size (default: 256M; content is ~55M)
+#   IMG_SIZE    ext4 size (default: 384M; content is ~240M)
 #   IMG_LABEL   fs label (default: sirius_vendor)
 #   ARCH / CROSS_COMPILE / DEPMOD / MKFS as usual.
 set -e
@@ -22,7 +22,7 @@ DISTRO="$(cd "$(dirname "$0")/.." && pwd)"
 KERNEL_SRC=${KERNEL_SRC:-$DISTRO/kernel/linux-sirius}
 FIRMWARE=$DISTRO/firmware
 OUT=${OUT:-$DISTRO/build/kernel.img}
-IMG_SIZE=${IMG_SIZE:-256M}
+IMG_SIZE=${IMG_SIZE:-384M}
 IMG_LABEL=${IMG_LABEL:-sirius_vendor}
 ARCH=${ARCH:-arm64}
 case "$(uname -m)" in
