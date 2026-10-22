@@ -20,8 +20,8 @@ change分为三大部分：boot,kernel,rootfs，例如 rootfs.gnome: 修复gnome
 - kernel: **振动马达**：震动器现在可用了，应用通过系统标准的震动接口就能触发。
 - kernel: **红外遥控**：手机顶部的红外发射器可用了，可以当遥控器发码（只支持发射，不支持接收）。
 - rootfs: **传感器**：加速度计、陀螺仪、磁力计和指南针现在能读了；光线和距离传感器暂不可用。
+- boot: **UEFI 启动**：开机默认走 EFI 直启，失败自动回落到原来的 extlinux 启动。
 
-- boot: **UEFI 启动**：开机默认走 EFI 直启（U-Boot 直接加载内核、initrd 与设备树），失败自动回落到原来的 extlinux 启动。终端执行 `test -d /sys/firmware/efi && echo EFI` 可验证，`dmesg` 里能看到 `EFI v2.11 by Das U-Boot`。
 ### 变更
 
 - kernel: **内核升级到 7.3**：底座从 7.2.3 前移到上游 Linux 7.3，sirius 驱动与补丁已同步合入，真机验证开机、WiFi、显示、Modem 正常。
@@ -29,14 +29,12 @@ change分为三大部分：boot,kernel,rootfs，例如 rootfs.gnome: 修复gnome
 - rootfs.gnome: **息屏与锁屏全面回归 GNOME 原生**：移除了旧版的自制电源管理和背光组件，
   「设置 → 电源 → 屏幕空白」现在真正生效，空闲后自动锁屏、灭屏、按键唤醒
   全部按 GNOME 标准行为工作。
-- rootfs.gnome: **电源键改为「按一下锁屏息屏」**：亮屏时按一下立即锁屏并息屏；灭屏时
-  按一下点亮屏幕回到锁屏界面；长按仍为硬件关机。电源键不会再触发
-  「60 秒后自动关机」的确认框。
+- rootfs.gnome: **电源键改为「按一下锁屏息屏」**：亮屏时按一下立即锁屏并息屏；灭屏时按一下点亮屏幕回到锁屏界面；长按仍为硬件关机。电源键不会再触发「60 秒后自动关机」的确认框。
+- boot: **默认启动改为 EFI 优先**：启动菜单新增 `Boot EFI` 项；`kernel.img` 的 `/boot` 下新增 `efi/BOOTAA64.EFI`。
 
-- boot: **默认启动改为 EFI 优先**：启动菜单新增 `Boot EFI` 项；`kernel.img` 的 `/boot` 下新增 `efi/BOOTAA64.EFI`（当前即内核本身，无需 ESP 分区，以后换 GRUB 直接替换该文件）。
 ### 移除
 
-- kernel: **NFC 支持已移除**：确认 sirius 没有这颗设备，删掉了设备树里的 NFC 节点（含 i2c3 使能与 pinctrl）与 README 状态行。
+- kernel: **NFC 支持已移除**：确认 sirius 没有这颗设备，删掉了设备树里的 NFC 节点。
 - rootfs: 删掉了用户态的「伪自动」USB 角色跟随（`sirius-usb-bind` 及其 systemd 服务、udev 规则）。现在内核自己认线，它留着只会和内核抢角色、抢 OTG 供电。
 - rootfs: `sirius-otg` 的 `on`/`off`/`auto` 一并删除 ——角色和 OTG 供电都由内核按线缆状态自动处理，脚本只剩 `status`/`watch` 两个只读诊断命令。
 
