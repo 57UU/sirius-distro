@@ -58,9 +58,6 @@ ln -sf /usr/share/zoneinfo/Asia/Shanghai /etc/localtime
 echo "Asia/Shanghai" > /etc/timezone
 systemctl set-default multi-user.target
 systemctl enable $SIRIUS_BASE_UNITS orbital || true
-# Server console keeps the stock font size; overlay's TerminusBold 16x32 is
-# the GNOME flavor's choice (bigger text on the phone panel).
-sed -i 's/^FONTFACE=.*/FONTFACE="Terminus"/; s/^FONTSIZE=.*/FONTSIZE="16"/' /etc/default/console-setup
 ldconfig
 apt-get clean
 # resolv.conf is finalized host-side by sirius_chroot_end (stub symlink);

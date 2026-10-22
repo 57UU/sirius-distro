@@ -12,4 +12,5 @@
   对应 unit：`overlay/etc/systemd/system/adsprpcd-{rootpd,audiopd,sensorspd}.service`，
   环境变量 `ADSP_LIBRARY_PATH=/usr/lib/firmware/qcom/sdm710/pyxis/adsp`。
 - 运行时依赖：libbsd0（已显式钉死在 build-gnome.sh / build-server.sh 的 apt 列表，勿删）；
-  libyaml-0.so.2 用本目录自带（dpkg 不管，装机建软链 + ldconfig，见对应 unit/装机记录）。
+  libyaml-0.so.2 用本目录自带，装到 `/usr/local/lib/sirius-dsp/`（不进系统库搜索路径，
+  由 `adsprpcd-*` unit 的 `LD_LIBRARY_PATH` 指向），系统升级 libyaml 不会遮蔽或影响它。

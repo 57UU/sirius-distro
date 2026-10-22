@@ -5,6 +5,7 @@ Wants=qrtr-ns.service
 
 [Service]
 Environment=ADSP_LIBRARY_PATH=/usr/lib/firmware/qcom/sdm710/pyxis/adsp
+Environment=LD_LIBRARY_PATH=/usr/local/lib/sirius-dsp
 ExecStart=/usr/local/bin/adsprpcd sensorspd adsp
 Restart=always
 RestartSec=3

@@ -91,13 +91,20 @@ sirius_overlay() {
   cp -f $MODEM_PKG/uimsel $MODEM_PKG/uimwatch $R/usr/local/bin/
   chmod 755 $R/usr/local/bin/uimsel $R/usr/local/bin/uimwatch
   mkdir -p $R/usr/local/lib
-  cp -f $DSP_BIN/libadsp_default_listener.so.1.0.0 $DSP_BIN/libadsprpc.so.1.0.0 $DSP_BIN/libyaml-0.so.2.0.9 $R/usr/local/lib/
-  chmod 644 $R/usr/local/lib/libadsp_default_listener.so.1.0.0 $R/usr/local/lib/libadsprpc.so.1.0.0 $R/usr/local/lib/libyaml-0.so.2.0.9
+  cp -f $DSP_BIN/libadsp_default_listener.so.1.0.0 $DSP_BIN/libadsprpc.so.1.0.0 $R/usr/local/lib/
+  chmod 644 $R/usr/local/lib/libadsp_default_listener.so.1.0.0 $R/usr/local/lib/libadsprpc.so.1.0.0
   ln -sf libadsp_default_listener.so.1.0.0 $R/usr/local/lib/libadsp_default_listener.so.1
   ln -sf libadsp_default_listener.so.1 $R/usr/local/lib/libadsp_default_listener.so
   ln -sf libadsprpc.so.1.0.0 $R/usr/local/lib/libadsprpc.so.1
   ln -sf libadsprpc.so.1 $R/usr/local/lib/libadsprpc.so
-  ln -sf libyaml-0.so.2.0.9 $R/usr/local/lib/libyaml-0.so.2
+  # libyaml is a private dependency of libadsprpc, not a system library: keep
+  # it out of /usr/local/lib (which ldconfig scans) and let the adsprpcd units
+  # find it via LD_LIBRARY_PATH instead.
+  DSP_LIB=$R/usr/local/lib/sirius-dsp
+  mkdir -p $DSP_LIB
+  cp -f $DSP_BIN/libyaml-0.so.2.0.9 $DSP_LIB/
+  chmod 644 $DSP_LIB/libyaml-0.so.2.0.9
+  ln -sf libyaml-0.so.2.0.9 $DSP_LIB/libyaml-0.so.2
   # overlay 里的脚本在 git 里存的是 644（Windows 检出会丢可执行位），
   # 统一在这里补 755。新增 overlay 脚本记得加进这个列表，否则 systemd
   # 启动时会报 Permission denied。
