@@ -36,6 +36,7 @@ change分为三大部分：boot,kernel,rootfs，例如 rootfs.gnome: 修复gnome
 - boot: **默认启动改为 EFI 优先**：启动菜单新增 `Boot EFI` 项；`kernel.img` 的 `/boot` 下新增 `efi/BOOTAA64.EFI`（当前即内核本身，无需 ESP 分区，以后换 GRUB 直接替换该文件）。
 ### 移除
 
+- kernel: **NFC 支持已移除**：确认 sirius 没有这颗设备，删掉了设备树里的 NFC 节点（含 i2c3 使能与 pinctrl）与 README 状态行。
 - rootfs: 删掉了用户态的「伪自动」USB 角色跟随（`sirius-usb-bind` 及其 systemd 服务、udev 规则）。现在内核自己认线，它留着只会和内核抢角色、抢 OTG 供电。
 - rootfs: `sirius-otg` 的 `on`/`off`/`auto` 一并删除 ——角色和 OTG 供电都由内核按线缆状态自动处理，脚本只剩 `status`/`watch` 两个只读诊断命令。
 
