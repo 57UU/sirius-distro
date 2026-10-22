@@ -27,7 +27,7 @@ SCRATCH=${SCRATCH:-$DISTRO/workspace/build}
 export OUT_DIR SCRATCH
 mkdir -p "$OUT_DIR" "$SCRATCH"
 # 子脚本里的 mktemp -d 就地建中转目录，指到 SCRATCH 下，别再散到 /tmp
-export TMPDIR="$SCRATCH/tmp"
+export TMPDIR="${TMPDIR:-$SCRATCH/tmp}"
 mkdir -p "$TMPDIR"
 
 # 主机架构自适应：不硬编码 qemu。

@@ -21,6 +21,7 @@ change分为三大部分：boot,kernel,rootfs，例如 rootfs.gnome: 修复gnome
 - kernel: **红外遥控**：手机顶部的红外发射器可用了，可以当遥控器发码（只支持发射，不支持接收）。
 - rootfs: **传感器**：加速度计、陀螺仪、磁力计和指南针现在能读了；光线和距离传感器暂不可用。
 
+- boot: **UEFI 启动**：开机默认走 EFI 直启（U-Boot 直接加载内核、initrd 与设备树），失败自动回落到原来的 extlinux 启动。终端执行 `test -d /sys/firmware/efi && echo EFI` 可验证，`dmesg` 里能看到 `EFI v2.11 by Das U-Boot`。
 ### 变更
 
 - kernel: **内核升级到 7.3**：底座从 7.2.3 前移到上游 Linux 7.3，sirius 驱动与补丁已同步合入，真机验证开机、WiFi、显示、Modem 正常。
@@ -32,6 +33,7 @@ change分为三大部分：boot,kernel,rootfs，例如 rootfs.gnome: 修复gnome
   按一下点亮屏幕回到锁屏界面；长按仍为硬件关机。电源键不会再触发
   「60 秒后自动关机」的确认框。
 
+- boot: **默认启动改为 EFI 优先**：启动菜单新增 `Boot EFI` 项；`kernel.img` 的 `/boot` 下新增 `efi/BOOTAA64.EFI`（当前即内核本身，无需 ESP 分区，以后换 GRUB 直接替换该文件）。
 ### 移除
 
 - rootfs: 删掉了用户态的「伪自动」USB 角色跟随（`sirius-usb-bind` 及其 systemd 服务、udev 规则）。现在内核自己认线，它留着只会和内核抢角色、抢 OTG 供电。

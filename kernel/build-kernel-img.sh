@@ -90,19 +90,20 @@ check_md5 $FW/qcom/sdm710/pyxis/cdsp.mbn d0e3a4a90d75d5600b90adeb218595da
 
 echo "=== boot payload for U-Boot (vendor /boot) ==="
 PAYLOAD=$STAGE/boot
-mkdir -p $PAYLOAD/dtb $PAYLOAD/extlinux
+mkdir -p $PAYLOAD/dtb $PAYLOAD/extlinux $PAYLOAD/efi
 KIMG=$KERNEL_SRC/arch/arm64/boot/Image
 KDTB=$KERNEL_SRC/arch/arm64/boot/dts/qcom/sdm710-xiaomi-sirius.dtb
 test -f "$KIMG" || { echo "missing kernel Image $KIMG (build kernel first?)"; exit 1; }
 test -f "$KDTB" || { echo "missing dtb $KDTB"; exit 1; }
 cp -f "$KIMG" $PAYLOAD/Image
+cp -f "$KIMG" $PAYLOAD/efi/BOOTAA64.EFI # EFI trial: Image is PE/COFF stub, bootefi loads it directly; GRUB replaces this file later
 cp -f "$KDTB" $PAYLOAD/dtb/sdm710-xiaomi-sirius.dtb
 # initrd is a build intermediate (workspace/build/initrd.cpio.gz), not in build/.
 INITRD=${INITRD:-${SCRATCH:-$DISTRO/workspace/build}/initrd.cpio.gz}
 test -f "$INITRD" || { echo "missing initrd $INITRD (run ./build.sh initrd first?)"; exit 1; }
 cp -f "$INITRD" $PAYLOAD/initrd.cpio.gz
 cp -f $DISTRO/boot/extlinux.conf $PAYLOAD/extlinux/extlinux.conf
-chmod 644 $PAYLOAD/Image $PAYLOAD/dtb/*.dtb $PAYLOAD/initrd.cpio.gz $PAYLOAD/extlinux/extlinux.conf
+chmod 644 $PAYLOAD/Image $PAYLOAD/efi/BOOTAA64.EFI $PAYLOAD/dtb/*.dtb $PAYLOAD/initrd.cpio.gz $PAYLOAD/extlinux/extlinux.conf
 
 echo "=== mkfs $OUT ($IMG_SIZE) ==="
 mkdir -p "$(dirname "$OUT")"
