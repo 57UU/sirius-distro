@@ -64,7 +64,7 @@ default password is 1234.
 | Haptics      | Working       |      |
 | Microphone   | Broken        |      |
 | Bluetooth    | Working       |      |
-| WiFi         | Working*      | 5GHz slow IO / high latency with MFP on, see `*` |
+| WiFi         | Working*      | 5GHz slow IO / high latency with MFP on|
 | Modem/IPA    | Working       | single SIM only |
 | GPS/GNSS     | Broken        |  |
 | IR TX        | Working       |      |
@@ -85,8 +85,10 @@ default password is 1234.
 | Ambient Light | Broken |
 | Proximity | Broken |
 
+## Boot
 
-*: 5GHz WiFi 在开启帧保护后，会造成IO缓慢、延迟增大，详情见`docs/WIFI-5G-BDF-MFP.md`。
+Uboot with UEFI support.
+
 
 ## 自制服务速查（`/usr/local/sbin`，需 root）
 
