@@ -23,6 +23,7 @@ change分为三大部分：boot,kernel,rootfs，例如 rootfs.gnome: 修复gnome
 
 ### 变更
 
+- kernel: **内核升级到 7.3**：底座从 7.2.3 前移到上游 Linux 7.3，sirius 驱动与补丁已同步合入，真机验证开机、WiFi、显示、Modem 正常。
 - rootfs: **图形驱动默认用新版**：镜像现在默认安装 trixie-backports 里的 Mesa。OpenGL 应用比之前快约 15%，Vulkan 基本不变。
 - rootfs.gnome: **息屏与锁屏全面回归 GNOME 原生**：移除了旧版的自制电源管理和背光组件，
   「设置 → 电源 → 屏幕空白」现在真正生效，空闲后自动锁屏、灭屏、按键唤醒
