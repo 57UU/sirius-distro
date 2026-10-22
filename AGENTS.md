@@ -3,6 +3,10 @@
 
 无需sha校验码，不用校验文件。
 
+## Forbidden
+
+禁止write手机persist、modem 等不可恢复分区，只允许只读挂载。
+
 # Fastboot 刷机
 
 使用flash,reboot命令时设备可能在写emmc，很慢，假死是正常现象。等待十几分钟就好，不要强制停止。
@@ -15,6 +19,7 @@ fastboot flash boot xxx.img && fastboot flash userdata xxx.simg && fastboot rebo
 # locations
 
 - boot,system,rootfs打包得到最终的 img/simg 产物应当移动到:build/ 下
+- 中间产物（initrd、U-Boot 构建目录、rootfs 工作树、SIRIUS_BASE 原始树、临时目录）统一放 workspace/build/ 下；构建走仓库根 ./build.sh <target>，不要在别处新建临时目录
 
 工作区：如果当前目录存在workspace/ 文件夹，直接去里面工作，如果不存在，则自行创建文件夹。.gitignore已经加入了，不用担心污染git仓库。
 

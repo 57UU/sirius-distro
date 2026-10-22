@@ -49,25 +49,42 @@ default password is 1234.
 
 # status
 
-| Components  | Status  |
-| ----------- | ------- |
-| CPU         | Working |
-| GPU         | Working |
-| eMMC        | Working |
-| USB         | Working |
-| Bluetooth   | Working |
-| WiFi        | Working* |
-| Thermal     | Working |
-| Touchscreen | Working |
-| Battery     | Working |
-| LED         | Working |
-| Speaker     | Working |
-| Video decode | Working, H.264 VP8 VP9 HEVC MPEG-2, H.264 HEVC  |
-| Video encode | Partial, verified via v4l2-ctl, ffmpeg segfaults |
-| Modem/IPA   | Working, Only support single SIM |
-| Microphone  | Broken |
+| Components   | Status        | Note |
+| ------------ | ------------- | ---- |
+| CPU          | Working       |      |
+| GPU          | Working       |      |
+| eMMC         | Working       |      |
+| USB/USB-C    | Working       |      |
+| Thermal      | Working       |      |
+| Touchscreen  | Working       |      |
+| Battery      | Working       |      |
+| LED          | Working       | notification, rear flash, front fill |
+| Speaker      | Working       |      |
+| Headphone    | Broken        |      |
+| Haptics      | Working       |      |
+| Microphone   | Broken        |      |
+| Bluetooth    | Working       |      |
+| WiFi         | Working*      | 5GHz slow IO / high latency with MFP on, see `*` |
+| Modem/IPA    | Working       | single SIM only |
+| GPS/GNSS     | Broken        |  |
+| IR TX        | Working       |      |
+| Camera       | Broken        | CAMSS is up but no sensor driver |
+| Fingerprint  | Broken        | no driver / no DT node |
+| Video decode | Working       | H.264 VP8 VP9 HEVC MPEG-2 |
+| Video encode | Partial       | verified via v4l2-ctl, ffmpeg segfaults |
+| Suspend      | Not supported | s2idle too shallow |
 
-USB-C 已增加完整 Type-C 协议栈（角色自动识别、PD 协商），细节见 `docs/USB-TYPEC.md`。
+## Sensors
+
+| Sensor | Status |
+| ----------- | ------- |
+| Accelerometer | Working |
+| Gyroscope | Working |
+| Magnetometer | Working |
+| Compass | Working |
+| Ambient Light | Broken |
+| Proximity | Broken |
+
 
 *: 5GHz WiFi 在开启帧保护后，会造成IO缓慢、延迟增大，详情见`docs/WIFI-5G-BDF-MFP.md`。
 
@@ -89,6 +106,26 @@ sirius-remodeset                     # 手动救援：无头启动显示卡住�
 # Extra Content
 
 if you want to change splash screen, refer to boot-logo/ folder.
+
+infrared / haptics: see `docs/HAPTICS-IR.md`.
+
+# 构建
+
+```bash
+./build.sh initrd        # initramfs  -> workspace/build/initrd.cpio.gz
+./build.sh boot          # U-Boot     -> build/boot.img
+./build.sh kernel        # 模块+固件  -> build/kernel.img（需先 initrd）
+./build.sh rootfs-gnome  # GNOME rootfs -> build/debian-trixie-sirius-gnome-<日期时间>.simg
+./build.sh rootfs-server # server rootfs -> build/debian-trixie-sirius-server-<日期时间>.simg
+./build.sh all           # initrd -> boot -> kernel -> 两个 rootfs
+./build.sh clean         # 清 workspace/build/（中间产物；build/ 下的 img/simg 不动）
+```
+
+产物分两级：**最终产物（`*.img` / `*.simg`）落 `build/`**；其余中间产物（initrd、U-Boot 构建目录、
+rootfs 工作树、SIRIUS_BASE 原始树、临时目录）全部在 `workspace/build/` 下。
+
+内核 Image/dtb 仍需先在 `kernel/linux-sirius/`（submodule）里 `make` 出来，`build_kernel` 只做
+system 分区镜像的汇编。
 
 
 # Acknowledgements

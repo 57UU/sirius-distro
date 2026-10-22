@@ -41,5 +41,5 @@ build-gnome.sh   GNOME 桌面（GDM 自动登录）：加装 gnome-core/gdm3/fir
 
 ## 输入、产物
 
-- 输入：`SIRIUS_BASE`、`SIRIUS_WORK`（输出目录，默认 `<distro>/work`）。缺谁 fail-fast，不猜路径。内核模块 + 固件不住 rootfs，住 system 分区仓库（`kernel/build-kernel-img.sh` 打，见 docs/KERNEL-IMG-STORE.md），所以没有模块包输入。
+- 输入：`SIRIUS_BASE`、`SIRIUS_WORK`（输出目录，默认 `<distro>/workspace/build/rootfs`）。缺谁 fail-fast，不猜路径。内核模块 + 固件不住 rootfs，住 system 分区仓库（`kernel/build-kernel-img.sh` 打，见 docs/KERNEL-IMG-STORE.md），所以没有模块包输入。
 - 产物（`*.tar.zst`/`*.simg`）不进库。

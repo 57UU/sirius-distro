@@ -1,26 +1,18 @@
 # CPU 压力与功耗：7z b 满载 10 分钟（sirius / sdm710）
 
-日期：2026-10-04；手机经 WiFi（`u57u@192.168.7.102`，key 免密）连接；
-内核 `7.2.3-sdm670-ga2b2abe79c65 #5 SMP PREEMPT`（aarch64）。
-负载 `7z b -mmt8`（7-Zip 25.01 arm64，8 线程）。
-原始记录：`build/benchmarks/bench-power-7z-20261004/`（`pwr_10min.log` 620 点、
-`pwr_cool.log` 压测后 35 秒冷却、`7z_bench.log` 11 轮完整跑分），
-复跑脚本同目录 `pwr_sample.sh`。
+2026-10-04；WiFi（`u57u@192.168.7.102`，key 免密）；内核 `7.2.3-sdm670-ga2b2abe79c65 #5 SMP PREEMPT`（aarch64）；负载 `7z b -mmt8`（7-Zip 25.01 arm64，8 线程）。
+原始记录：`build/benchmarks/bench-power-7z-20261004/`（`pwr_10min.log` 620 点、`pwr_cool.log` 压测后 35 秒冷却、`7z_bench.log` 11 轮完整跑分）；复跑脚本同目录 `pwr_sample.sh`。
 
 ## 前提：板上没有 CPU 独立功耗传感器
 
-- `/sys/class/powercap` 不存在；`hwmon` 里只有 `xxx_thermal` 温度传感器
-  + `pm660_charger / qcom_battery` 的电压电流，没有 CPU rail 的功率/电流传感器。
-- 所以 CPU 功耗只能用差值法：拔充电器让电池放电，用电量计读**整机**功耗，
-  满载 − idle 即 CPU 增量（含内存/互联/PMIC 损耗，CPU 本体略小于该值）。
+- `/sys/class/powercap` 不存在；`hwmon` 里只有 `xxx_thermal` 温度传感器 + `pm660_charger / qcom_battery` 的电压电流，无 CPU rail 功率/电流传感器。
+- 故 CPU 功耗只能用差值法：拔充电器让电池放电，用电量计读**整机**功耗，满载 − idle 即 CPU 增量（含内存/互联/PMIC 损耗，CPU 本体略小于该值）。
 
 ## 方法
 
 - 拔充电器（`pm660-charger: online=0, status=Discharging`），先确认 idle 基线。
-- 负载：`7z b -mmt8` 循环跑，`nice -n 10` 降优先级——负载本身仍吃满 8 核，
-  只是把调度优先权让给采样脚本（见注3）。
-- 采样脚本约 1 点/秒记录一行：电池电压/电流/电量、8 核频率、
-  cluster0/cluster1/电池温度、loadavg，共 620 点 ≈ 11 分钟。
+- 负载 `7z b -mmt8` 循环跑、`nice -n 10`——仍吃满 8 核，只让出调度优先权给采样脚本（见注3）。
+- 采样约 1 点/秒：电池电压/电流/电量、8 核频率、cluster0/cluster1/电池温度、loadavg，共 620 点 ≈ 11 分钟。
 - 调度器 `schedutil`，8 核全在线；测试期间电池 95% → 87%。
 
 ## 结果
@@ -61,11 +53,9 @@
 
 ## 结论
 
-- 7z 适合做 CPU 压力源：8 线程稳定吃满 8 核，schedutil 把频率钉在最高，
-  10 分钟无过热降频，测到的是真满载。
-- sdm710 这套散热在 58°C cluster 温度下 10 分钟不降频，还有余量。
-- 如需 CPU 本体更准的功耗，下一步只能是外接电源表（USB 电流表只能看整机输入，
-  和电池端读数是同一口径，代替不了 CPU rail）。
+- 7z 适合做压力源：8 线程吃满 8 核、schedutil 钉最高频，10 分钟无过热降频（真满载）。
+- 散热：58°C cluster 下 10 分钟不降频，尚有余量。
+- 要更准的 CPU 本体功耗只能外接电源表（USB 电流表只见整机输入，与电池端同口径，代替不了 CPU rail）。
 
 ## 复跑
 
@@ -77,11 +67,6 @@ sh /tmp/pwr_sample.sh
 # 测完 kill 压测（见注2），scp 拉回 /tmp/*.log
 ```
 
-注1：采样脚本里不要用 `paste -s` 拼 8 核频率——`-s` 是按文件分行，
-会把一条记录拆成多行。逐文件 `cat` 后 `printf` 单行（见 `pwr_sample.sh`）。
-注2：`pkill -f` 的 pattern 别和目标字面量放在同一条 ssh 命令里，
-否则 pattern 会匹配到承载这条命令自身的 shell，把自己杀掉（表现为 ssh 无输出 exit 1）。
-分两条命令做：先 pkill，再起负载。
-注3：采样脚本（约 20 个 fork/读文件）与 7z 同优先级时会被饿死（实测 ~12 秒/点）。
-把 7z `nice +10` 后采样回到 ~1 秒/点，负载仍占满 CPU（`ps` 可见 500%+），
-对功耗结论无影响。
+注1：采样脚本别用 `paste -s` 拼 8 核频率——`-s` 按文件分行会把一条记录拆成多行；逐文件 `cat` 后 `printf` 单行（见 `pwr_sample.sh`）。
+注2：`pkill -f` 的 pattern 别与目标字面量同放一条 ssh 命令，否则会匹配到承载该命令自身的 shell 把自己杀掉（ssh 无输出 exit 1）；分两条：先 pkill，再起负载。
+注3：采样脚本（约 20 个 fork/读文件）与 7z 同优先级会被饿死（实测 ~12 秒/点）；7z `nice +10` 后回到 ~1 秒/点，负载仍占满 CPU（`ps` 可见 500%+），不影响功耗结论。

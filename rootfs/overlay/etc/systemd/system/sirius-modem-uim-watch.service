@@ -1,13 +1,14 @@
 [Unit]
 Description=Watch SIM hotplug via UIM indications (sirius)
-# 只等 QRTR/EFS 就绪。不需要 Before=ModemManager：
-# Type=simple 启动即算完成，本来就不会阻塞 MM；uimwatch 在 QRTR 不可用时
-# 会自行退出并由 Restart 拉起来，晚间于 MM 启动都不影响最终结果。
+# Only waits for QRTR/EFS. No Before=ModemManager needed: Type=simple counts as
+# started immediately and never blocks MM; uimwatch exits when QRTR is
+# unavailable and Restart brings it back, so starting even later than MM does
+# not affect the final result.
 After=qrtr-ns.service rmtfs.service
 
 [Service]
 Type=simple
-# uimwatch 在 modem 重启/QRTR 重连后会退出，拉起来继续监听
+# uimwatch exits after modem restart / QRTR reconnect; restart keeps it listening
 Restart=always
 RestartSec=5
 ExecStart=/usr/local/bin/uimwatch

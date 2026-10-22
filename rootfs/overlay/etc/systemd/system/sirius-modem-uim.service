@@ -1,17 +1,20 @@
 [Unit]
 Description=Build UIM provisioning session before ModemManager (sirius)
-# 基带与 EFS 服务就绪后再动手；必须早于 ModemManager，否则 MM 会判 sim-missing 并放弃 modem。
+# Act only after modem/EFS services are ready; must precede ModemManager,
+# otherwise MM sees sim-missing and gives up on the modem.
 After=qrtr-ns.service rmtfs.service tqftpserv.service pd-mapper.service
 Before=ModemManager.service
 Wants=qrtr-ns.service rmtfs.service
 
 [Service]
 Type=oneshot
-# 故意不加 RemainAfterExit：跑完就回到 inactive，这样配套的 timer 才能
-# 再次触发它做兜底检查（RemainAfterExit 会让 service 常驻 active，timer 不再触发）。
+# No RemainAfterExit on purpose: exit to inactive so the companion timer can
+# fire it again as a fallback check (RemainAfterExit would keep it active and
+# the timer would never fire).
 ExecStart=/usr/local/bin/sirius-modem-uim
-# 脚本内部等 UIM 就绪最长 40s（实测 modem 10~20s 就绪），这里留足余量。
-# 反过来说：基带起不来时开机最多被拖 40s（MM 要等这个 oneshot），是已知代价。
+# Script waits up to 40s for UIM (measured modem ready in 10~20s); ample margin.
+# Cost: if the modem never comes up, boot is delayed up to 40s (MM waits on this
+# oneshot) - known trade-off.
 TimeoutStartSec=60
 
 [Install]
