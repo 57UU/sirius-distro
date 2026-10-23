@@ -11,6 +11,8 @@ change分为三大部分：boot,kernel,rootfs，例如 rootfs.gnome: 修复gnome
 
 ## [Unreleased]
 
+## [2.1] - 2026-10-23
+
 ### 新增
 
 - kernel: **USB-C 完整协议栈**：系统现在会自己认角色——插电脑自动当网卡（RNDIS 照旧），插 OTG 头自动切成主机并给外接设备供电。支持 PD 的充电器会自动协商 9V 档。
@@ -20,6 +22,10 @@ change分为三大部分：boot,kernel,rootfs，例如 rootfs.gnome: 修复gnome
 - kernel: **振动马达**：震动器现在可用了，应用通过系统标准的震动接口就能触发。
 - kernel: **红外遥控**：手机顶部的红外发射器可用了，可以当遥控器发码（只支持发射，不支持接收）。
 - rootfs: **传感器**：加速度计、陀螺仪、磁力计和指南针现在能读了；光线和距离传感器暂不可用。
+- kernel: **后置摄像头能出图了**：Sony IMX363 主摄已适配，系统自带「快照」和普通 V4L2 应用
+  都能拿到画面，640x480 / 720p / 1080p 预览约 30 fps；前摄与后置副摄暂不支持。
+  注意：目前很不稳定——连续预览或录制约 1 分钟后画面会彻底停住，只能重启恢复；
+  曝光和白平衡也未标定，室内灯光下亮度和颜色会缓慢漂移。
 - boot: **UEFI 启动**：开机默认走 EFI 直启，失败自动回落到原来的 extlinux 启动。
 
 ### 变更
@@ -93,5 +99,6 @@ change分为三大部分：boot,kernel,rootfs，例如 rootfs.gnome: 修复gnome
 
 GNOME Version: 目前的电源键方案有点别扭，体验也不是很好
 
-[Unreleased]: https://github.com/57UU/sirius-distro/compare/v2.0...HEAD
+[Unreleased]: https://github.com/57UU/sirius-distro/compare/v2.1...HEAD
+[2.1]: https://github.com/57UU/sirius-distro/compare/v2.0...v2.1
 [2.0]: https://github.com/57UU/sirius-distro/compare/v1.3.2...v2.0
