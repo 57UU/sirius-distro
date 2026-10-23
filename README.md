@@ -68,7 +68,7 @@ default password is 1234.
 | Modem/IPA    | Working       | single SIM only |
 | GPS/GNSS     | Working       | outdoor verified, indoors limited |
 | IR TX        | Working       |      |
-| Camera       | Broken        | CAMSS is up but no sensor driver |
+| Camera       | Partial       | IMX363 rear only, very unstable |
 | Fingerprint  | Broken        | no driver / no DT node |
 | Video decode | Working       | H.264 VP8 VP9 HEVC MPEG-2 |
 | Video encode | Partial       | verified via v4l2-ctl, ffmpeg segfaults |
