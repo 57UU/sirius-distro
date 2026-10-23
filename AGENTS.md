@@ -9,6 +9,8 @@
 
 # Fastboot 刷机
 
+如果当前在系统中，使用sudo reboot bootloader命令可以进入fastboot模式。
+
 使用flash,reboot命令时设备可能在写emmc，很慢，假死是正常现象。等待十几分钟就好，不要强制停止。
 
 刷机的时候使用形如如下的命令，在最后面接上fastboot reboot放入后台shell执行。不需要busy waiting。
