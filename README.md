@@ -72,7 +72,7 @@ default password is 1234.
 | Fingerprint  | Broken        | no driver / no DT node |
 | Video decode | Working       | H.264 VP8 VP9 HEVC MPEG-2 |
 | Video encode | Partial       | verified via v4l2-ctl, ffmpeg segfaults |
-| Suspend      | Not supported | s2idle too shallow |
+| Suspend      | Broken |  |
 
 ## Sensors
 
