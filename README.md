@@ -66,7 +66,7 @@ default password is 1234.
 | Bluetooth    | Working       |      |
 | WiFi         | Working*      | 5GHz slow IO / high latency with MFP on|
 | Modem/IPA    | Working       | single SIM only |
-| GPS/GNSS     | Broken        |  |
+| GPS/GNSS     | Working       | outdoor verified, indoors limited |
 | IR TX        | Working       |      |
 | Camera       | Broken        | CAMSS is up but no sensor driver |
 | Fingerprint  | Broken        | no driver / no DT node |
