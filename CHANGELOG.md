@@ -43,9 +43,11 @@ change分为三大部分：boot,kernel,rootfs，例如 rootfs.gnome: 修复gnome
 - kernel: **NFC 支持已移除**：确认 sirius 没有这颗设备，删掉了设备树里的 NFC 节点。
 - rootfs: 删掉了用户态的「伪自动」USB 角色跟随（`sirius-usb-bind` 及其 systemd 服务、udev 规则）。现在内核自己认线，它留着只会和内核抢角色、抢 OTG 供电。
 - rootfs: `sirius-otg` 的 `on`/`off`/`auto` 一并删除 ——角色和 OTG 供电都由内核按线缆状态自动处理，脚本只剩 `status`/`watch` 两个只读诊断命令。
+- rootfs: **移除 `sirius-reboot`**：它的 fastboot 模式进的是 U-Boot 自带 fastboot，USB 支持不完善，很容易卡在 U-Boot 里，只能长按电源冷启动恢复。刷机请用「音量下 + 电源」进原厂 fastboot；需要启动菜单时开机按音量键打断 autoboot。
 
 ### 修复
 
+- **server 版电源键和触摸恢复正常**：振动马达驱动多出一个输入设备，把原来的 event 编号整体挤后一位，Orbital 还在抓旧的 `event0`/`event3`。现在输入设备统一用按设备名生成的固定节点（`/dev/input/sirius-*`），以后新增设备也不会再错位。
 - **OTG 外设不再「亮一下又断」**：插鼠标、U 盘时系统会持续给外设供电，不会再出现插上瞬间通电、随后掉电、外设一直认不出来的情况。
 - **电量不再卡在 99%**：充满时能正常显示 100%。
 - **USB-C 充电电流跟随协商结果**：充电器不再自己按「普通 USB 口」猜一个 500mA 限流，而是按谈下来的电流充。
