@@ -22,11 +22,15 @@ cmake .. -DCMAKE_BUILD_TYPE=Release && make -j4
 sirius 实测映射（`orbital.service` 已按此配好，见 rootfs/overlay）：
 
 ```text
-触摸   /dev/input/event3（fts），inhibit 同目录 inhibited 节点
-电源   真实键 event0（pmic pon pwrkey，已核对；ORBITAL_POWER_KEY_PATH）
-       —— 短按 toggle，长按 1.5s 退出重启；音量 /dev/input/event1（下）,/dev/input/event2（上）
+触摸   /dev/input/sirius-touch（fts），inhibit 由 run.sh 从实际 eventN 推导
+电源   /dev/input/sirius-power（pmic pon pwrkey）
+       —— 短按 toggle，长按 1.5s 退出重启；
+          音量 /dev/input/sirius-vol-down（resin）,/dev/input/sirius-vol-up（gpio-keys）
 缩放   QT_SCALE_FACTOR=2.2；以 root 跑（input/backlight/DRM master 都要权）
 ```
+
+以上 `sirius-*` 节点由 `rootfs/overlay/etc/udev/rules.d/70-sirius-input.rules` 按设备名生成。
+不要写死 `/dev/input/eventN`：新增输入设备（例如 2.1 的振动马达 spmi_haptics）会让编号整体错位。
 
 注意：设置持久化走固定文件 /etc/orbital/Orbital.conf（显式 IniFormat 路径，不依赖 $HOME——systemd 服务默认没有 HOME，用 QSettings 用户域会静默回默认值，踩过）。
 自动息屏已内建（DisplayBackend idle 计时 + 设置→Screen Off Time，

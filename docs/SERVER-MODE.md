@@ -19,7 +19,7 @@
 
 ```text
 开机：      orbital.service 自启（/opt/orbital，root 身份），自己 modeset 点亮面板。console/tty1 留在底下备用。
-电源键：    Orbital 抓 KEY_POWER（ORBITAL_POWER_KEY_PATH）→ toggle；灭/亮只动背光；长按 1.5s 照旧退出重启（run.sh 拉起）。
+电源键：    Orbital 抓 KEY_POWER（`/dev/input/sirius-power`，由 70-sirius-input.rules 按设备名生成，不写死 eventN）→ toggle；灭/亮只动背光；长按 1.5s 照旧退出重启（run.sh 拉起）。
 
 音量±/触摸：亮屏（无其他动作；息屏时音量只亮屏不变音量）。
 无操作息屏：Orbital 内建 idle 计时（默认 120s，设置→Screen Off Time 可调 0.5~30min，或从不只靠电源键），走 screenOffMethod 路径。
@@ -62,7 +62,7 @@ OK  audit 进文件（auditd）；大字体 console 备用
 ## 6. 排错速查
 
 ```text
-按键没反应  evtest 看 KEY_POWER 在哪个 event 节点 → 对照 orbital.service 的 ORBITAL_POWER_KEY_PATH；journalctl -u orbital 看是否抓到键
+按键没反应  ls -l /dev/input/sirius-* 看固定节点是否生成（无则检查 70-sirius-input.rules 与 /proc/bus/input/devices 里的 name）；journalctl -u orbital 看是否抓到键
 屏灭亮度回不来  删 /run/sirius-screen/brightness.* 再 on
 关机慢  老规矩：等 15 分钟；急用 safe-reboot（sysrq s+u+b）
 apt 403/超时  先 date 看时间（1978 老坑）；IPv6 可用时 apt 优先走 v6

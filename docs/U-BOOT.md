@@ -7,7 +7,8 @@
 ```text
 PBL（ROM）→ XBL → ABL（官 fastboot 仍在，只做下载/启动跳转）
   └─ boot 分区：U-Boot（`boot.img`）
-      └─ sysboot 直读 system 分区（mmcblk0p79，U-Boot 视角 `mmc 0:4f`）
+      ├─ EFI 直启（默认）：load `/boot/efi/BOOTAA64.EFI` + initrd + dtb → bootefi
+      └─ EFI 失败回落 sysboot 直读 system 分区（mmcblk0p79，U-Boot 视角 `mmc 0:4f`）
           `/boot/extlinux/extlinux.conf` → `/boot/Image` + `/boot/initrd.cpio.gz` + `/boot/dtb/*.dtb`
               └─ Linux（root=/dev/mmcblk0p81 userdata）
 ```
@@ -24,7 +25,8 @@ PBL（ROM）→ XBL → ABL（官 fastboot 仍在，只做下载/启动跳转）
 
 ```bash
 make O=$OUT qcom_defconfig qcom-phone.config sirius.config
-make O=$OUT -j$JOBS DEVICE_TREE=qcom/sdm710-xiaomi-sirius
+make O=$OUT -j$JOBS DEVICE_TREE=qcom/sdm710-xiaomi-sirius \
+     CONFIG_ENV_DEFAULT_ENV_TEXT_FILE=<boot/bootargs 生成的 env 副本>
 gzip -c u-boot-nodtb.bin > u-boot-nodtb.bin.gz
 cat u-boot-nodtb.bin.gz sdm710-xiaomi-sirius.dtb > uboot-payload
 mkbootimg --kernel_offset 0x00008000 --pagesize 4096 --kernel uboot-payload -o boot.img
@@ -43,13 +45,19 @@ kernel_addr_r=0x80080000                       # Image（37M）
 ramdisk_addr_r=0x83000000                      # initrd
 fdt_addr_r=0x82a00000                            # dtb
 scriptaddr=0x82800000                            # extlinux.conf 加载地址
-do_boot=sysboot mmc 0:4f any ${scriptaddr} /boot/extlinux/extlinux.conf; bootefi bootmgr
-bootcmd=run do_boot
+efi_args=setenv bootargs ...                     # 由 boot/bootargs 生成，见下
+efi_load=load ... /boot/efi/BOOTAA64.EFI; load initrd; load dtb
+try_efi=run efi_args; run efi_load; bootefi ${kernel_addr_r}:${efi_size} ...
+do_boot=run try_efi; sysboot mmc 0:4f any ${scriptaddr} /boot/extlinux/extlinux.conf; bootefi bootmgr
+bootcmd=run check_bcb; run do_boot
 ```
 
 - `mmc 0:4f`：分区号**十六进制**，`4f`=79=system；写 `0:80` 被当成 `0x80`=128 → `Invalid partition 128`。
 - 不用 `bootflow scan -b`：每盘只扫前 30 分区（`MAX_PART_PER_BOOTDEV=30` 写死），p79/p80 扫不到；`qcom_defconfig` 的 `BOOTDEV_*` 只有 ETH、无 MMC hunter。sysboot 直指分区最稳。
-- `extlinux.conf` 源在主库 `boot/extlinux.conf`，`build-kernel-img.sh` 连同 Image/dtb/initrd 打进 system 镜像 `/boot`。
+- **内核命令行单一来源：`boot/bootargs`。** EFI 路径的 `efi_args` 由 `build.sh boot` 替换进一份 scratch 里的 env 副本
+  （`ENV_FILE` → `CONFIG_ENV_DEFAULT_ENV_TEXT_FILE` 覆盖，不动子模块源码）；extlinux 的 `APPEND` 由
+  `build-kernel-img.sh` 把 `extlinux.conf` 里的 `@BOOTARGS@` 替换掉。改 `root=`/分区参数只改 `boot/bootargs`。
+- `extlinux.conf` 源在主库 `boot/extlinux.conf`（模板，`@BOOTARGS@`），`build-kernel-img.sh` 连同 Image/dtb/initrd 打进 system 镜像 `/boot`。
 
 ## 4. 设备树（`dts/upstream/src/arm64/qcom/`）
 
@@ -70,17 +78,13 @@ bootcmd=run do_boot
 - `bootflow scan` 扫不到 30 号以后的分区。
 - 熄屏/电源键在 U-Boot 下不管用，卡住长按电源强制重启（boot 没刷坏就还能进原系统；刷坏进 fastboot 重刷）。
 
-## 7. U-Boot fastboot 直刷（`sirius-reboot`，2026-10-16 验证可用）
+## 7. U-Boot fastboot（不建议使用）
 
-U-Boot 自带 fastboot（`CONFIG_USB_FUNCTION_FASTBOOT` + `FASTBOOT_FLASH`），**不可用于刷机**，仅"进 fastboot"验证可用，刷机仍走 ABL fastboot。`sirius.env` 里 `fastboot=fastboot usb 0`（带 `$fastboot_addr_r` 空变量的旧写法已删）。
+U-Boot 自带 fastboot（`CONFIG_USB_FUNCTION_FASTBOOT` + `FASTBOOT_FLASH`），**不可用于刷机**，其 USB gadget 初始化不稳定，实测会卡在 U-Boot（屏幕停在 `autoboot: 0`，Windows 也枚举不到设备），只能长按电源冷启动恢复。**刷机一律走 ABL fastboot（音量下 + 电源）。**
 
-进入方式（三选一）：
+`sirius-reboot` 整个脚本已在 2.1 移除（它只是用 BCB 帮 U-Boot 选模式，价值不大）。现在进 bootmenu 的方式是开机 1 秒内按音量键打断 autoboot（`BOOTDELAY=1` + `button-kbd`），进 fastboot 的方式只剩 bootmenu 第 2 项 `Enable fastboot mode`，仅供调试。
 
-- `sudo sirius-reboot fastboot`（推荐）：写 misc 分区 BCB 后重启，U-Boot `check_bcb` 读到即进 fastboot；`sudo sirius-reboot menu` 进 bootmenu；BCB 用完即清（读→清→存回）。systemd `reboot` 传不了参数，必须走它。
-- bootmenu 第 2 项 `Enable fastboot mode`（开机 1 秒内按音量键打断 autoboot）。
-- 按键：`BOOTDELAY=1` + `button-kbd`，超时自动进系统。
-
-屏看着像"冻住"属正常：vidconsole 照常刷新，fastboot 模式静默（不打屏），停在 `autoboot: 0` 一帧；设备管理器出现 `USB download gadget` 即已进入。
+屏看着像"冻住"属正常：fastboot 模式静默（不打屏），停在 `autoboot: 0` 一帧；设备管理器出现 `USB download gadget` 即已进入。若几分钟内始终不出现该设备，就是真的卡住了，长按电源冷启动恢复。
 
 Windows 驱动：gadget 是 `VID_18D1&PID_4EE0`，Google 驱动只认 ABL 的 `D00D`。手动装：设备管理器 → USB download gadget → 更新驱动 → 浏览我的电脑 → 从列表选取 → 选 **WinUSB 厂商的 ADB 设备**（装完 `fastboot devices` 出设备、`getvar version` 回 `0.4`）。
 
