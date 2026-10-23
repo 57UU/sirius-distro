@@ -66,13 +66,13 @@ default password is 1234.
 | Bluetooth    | Working       |      |
 | WiFi         | Working*      | 5GHz slow IO / high latency with MFP on|
 | Modem/IPA    | Working       | single SIM only |
-| GPS/GNSS     | Broken        |  |
+| GPS/GNSS     | Working       | outdoor verified, indoors limited |
 | IR TX        | Working       |      |
 | Camera       | Broken        | CAMSS is up but no sensor driver |
 | Fingerprint  | Broken        | no driver / no DT node |
 | Video decode | Working       | H.264 VP8 VP9 HEVC MPEG-2 |
 | Video encode | Partial       | verified via v4l2-ctl, ffmpeg segfaults |
-| Suspend      | Not supported | s2idle too shallow |
+| Suspend      | Broken |  |
 
 ## Sensors
 
