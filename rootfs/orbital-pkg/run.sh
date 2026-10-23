@@ -4,14 +4,15 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 cd "$SCRIPT_DIR"
 
 DEFAULT_QT_SCALE_FACTOR="2.2"
-DEFAULT_TOUCH_INPUT_PATH="/dev/input/event5"
-DEFAULT_TOUCH_INHIBIT_PATH="/sys/devices/platform/soc@0/ac0000.geniqup/a90000.i2c/i2c-12/12-0020/rmi4-00/input/input5/inhibited"
-DEFAULT_POWER_KEY_PATH="/dev/input/event0"
-DEFAULT_VOLUME_KEY_PATH="/dev/input/event3"
+# Stable by-name links from 70-sirius-input.rules: eventN numbers move when a
+# new input device probes, so never hardcode them here.
+DEFAULT_TOUCH_INPUT_PATH="/dev/input/sirius-touch"
+DEFAULT_POWER_KEY_PATH="/dev/input/sirius-power"
+DEFAULT_VOLUME_KEY_PATH="/dev/input/sirius-vol-up,/dev/input/sirius-vol-down"
 
 SCALE_VALUE="${QT_SCALE_FACTOR:-$DEFAULT_QT_SCALE_FACTOR}"
 TOUCH_INPUT_PATH="${ORBITAL_TOUCH_INPUT_PATH:-$DEFAULT_TOUCH_INPUT_PATH}"
-TOUCH_INHIBIT_PATH="${ORBITAL_TOUCH_INHIBIT_PATH:-$DEFAULT_TOUCH_INHIBIT_PATH}"
+TOUCH_INHIBIT_PATH="${ORBITAL_TOUCH_INHIBIT_PATH:-}"
 POWER_KEY_PATH="${ORBITAL_POWER_KEY_PATH:-$DEFAULT_POWER_KEY_PATH}"
 VOLUME_KEY_PATH="${ORBITAL_VOLUME_KEY_PATH:-$DEFAULT_VOLUME_KEY_PATH}"
 SCREENSHOT_DIR="${ORBITAL_SCREENSHOT_DIR:-}"
@@ -127,6 +128,15 @@ while [[ $# -gt 0 ]]; do
             ;;
     esac
 done
+
+# Derive the touch inhibit sysfs node from the touch evdev node (the by-name
+# link resolves to eventN), so it follows node renumbering.
+if [[ -z "$TOUCH_INHIBIT_PATH" ]]; then
+    touch_event="$(basename "$(readlink -f "$TOUCH_INPUT_PATH" 2>/dev/null)")"
+    if [[ "$touch_event" == event* ]]; then
+        TOUCH_INHIBIT_PATH="/sys/class/input/$touch_event/device/inhibited"
+    fi
+fi
 
 export QT_SCALE_FACTOR="$SCALE_VALUE"
 export QT_QPA_PLATFORM="${QT_QPA_PLATFORM:-eglfs}"

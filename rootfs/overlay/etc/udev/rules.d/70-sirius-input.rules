@@ -1,0 +1,7 @@
+# Stable evdev names for Orbital. Event numbers shift whenever a new input
+# device probes (spmi_haptics took event0 in 2.1 and moved every other node),
+# so bind by device name instead of hardcoding /dev/input/eventN.
+SUBSYSTEM=="input", KERNEL=="event*", ATTRS{name}=="pm8941_pwrkey", SYMLINK+="input/sirius-power"
+SUBSYSTEM=="input", KERNEL=="event*", ATTRS{name}=="pm8941_resin", SYMLINK+="input/sirius-vol-down"
+SUBSYSTEM=="input", KERNEL=="event*", ATTRS{name}=="gpio-keys", SYMLINK+="input/sirius-vol-up"
+SUBSYSTEM=="input", KERNEL=="event*", ATTRS{name}=="fts", SYMLINK+="input/sirius-touch"
