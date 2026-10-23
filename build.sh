@@ -63,7 +63,20 @@ as_root() {
 
 cmd_initrd() { bash "$DISTRO/boot/initrd/build.sh" "$SCRATCH/initrd.cpio.gz"; }
 
-cmd_boot() { OUT="$SCRATCH/uboot" IMG="$OUT_DIR/boot.img" bash "$DISTRO/uboot/sirius-build.sh"; }
+cmd_boot() {
+  # Kernel cmdline has one source of truth: boot/bootargs. Render it into a
+  # copy of the U-Boot default env (for the EFI path) so it cannot drift from
+  # boot/extlinux.conf. The copy lives in scratch, the submodule stays clean.
+  local args envout
+  args=$(cat "$DISTRO/boot/bootargs")
+  envout="$SCRATCH/uboot-env/sirius.env"
+  mkdir -p "$SCRATCH/uboot-env"
+  awk -v args="$args" '/^efi_args=/ { print "efi_args=setenv bootargs " args; next } { print }' \
+    "$DISTRO/uboot/board/xiaomi/sirius/sirius.env" > "$envout"
+  grep -qF "efi_args=setenv bootargs $args" "$envout" || { echo "生成 efi_args 失败：$envout"; exit 1; }
+  OUT="$SCRATCH/uboot" IMG="$OUT_DIR/boot.img" ENV_FILE="$envout" \
+    bash "$DISTRO/uboot/sirius-build.sh"
+}
 
 cmd_kernel() {
   test -f "$SCRATCH/initrd.cpio.gz" || { echo "缺 $SCRATCH/initrd.cpio.gz，先 ./build.sh initrd"; exit 1; }

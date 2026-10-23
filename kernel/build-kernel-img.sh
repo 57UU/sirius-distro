@@ -102,7 +102,12 @@ cp -f "$KDTB" $PAYLOAD/dtb/sdm710-xiaomi-sirius.dtb
 INITRD=${INITRD:-${SCRATCH:-$DISTRO/workspace/build}/initrd.cpio.gz}
 test -f "$INITRD" || { echo "missing initrd $INITRD (run ./build.sh initrd first?)"; exit 1; }
 cp -f "$INITRD" $PAYLOAD/initrd.cpio.gz
-cp -f $DISTRO/boot/extlinux.conf $PAYLOAD/extlinux/extlinux.conf
+# Kernel cmdline has one source of truth: boot/bootargs (shared with the EFI
+# boot path in U-Boot's default env). Render it into the extlinux template.
+BOOTARGS=$(cat "$DISTRO/boot/bootargs")
+while IFS= read -r line; do
+  printf '%s\n' "${line//@BOOTARGS@/$BOOTARGS}"
+done < "$DISTRO/boot/extlinux.conf" > "$PAYLOAD/extlinux/extlinux.conf"
 chmod 644 $PAYLOAD/Image $PAYLOAD/efi/BOOTAA64.EFI $PAYLOAD/dtb/*.dtb $PAYLOAD/initrd.cpio.gz $PAYLOAD/extlinux/extlinux.conf
 
 echo "=== mkfs $OUT ($IMG_SIZE) ==="

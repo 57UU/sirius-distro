@@ -7,7 +7,9 @@
  （`qcom_defconfig + qcom-phone.config + sirius.config`，`DEVICE_TREE=qcom/sdm710-xiaomi-sirius`）。
 - 产物 `boot.img`（gzip nodtb + sirius dtb，经 mkbootimg 打包），刷入 boot 分区：
   `fastboot flash boot boot.img && fastboot reboot`
-- U-Boot 从 system 分区（mmcblk0p79，U-Boot 视角 `mmc 0:4f`）经 sysboot 读
-  `/boot/extlinux/extlinux.conf`（本目录的同名文件是其源），加载 `/boot/Image` +
-  `/boot/initrd.cpio.gz` + `/boot/dtb/sdm710-xiaomi-sirius.dtb` 进系统。
+- 默认走 EFI：U-Boot 从 system 分区（mmcblk0p79，U-Boot 视角 `mmc 0:4f`）加载
+  `/boot/efi/BOOTAA64.EFI` + `/boot/initrd.cpio.gz` + `/boot/dtb/sdm710-xiaomi-sirius.dtb`；
+  失败回落到 sysboot 读 `/boot/extlinux/extlinux.conf`（本目录的同名文件是其模板）。
+- **内核命令行唯一来源是本目录的 `bootargs`**：`build.sh boot` 把它替换进 U-Boot 默认环境的
+  `efi_args`，`build-kernel-img.sh` 把它替换进 `extlinux.conf` 的 `@BOOTARGS@`。改 root/分区参数只改这里。
 - `initrd/`：initramfs 源（RNDIS 早联网 + 挂载 rootfs/system 后 switch_root，打包进 system 分区 /boot）。

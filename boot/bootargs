@@ -1,0 +1,1 @@
+loglevel=3 root=/dev/mmcblk0p81 rootwait=15 rootfs_part=mmcblk0p81 sysmod_part=mmcblk0p79 persist_part=mmcblk0p68 rw consoleblank=120
