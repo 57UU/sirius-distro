@@ -54,7 +54,7 @@ default password is 1234.
 | CPU          | Working       |      |
 | GPU          | Working       |      |
 | eMMC         | Working       |      |
-| USB/USB-C    | Working       |      |
+| USB/USB-C    | Working       | PD 9V/2A 可用；QC3/HVDCP 未启用 |
 | Thermal      | Working       |      |
 | Touchscreen  | Working       |      |
 | Battery      | Working       |      |
@@ -110,6 +110,8 @@ sirius-remodeset                     # 手动救援：无头启动显示卡住�
 if you want to change splash screen, refer to boot-logo/ folder.
 
 infrared / haptics: see `docs/HAPTICS-IR.md`.
+
+charging / battery profile / SMB1355: see `docs/CHARGING.md`.
 
 # 构建
 

@@ -54,7 +54,7 @@ CC 状态机由硬件跑，驱动只读结果、写角色命令。`get_cc()`：s
 | 插电脑（普通 C 线） | 硬件进 Attached.SNK → TCPM 认 sink + device → gadget 照常（RNDIS/usb0 172.16.42.1） |
 | 插 OTG 头 + 鼠标/U 盘 | 硬件进 Attached.SRC → TCPM 认 source → 开 boost → dwc3 切 host → xhci 枚举 |
 | 拔线 | CC 变化中断 → TCPM 回 DRP 翻转，角色跟着下一次插入走 |
-| PD 充电器 | TCPM 用 `sink-pdos`（5V/3A、9V/2A）谈 PD；对端不支持的按 Type-C 默认电流充 |
+| PD 充电器 | TCPM 用 `sink-pdos`（5V/3A、9V/2A）谈 PD；**实测 9V/2A 合约，输入 13–15W、电池 11–12.5W**（见 [CHARGING.md](CHARGING.md)）。对端不支持的按 Type-C 默认电流充 |
 | 支持 PD 的 PC | 先 PD 协商，必要时做 data/power role swap |
 | 供电 + 外设的 Type-C 分线器 | 对端按 AMA 处理：PD 谈好电压后做 **DR_SWAP**，电源支路让手机当 sink、外设支路让手机当 DFP（`power_role=sink` + `data_role=host`，此时 `boost` 保持 0）。注意分线器**只有下游接了设备才发 DR_SWAP**，空载时 `data_role` 仍是 device |
 
@@ -167,7 +167,8 @@ echo 0     | sudo tee $Z/emul_temp    # 取消伪造，恢复真实温度
 - **source 电流档位**：硬件广告的 Rp 电流由 PM660 内部配置决定，驱动只按角色切换，不按 PDO 调档；`source-pdos` 只用于 PD 报文。
 - **sink 电流**：TCPM 把合约（Rp 档位或 PD PDO）经 `tcpc->set_current_limit()` 写入 `USBIN_CURRENT_LIMIT_CFG`；board DT 的 `qcom,typec-managed-icl` 让 qcom_smbx 不再用 APSD 的值覆盖。SMB2 的 AICL 在 VBUS 压降时仍会收小限流（读数低于合约值），属硬件保护。
 - **模拟音频附件**（Type-C 转 3.5mm）能识别成 audio accessory，但本机 3.5mm 走模拟耳机孔，没有 SBU 开关，不路由。
-- **PD 需要 PD 电源**：普通 5V 充电器只走 Type-C 默认电流。
+- **PD 9V 只对支持 USB-PD 的充电器成立**：QC3 充电器走 HVDCP，主线 `qcom_smbx` 把 `HVDCP_EN` 写 0，会停在 5V（安卓开 `HVDCP_EN|AUTH_ALG`）。普通 5V DCP/CDP 的 ICL 由 APSD/硬件 override 决定（PC CDP 实测 850mA→1.075A），不是 TCPM 的合约；安卓对 DCP 还投 2.7A，主线没有。详见 [CHARGING.md](CHARGING.md)。
+- **判断 PD 要看 partner/tcpm**：`pm660-charger/usb_type` 是 APSD 结果，PD 头也可能显示 `DCP`；`port0-partner/supports_usb_power_delivery=yes` 且 `tcpm-source-psy` 为 `PD/9V` 才是真 PD 合约。
 - PD PHY 的 `sig-tx` 中断在本机是空事件（主线驱动只打一行 dev_err），驱动没申请它，避免刷屏。
 
 ## 10. 回退
