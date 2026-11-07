@@ -72,24 +72,31 @@ cat /sys/class/power_supply/tcpm-source-psy-*/uevent             # USB_TYPE=PD, 
 
 ## 3. 电池 profile 与 SOC
 
-主线 `qcom_fg` 只读 FG 的 SRAM 参数（电压/电流/温度/容量），**不加载 224 字节的 `qcom,fg-profile-data`**。
-FG 用的是 OTP 默认曲线，SOC 在中低段偏乐观：实测 FG 报 73% 时电池端电压已经 4.4V（接近满电）。
+主线 `qcom_fg` 现在会在 probe 后加载电池厂商的 224 字节 FG SRAM profile
+（`qcom,fg-profile-data`），不再只用 OTP 默认曲线：
 
-安卓侧：
+- DT 里放两套 profile：ATL（`qcom,batt-id-kohm = <68>`）和 Coslight（`<100>`），
+  各 224 字节；FG 用 `<&pm660_rradc 0>` 读 batt-id（IIO 电阻通道）。
+- probe 后 2s 加载：读 batt-id → 按 ±15% 选 profile → IMA word 24 写 224 字节
+  → word 79/offset 3 置 `PROFILE_LOAD|HLOS_RESTART` → `BATT_SOC_RESTART(0x48).bit0`
+  重启 FG → 等 SOC ready → `power_supply_changed`。
+- 实测（2026-11-08）：batt-id ≈ 69 kΩ → 选中 ATL 68k profile 0；充满后
+  `capacity=100%`。加载前充电中段的 73% 是当时确实没充满，不是坏读数；profile 的作用
+  是让电量曲线和电池实际一致，不是把 73 硬改成 100。
+
+顺带修了 RRADC 驱动的两个 batt-id 问题：batt_id 通道要声明
+`IIO_CHAN_INFO_PROCESSED`，且 `rradc_read_raw()` 的 PROCESSED 分支原来把
+`scale_fn` 的返回值（0）赋给 `*val`，会把算好的欧姆值冲掉（表现为
+`iio_read_channel_processed()` 返回原始码或 0）。
+
+安卓侧参考（数据和加载序列的来源）：
 
 - `batterydata-e2-atl-3120mAh.dtsi`：ATL，`batt-id-kohm = 68`，3120mAh，4.4V，3A；
 - `batterydata-e2-coslight-3120mAh.dtsi`：Coslight，`batt-id-kohm = 100`，其余相同；
-- FG 先读 RRADC 的 batt-id，选对应 profile，写 IMA SRAM，再置 integrity 位、重启 FG。
+- `qpnp-fg-gen3.c` 的 profile load 序列、`fg-memif.c` 的 IMA 读写。
 
-主线要补的（内核改动，需重编刷机）：
-
-1. DT 里放两套 224 字节 profile + 电池参数（4.4V/3A/JEITA）；
-2. FG 加载序列：IMA word 24 写 224 字节 → word 79/offset 3 写 `PROFILE_LOAD|HLOS_RESTART`
-   → `BATT_SOC_RESTART(0x4048).bit0` 重启 → 读回 NOM_CAP/SOC；
-3. PM660 RRADC 的 batt-id 通道（主线 `pm660.dtsi` 现在没配），用于选 ATL/Coslight。
-
-风险：profile 写错/选错会让 SOC 和充电终止判断异常，必须先在真机验证；它修的是 SOC 曲线，
-不会让 2018 年的老电芯恢复 3120mAh。
+风险：profile 选错会让 SOC 和充电终止判断异常，换电池/换批次时要确认 batt-id；
+它修的是 SOC 曲线，不会让 2018 年的老电芯恢复 3120mAh。
 
 ## 4. 功耗实测（电池侧，无充电器）
 
@@ -108,10 +115,9 @@ FG 用的是 OTP 默认曲线，SOC 在中低段偏乐观：实测 FG 报 73% �
 ## 5. 待办（按收益排序）
 
 1. **HVDCP/QC2/QC3**：让原装 QC3 头也能 9V（当前只 5V），小改动、收益直接。
-2. **电池 profile**：修 SOC/CV 终止（当前 73% vs 4.4V 明显不准）。
-3. **SMB1355 并联从充**：驱动 + DT + `qcom_smbx` 分流。总 FCC 3A 封顶，补它**不提高峰值**，
+2. **SMB1355 并联从充**：驱动 + DT + `qcom_smbx` 分流。总 FCC 3A 封顶，补它**不提高峰值**，
    主要降低单颗发热、维持长时间 3A；要突破 3A 才需要它。
-4. 板级参数：DCP 2.7A、JEITA 表与安卓对齐。
+3. 板级参数：DCP 2.7A、JEITA 表与安卓对齐。
 
 ## 6. 相关文档
 

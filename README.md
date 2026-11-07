@@ -57,7 +57,7 @@ default password is 1234.
 | USB/USB-C    | Working       | PD 9V/2A 可用；QC3/HVDCP 未启用 |
 | Thermal      | Working       |      |
 | Touchscreen  | Working       |      |
-| Battery      | Working       |      |
+| Battery      | Working       | 按 batt-id 自动加载 ATL/Coslight FG profile（见 docs/CHARGING.md） |
 | LED          | Working       | notification, rear flash, front fill |
 | Speaker      | Working       |      |
 | Headphone    | Broken        |      |
