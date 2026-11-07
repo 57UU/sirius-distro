@@ -1,0 +1,16 @@
+#!/bin/sh
+# sirius-audio-refresh — make PipeWire re-probe card0 after the UCM speaker route
+# is enabled (sirius-audio-init.service sets the route; see docs/AUDIO-BRINGUP.md §6).
+#
+# WirePlumber probes the card the instant it appears, while the route is still
+# off; snd_pcm_open() then fails (-EINVAL), ACP drops its only output profile and
+# "off" wins => GNOME shows "Dummy Output". ACP only re-probes when the device is
+# re-created, hence the user WirePlumber restart. Safe to run by hand: no-op when
+# a hardware sink already exists.
+set -u
+
+export XDG_RUNTIME_DIR=/run/user/1000
+
+pw-cli ls Node 2>/dev/null | grep -q 'node.name = "alsa_output' && exit 0
+
+systemctl --user -M "$(id -un 1000)@.host" restart wireplumber

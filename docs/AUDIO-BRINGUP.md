@@ -54,6 +54,14 @@ kernel (cmdline root=mmcblk0p81)
 - UCM：overlay/usr/share/alsa/ucm2/SE/{SE.conf,HiFi.conf}，单 Speaker（hw:SE,0，cset 开 PRI_MI2S_RX MM1，需 cdev 声明；目录名与 conf 文件名必须一致；${CardId} 本机未定义，写死）。
 - 开机路由：overlay/etc/systemd/system/sirius-audio-init.service（alsaucm 挂 Speaker）。两 flavor 构建均 enable（server 镜像 2026-10-03 前漏，已补）。
 - PipeWire：两 flavor 均装 pipewire + wireplumber（gnome 无 pulse 层，wpctl 原生调音量）；alsa-utils 均装（server 镜像 2026-10-03 前只有 alsa-ucm-conf，无 aplay/amixer/alsaucm，已补）。功放 DSP 固定增益，音量 = 软音量（同原厂）；Digital RX1/2/3 只属耳机通路，别动。已知：WirePlumber/ACP 不吃这份 UCM（sink 名 stereo-fallback），路由靠上面服务保证。
+- 开机只剩 Dummy Output（2026-11-08 定位）：WirePlumber 在 card0 出现的瞬间（约 109 s）就建 ACP device，
+  此时 `PRI_MI2S_RX Audio Mixer MultiMedia1` 还没由 audio-init 打开，`snd_pcm_open("hw:SE,0")` 直接
+  -EINVAL（machine driver startup 依赖该路由），ACP 探测失败后把唯一的 `output:stereo-fallback` profile
+  丢掉，只剩 off / pro-audio；WirePlumber 的 find-best-profile 又会跳过 pro-audio，于是选中 off ——
+  设备在、sink 没有，GNOME 就显示 Dummy Output。ACP 不会自己重探，重启用户 wireplumber 才能重建设备。
+  修法：audio-init 末尾加 `ExecStartPost=/usr/local/sbin/sirius-audio-refresh`（无硬件 sink 时重启
+  wireplumber 让它重探）。验证手法：`wpctl status` 看 Audio→Sinks 是否只有 auto_null；route 关掉后
+  `systemctl --user restart wireplumber` 必现 Dummy，route 打开后再 restart 即出现 stereo-fallback。
 
 ## 7. 排查备忘
 

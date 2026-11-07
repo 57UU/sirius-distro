@@ -15,6 +15,13 @@ ConditionPathExists=/usr/share/alsa/ucm2/SE/SE.conf
 [Service]
 Type=oneshot
 ExecStart=/usr/bin/alsaucm -c SE set _verb HiFi set _enadev Speaker
+# WirePlumber/ACP already probed the card the instant it appeared, while the
+# route above was still off; that probe fails (-EINVAL from snd_pcm_open) and
+# the card is left with only "off"/"pro-audio", i.e. no sink at all (GNOME then
+# shows "Dummy Output" — see docs/AUDIO-BRINGUP.md §6). ACP never re-probes, so
+# re-create the device now that the route is in place. Harmless when a sink
+# already exists or nobody is logged in.
+ExecStartPost=-/usr/local/sbin/sirius-audio-refresh
 RemainAfterExit=yes
 # Card probes late (ADSP + userspace PDs take ~30s); first-boot run may hit
 # "no soundcards found". Retry with backoff until the UCM route sticks.
