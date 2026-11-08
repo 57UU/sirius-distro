@@ -54,25 +54,25 @@ default password is 1234.
 | CPU          | Working       |      |
 | GPU          | Working       |      |
 | eMMC         | Working       |      |
-| USB/USB-C    | Working       | PD 9V/2A 可用；QC3/HVDCP 未启用 |
+| USB/USB-C    | Working       | PD 9V/2A |
 | Thermal      | Working       |      |
 | Touchscreen  | Working       |      |
-| Battery      | Working       | 按 batt-id 自动加载 ATL/Coslight FG profile（见 docs/CHARGING.md） |
+| Battery      | Working       |      |
 | LED          | Working       | notification, rear flash, front fill |
 | Speaker      | Working       |      |
 | Headphone    | Broken        |      |
 | Haptics      | Working       |      |
 | Microphone   | Broken        |      |
 | Bluetooth    | Working       |      |
-| WiFi         | Working*      | 5GHz slow IO / high latency with MFP on|
+| WiFi         | Working*      | 5GHz high latency with MFP on|
 | Modem/IPA    | Working       | single SIM only |
-| GPS/GNSS     | Working       | outdoor verified, indoors limited |
+| GPS/GNSS     | Working       | outdoor verified |
 | IR TX        | Working       |      |
 | Camera       | Partial       | IMX363 rear only, very unstable |
-| Fingerprint  | Broken        | no driver / no DT node |
+| Fingerprint  | Broken        |      |
 | Video decode | Working       | H.264 VP8 VP9 HEVC MPEG-2 |
 | Video encode | Partial       | verified via v4l2-ctl, ffmpeg segfaults |
-| Suspend      | Broken |  |
+| Suspend      | Broken        |  |
 
 ## Sensors
 
