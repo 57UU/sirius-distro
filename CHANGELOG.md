@@ -18,7 +18,7 @@ change分为三大部分：boot,kernel,rootfs，例如 rootfs.gnome: 修复gnome
 
 ### 变更
 
-- kernel: **内核升级到 7.3.3**：底座从  Linux 7.3 -> 7.3.3，包含多项安全性与Bug改进。
+- kernel: **内核升级到 7.3.4**：底座从 Linux 7.3 更新到 7.3.4，包含多项安全性与 Bug 修复。
 
 ## [2.1] - 2026-10-23
 
