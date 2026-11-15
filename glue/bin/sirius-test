@@ -285,7 +285,9 @@ check "相机 video 节点" sh -c 'ls /dev/video* >/dev/null 2>&1'
 
 section "无线 / 蓝牙 / 调制解调器"
 check "WLAN phy0" test -d /sys/class/ieee80211/phy0
-if ip link show wlan0 >/dev/null 2>&1; then
+if ! command -v iw >/dev/null 2>&1; then
+    fail "WiFi 扫描（rootfs 缺少 iw，检查 SIRIUS_BASE_PKGS）"
+elif ip link show wlan0 >/dev/null 2>&1; then
     ip link set wlan0 up 2>/dev/null || true
     scan_out=""; scan_ok=0
     for _ in 1 2 3; do

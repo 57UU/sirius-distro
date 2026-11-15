@@ -21,8 +21,8 @@ mkinitfs () {
 STAGE="$(mktemp -d)"
 trap 'rm -rf "$STAGE"' EXIT
 cp -a "$(dirname "$0")"/initramfs/. "$STAGE"/
-# Normalize payload modes: fresh checkouts (and Windows transfers) may
-# lack +x on dirs/files, which fails exec with EACCES in initramfs.
+# Normalize payload modes: fresh checkouts may lack +x on dirs/files,
+# which fails exec with EACCES in initramfs.
 chmod 755 "$STAGE"/sbin "$STAGE"/lib
 # The dynamic loader itself must be +x: the kernel execs it as the ELF
 # interpreter, and without +x every dynamically linked tool dies with

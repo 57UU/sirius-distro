@@ -1,15 +1,10 @@
 #!/bin/bash
 # sirius-device.sh: shared device bring-up for all rootfs flavors.
-# Sourced (not executed) by build-*.sh. Requires caller to set:
-#   R         target tree being built
-#   FIRMWARE  $DISTRO/firmware
-#   Kernel modules + firmware + kernel-coupled device glue (units/scripts/udev/
-#   module-load/UCM) live in the system-partition store (kernel/build-kernel-img.sh),
-#   not in the rootfs tree; this tree only keeps a 4-line generator stub.
-# Flavor-specific bits (desktop packages, DM login, service enables)
-# stay in each build-*.sh chroot section.
-
-
+# Sourced (not executed) by build-*.sh; the caller sets R (target rootfs tree)
+# and DISTRO (repo root). Device/kernel-coupled files live in glue/ and are
+# packed into the system image, so the rootfs only gets rootfs/overlay/ plus
+# the 4-line systemd generator stub.
+# Flavor-specific bits stay in each build-*.sh chroot section.
 
 # Default device user baked into every flavor (device-lab convention).
 # Override at build time: sudo SIRIUS_USER=foo SIRIUS_PASS=bar ./build-server.sh
@@ -55,7 +50,7 @@ export SIRIUS_MESA_BACKPORTS SIRIUS_MESA_PKGS SIRIUS_MESA_SEL
 # `apt-get install -y $SIRIUS_BASE_PKGS` first, then its flavor-only extras
 # (server: evtest/rfkill/auditd/kbd + Qt runtime; gnome:
 # gnome-core/gdm3/firmware). Flavor lines must not repeat these.
-SIRIUS_BASE_PKGS=${SIRIUS_BASE_PKGS:-"sudo openssh-server network-manager nano wpasupplicant bluez rmtfs tqftpserv qrtr-tools libbsd0 wireless-tools pipewire wireplumber modemmanager libqmi-utils mobile-broadband-provider-info $SIRIUS_AUDIO_PKGS $SIRIUS_VULKAN_PKGS $SIRIUS_MESA_SEL systemd-timesyncd systemd-resolved util-linux-extra e2fsprogs"}
+SIRIUS_BASE_PKGS=${SIRIUS_BASE_PKGS:-"sudo openssh-server network-manager nano wpasupplicant bluez rmtfs tqftpserv qrtr-tools libbsd0 wireless-tools pipewire wireplumber modemmanager libqmi-utils mobile-broadband-provider-info iw $SIRIUS_AUDIO_PKGS $SIRIUS_VULKAN_PKGS $SIRIUS_MESA_SEL systemd-timesyncd systemd-resolved util-linux-extra e2fsprogs"}
 export SIRIUS_BASE_PKGS
 
 # Shared service enables for every flavor: each build-*.sh runs
@@ -77,25 +72,15 @@ sirius_overlay() {
   # NetworkManager 只加载属主 root 且权限 600 的 keyfile，overlay 里带过来的
   # 权限不符合就会被静默忽略（表现为 gsm 连接不存在）。
   chmod 600 $R/etc/NetworkManager/system-connections/*.nmconnection 2>/dev/null || true
-  # 设备/内核耦合的可执行文件（adsprpcd/pd-mapper/uimsel/uimwatch）已迁到
-  # system 分区 glue（glue/bin，随 kernel.img 升级；见 docs/KERNEL-IMG-STORE.md）。
-  # FastRPC 支持库（libadsp_default_listener/libadsprpc/libyaml）也随
-  # adsprpcd 放在 system 分区的 glue/lib，rootfs 不再携带 Qualcomm 私有库。
-  # overlay 里的脚本在 git 里存的是 644（Windows 检出会丢可执行位），
-  # 统一在这里补 755。新增 overlay 脚本记得加进这个列表，否则 systemd
-  # 启动时会报 Permission denied。设备/kernel 耦合的脚本已迁到 system
-  # 分区 glue（glue/bin，由 kernel/build-kernel-img.sh 打包），不在此列。
+  # overlay 脚本在 git 里存的是 644，打包前统一补 755；
+  # 新增 overlay 脚本要加进这个列表，否则 systemd 启动会报 Permission denied。
   chmod 755 $R/usr/local/sbin/sirius-screen $R/usr/local/sbin/sirius-remodeset $R/usr/local/sbin/sirius-wifi-add $R/usr/local/sbin/safe-reboot $R/usr/local/sbin/sirius-otg
-  # rootfs 侧唯一的 glue 入口：4 行 stub（真正实现/清单都在 system 分区，
-  # 随 kernel.img 升级；见 docs/KERNEL-IMG-STORE.md）。
+  # 4 行 generator stub；实现在 system 分区（见 docs/KERNEL-IMG-STORE.md）。
   GLUE_STUB=$R/usr/lib/systemd/system-generators/sirius-kernel-glue
   test -f "$GLUE_STUB" || { echo "missing glue generator stub $GLUE_STUB"; exit 1; }
   chmod 755 "$GLUE_STUB"
-  # systemd preset rules / unit files are read as root but keep them 0644 so
-  # a Windows/NTFS checkout mode does not leak into the shipped image.
+  # preset/unit 在 git 里保持 0644，打包前再确认一次。
   chmod 644 $R/etc/systemd/system-preset/*.preset 2>/dev/null || true
-  # rootfs 不为 system 分区里的命令建软链：需要时直接运行
-  # /mnt/sysmod/glue/bin/<cmd>（如 ssccli、sirius-test、sirius-bt-watch）。
   mkdir -p $R/var/lib/rmtfs
   ln -sf /dev/disk/by-partlabel/modemst1 $R/var/lib/rmtfs/modem_fs1
   ln -sf /dev/disk/by-partlabel/modemst2 $R/var/lib/rmtfs/modem_fs2
@@ -124,13 +109,6 @@ sirius_overlay() {
   mkdir -p $R/var/lib/systemd/linger
   touch $R/var/lib/systemd/linger/$SIRIUS_USER
 }
-
-# Old name kept as an alias (build scripts call sirius_overlay now).
-sirius_helpers_units() {
-  sirius_overlay
-}
-
-
 sirius_netconf() {
   echo "sirius" > $R/etc/hostname
   cat > $R/etc/hosts <<'EOF2'

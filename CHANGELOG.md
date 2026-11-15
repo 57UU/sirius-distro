@@ -11,22 +11,22 @@ change分为三大部分：boot,kernel,rootfs，例如 rootfs.gnome: 修复gnome
 
 ## [Unreleased](https://github.com/57UU/sirius-distro/compare/v2.1...HEAD)
 
-### 修复
+### 新增
 
-- rootfs: **开机后没有声音、只剩「Dummy Output」**：声卡出现得比开机音频脚本早，系统音频服务在喇叭通路打开前就探测了声卡，失败后又不会自己重试。现在喇叭通路打开后会强制重新探测一次，开机即有正常扬声器输出。
-- kernel: **电量校准优化**：内核会读电池上的 batt-id 电阻，自动选择 ATL（68kΩ）或 Coslight（100kΩ）电芯对应的电池曲线并加载，电量百分比和充放电估算更准确。
+- system: **一键硬件自检**：`sudo /mnt/sysmod/glue/bin/sirius-test` 会快速检查系统分区、各设备服务、固件、传感器、音频、显示、输入、WiFi、蓝牙、Modem、电池和 zram 等；`--full` 额外检查依赖外设状态的项目（如 PD 充电器）。
 
 ### 变更
 
-- kernel: **内核升级到 7.3.4**：底座从 Linux 7.3 更新到 7.3.4，包含多项安全性与 Bug 修复。
-- system: **内核耦合服务迁入 system 分区**：音频、蓝牙、WiFi、Modem、zram 等随内核走的服务、脚本、udev 规则和 ALSA UCM 现在打包在 system 分区（`kernel.img` 的 glue 层），rootfs 只保留一个很薄的转发入口。以后内核/驱动相关的升级只需要重刷 system，不用再重刷 rootfs；**本次更新需要一次性重刷 rootfs + system**。
-- system: **设备守护程序也搬进 system 分区**：`adsprpcd`、`pd-mapper`、`uimsel`、`uimwatch` 现在随 `kernel.img` 的 glue 层走，以后改这些设备服务只需要刷 system，不用重刷 rootfs；rootfs 只保留 `adsprpcd` 用到的 FastRPC 支持库。
-- rootfs: **清理冗余固件**：GNOME 镜像不再安装 `firmware-atheros`/`firmware-qcom-soc`（约 394M，运行时本来就被 system 分区的设备固件覆盖）；两种镜像在构建末尾 purge `wireless-regdb`/`alsa-topology-conf`，rootfs 不再保留固件副本。设备固件现在只来自 system 分区。
-- system: **内置无线管制数据库**：system 分区固件现在带 upstream 签名的 `regulatory.db`，开机加载后按 AP 广播的国家码生效。
-- system: **传感器修复**：Sensor Core 文件服务（`hexagonrpcd`）、厂商 sensor 配置、persist 里的校准 registry（运行时只读复制到 tmpfs）和 `libssc`/`ssccli` 都随 glue 层打进 system 分区。
-- system: 新增一键自检脚本 `glue/bin/sirius-test`（`sudo /mnt/sysmod/glue/bin/sirius-test`）：覆盖 system 分区/glue/unit/固件/传感器/音频/显示/输入/无线（含 WiFi 扫描）/蓝牙/Modem/电源/zram 等即时检查；`--full` 才跑依赖外部条件的项目（PD 快充等，快速模式不包含）。脚本随 glue 进 system 分区；自带 boot-readiness preflight（--no-wait 可关）。
-- system: **FastRPC 支持库移入 glue/lib**（`libadsp_default_listener`/`libadsprpc`/`libyaml`），adsprpcd unit 用 `LD_LIBRARY_PATH=/mnt/sysmod/glue/lib` 加载；库以运行时文件名存放，不建软链。rootfs 不再携带任何 Qualcomm 私有库（`rootfs/dsp-bin/` 删除）。
-- rootfs: 不再创建任何指向 system 分区的软链；自检直接运行 `sudo /mnt/sysmod/glue/bin/sirius-test`。
+- kernel: **内核升级到 7.3.4**：包含多项安全性与 Bug 修复。
+- system: **内核/设备相关服务移入 system 分区**：音频、蓝牙、WiFi、Modem、zram、传感器等随内核走的服务与配置改由 system 分区提供，rootfs 更干净。以后内核/驱动相关更新只需重刷 system；**本次升级需要一次性重刷 rootfs + system**。
+- rootfs: **镜像瘦身**：GNOME 版不再携带约 394M 的重复设备固件，固件统一由 system 分区提供。
+- system: **无线管制数据库内置**：开机加载后 WiFi 按实际国家码工作。
+
+### 修复
+
+- system: **传感器恢复**：加速度计、磁力计、指南针恢复可读；光线和距离传感器仍不可用（硬件/Sensor Core 未注册）。
+- rootfs: **开机后没有声音、只剩「Dummy Output」**：声卡出现得比开机音频脚本早，系统音频服务在喇叭通路打开前就探测了声卡，失败后又不会自己重试。现在喇叭通路打开后会强制重新探测一次，开机即有正常扬声器输出。
+- kernel: **电量校准优化**：内核会读电池上的 batt-id 电阻，自动选择 ATL（68kΩ）或 Coslight（100kΩ）电芯对应的电池曲线并加载，电量百分比和充放电估算更准确。
 
 ## [2.1](https://github.com/57UU/sirius-distro/compare/v2.0...v2.1) - 2026-10-23
 
