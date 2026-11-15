@@ -4,7 +4,7 @@
 # enablement change only needs a new system.img (never a rootfs reflash).
 adsprpcd-audiopd.service        multi-user.target
 adsprpcd-rootpd.service         multi-user.target
-adsprpcd-sensorspd.service      multi-user.target
+sirius-sensors.service          multi-user.target
 bt-addr.service                 bluetooth.service
 pd-mapper.service               multi-user.target
 sirius-audio-init.service       multi-user.target

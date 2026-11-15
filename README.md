@@ -10,7 +10,7 @@ rootfs/     rootfs 烘焙：overlay（开机会拷进 / 的文件）+ 构建脚�
 src/        自研源码（sirius-remodeset）；第三方源码只留获取说明
 orbital/    上游仪表盘（获取说明，用于server系统的简易管理GUI）
 kernel/     内核区：build-kernel-img.sh（system 分区仓库打包）+ linux-sirius/（上游内核submodule，57UU/linux-sirius feat/sirius-7.2，需git submodule update --init）
-glue/       内核/设备耦合 userspace 层（unit/脚本/设备守护二进制/udev/模块加载/ALSA UCM/manifest）：随 kernel.img 打进 system 分区，升级内核相关服务只刷 system
+glue/       内核/设备耦合 userspace 层（unit/脚本/设备守护二进制/Sensor Core 配置/udev/模块加载/ALSA UCM/manifest）：随 kernel.img 打进 system 分区，升级内核相关服务只刷 system
 docs/       相关文档以及一些修复经验
 ```
 制作过程见：https://blog.57u.tech/2026/03/18/install-linux-on-android-device-mi8se/

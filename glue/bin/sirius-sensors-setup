@@ -1,0 +1,76 @@
+#!/bin/sh
+# sirius-sensors-setup: build the runtime file tree served by hexagonrpcd
+# (QCS Sensor Core file server, `-R <dir>`), then tear it down on stop.
+#
+# Sources:
+#   * sensor configuration: vendor blobs committed under glue/sensors/
+#   * sensor registry/calibration: the persist partition, read-only mount;
+#     copied into a writable tmpfs because the DSP writes registry updates
+#     back (persist must never be written by us).
+#   * socinfo: bind-mounted from /sys/devices/soc0 (not copied)
+#   * dsp: symlink to the ADSP firmware tree (already bind-mounted at /lib/firmware)
+#
+# Used by sirius-sensors.service (ExecStartPre / ExecStopPost --teardown).
+set -u
+
+GLUE=${SIRIUS_SENSORS_GLUE:-/mnt/sysmod/glue}
+RUN=${SIRIUS_SENSORS_RUN:-/run/sirius-qcom}
+PERSIST_RUN=/run/sirius-persist
+PERSIST_DEV=${SIRIUS_PERSIST_DEV:-/dev/disk/by-partlabel/persist}
+
+log() { echo "sirius-sensors: $*" > /dev/kmsg 2>/dev/null || true; }
+
+teardown() {
+    if mountpoint -q "$RUN/socinfo" 2>/dev/null; then
+        umount "$RUN/socinfo" 2>/dev/null || true
+    fi
+    if mountpoint -q "$PERSIST_RUN" 2>/dev/null; then
+        umount "$PERSIST_RUN" 2>/dev/null || true
+    fi
+    rm -rf "$RUN" "$PERSIST_RUN"
+}
+
+if [ "${1:-}" = "--teardown" ]; then
+    teardown
+    exit 0
+fi
+
+teardown
+mkdir -p "$RUN/sensors/config" "$RUN/sensors/registry" "$RUN/socinfo"
+
+# --- vendor sensor configuration (static, from the glue store) -------------
+if [ -d "$GLUE/sensors/config" ]; then
+    cp -f "$GLUE"/sensors/config/* "$RUN/sensors/config/" 2>/dev/null || true
+fi
+if [ -f "$GLUE/sensors/sns_reg.conf" ]; then
+    cp -f "$GLUE/sensors/sns_reg.conf" "$RUN/sensors/sns_reg.conf"
+fi
+if [ ! -f "$RUN/sensors/sns_reg.conf" ]; then
+    log "missing sns_reg.conf in $GLUE/sensors, sensors will not initialize"
+fi
+
+# --- sensor registry/calibration from persist (read-only) ------------------
+[ -b "$PERSIST_DEV" ] || PERSIST_DEV=/dev/mmcblk0p68
+mkdir -p "$PERSIST_RUN"
+if mount -o ro "$PERSIST_DEV" "$PERSIST_RUN" 2>/dev/null; then
+    if [ -d "$PERSIST_RUN/sensors/registry/registry" ]; then
+        cp -a "$PERSIST_RUN"/sensors/registry/registry/. "$RUN/sensors/registry/" 2>/dev/null || true
+        log "registry copied from $PERSIST_DEV ($(find "$RUN/sensors/registry" -type f | wc -l) files)"
+    else
+        log "no sensor registry on $PERSIST_DEV, continuing without calibration"
+    fi
+    umount "$PERSIST_RUN" 2>/dev/null || true
+else
+    log "cannot mount persist ($PERSIST_DEV) ro, continuing without calibration"
+fi
+
+# --- socinfo (DSP reads /sys/devices/soc0 through the file server) ---------
+if ! mount --bind /sys/devices/soc0 "$RUN/socinfo" 2>/dev/null; then
+    log "cannot bind /sys/devices/soc0, socinfo lookups will fail"
+fi
+
+# --- ADSP firmware for the sensor PD ---------------------------------------
+ln -sfn /lib/firmware/qcom/sdm710/pyxis/adsp "$RUN/dsp"
+
+log "runtime root ready at $RUN"
+exit 0

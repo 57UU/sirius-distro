@@ -10,6 +10,10 @@
 | `pd-mapper` | Qualcomm PD 映射服务(读 firmware 里的 servreg `.jsn`,建 QRTR PD 映射) | https://github.com/andersson/pd-mapper ,按 `src/pd-mapper/README.md` 自编译(带 query 日志) | 动态链接 rootfs 的 `libqrtr.so.1`、`liblzma.so.5`、glibc |
 | `uimsel` | 直接发 QMI `ChangeProvisioningSession`,绕过 qmicli 的 power-off 步骤 | `../../src/modem/uimsel.c` | 动态链接 rootfs 的 `libqmi-glib.so.5`、`libqrtr-glib.so.0`、glib/gobject/gio、glibc |
 | `uimwatch` | 常驻订阅 UIM `card-status`/`slot-status`,事件触发 `sirius-modem-uim` | `../../src/modem/uimwatch.c` | 同上 |
+| `hexagonrpcd` + `libhexagonrpc.so.0.5` | Sensor Core(SSC)文件服务,给 ADSP sensor PD 提供 config/registry/socinfo/dsp 文件 | https://github.com/linux-msm/hexagonrpc 自编译(私有库放同目录,unit 用 `LD_LIBRARY_PATH`) | rootfs 的 glibc |
+| `ssccli` + `libssc.so.2` | Sensor Core 读取 CLI/库(加速度计/磁力计/指南针) | https://codeberg.org/DylanVanAssche/libssc 自编译 | rootfs 的 glib/qmi/qrtr-glib + 自带 `libprotobuf-c.so.1` |
+| `libprotobuf-c.so.1` | libssc 私有依赖(rootfs 默认没有) | Debian trixie `libprotobuf-c1` |
+| `sirius-sensors-setup` | `sirius-sensors.service` 的 ExecStartPre/ExecStopPost:组装 `/run/sirius-qcom`(厂商配置 + persist registry 只读拷贝 + socinfo bind + dsp 软链) | 本目录 |
 
 设计选择(2026-11-15):**不携带 libc/运行库**,设备二进制直接复用 rootfs 的
 Debian 库(glibc ABI 向下兼容;libqmi/glib 等由 `ModemManager`/`libqmi-utils` 包带到

@@ -116,6 +116,8 @@ sirius_overlay() {
   for _n in sirius-audio-refresh sirius-bt-watch sirius-wifi-auto sirius-zram; do
     ln -sf /mnt/sysmod/glue/bin/$_n $R/usr/local/sbin/$_n
   done
+  mkdir -p $R/usr/local/bin
+  ln -sf /mnt/sysmod/glue/bin/ssccli $R/usr/local/bin/ssccli
   mkdir -p $R/var/lib/rmtfs
   ln -sf /dev/disk/by-partlabel/modemst1 $R/var/lib/rmtfs/modem_fs1
   ln -sf /dev/disk/by-partlabel/modemst2 $R/var/lib/rmtfs/modem_fs2

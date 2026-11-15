@@ -1,42 +1,83 @@
 # 传感器（Snapdragon Sensor Core）
 
-加速度计、陀螺仪、磁力计、指南针可用；光线 / 距离不可用。
+加速度计、磁力计、指南针已实测可用；陀螺仪走同一 SSC 通道（libssc 的 gyroscope
+接口，本轮未单独测）；光线 / 距离不可用（SSC 里没有注册 `ambient_light`）。
 
-## 部署
+## 架构
 
-1. `systemctl disable --now adsprpcd-sensorspd` —— 不关它会抢 fastrpc 的 default listener。
-2. 准备 `/usr/share/qcom/`：
+```
+sensor PD (ADSP 内, /dev/fastrpc-adsp-secure)
+        │  FastRPC reverse tunnel: apps_std 文件请求
+        ▼
+hexagonrpcd (glue/bin, -s -R /run/sirius-qcom)
+        │  HexagonFS: config / registry / sns_reg.conf / socinfo / dsp
+        ▼
+libssc (glue/bin/libssc.so.2)  ← QRTR QMI service "ssc" → SSC service (node 400)
+        ▼
+ssccli（或任何调用 libssc 的程序）
+```
 
-   | 路径 | 来源 |
-   |---|---|
-   | `sensors/config/` | 原厂 `vendor.img` 的 `/etc/sensors/config`（26 个 json） |
-   | `sensors/registry/` | `/persist/sensors/registry/registry` |
-   | `sensors/sns_reg.conf` | `vendor.img` 的 `/etc/sensors/sns_reg_config`（改名） |
-   | `socinfo/` | `mount --bind /sys/devices/soc0` |
-   | `dsp` | 软链到 `/lib/firmware/qcom/sdm710/pyxis/adsp` |
+sdm670 没有独立 SLPI，sensor PD 直接在 ADSP 里，而 ADSP 的 default listener
+**全局唯一**：谁先 attach 谁得到服务。`adsprpcd-sensorspd` 与 `hexagonrpcd`
+不能并存，所以现在不再启用 `adsprpcd-sensorspd`，改由 `hexagonrpcd` 先注册
+（`sirius-sensors.service` 的 `Before=adsprpcd-*`），再由 `adsprpcd` 启动
+audio/root PD。
 
-3. 起 `hexagonrpcd.service`（`rootfs/overlay/etc/systemd/system/`）：
-   `hexagonrpcd -f /dev/fastrpc-adsp-secure -s -R /usr/share/qcom`
+## 部署（已自动化，随 system 分区走）
 
-4. 读数据：`ssccli --sensor=accelerometer|gyroscope|magnetometer|compass`
+组件全部在 `glue/`，由 `./build.sh kernel` 打进 `kernel.img`：
 
-源码：hexagonrpc（`github.com/linux-msm/hexagonrpc`）、libssc（`codeberg.org/DylanVanAssche/libssc`，
-网上流传的 gitlab 地址已 403）。依赖：`libglib2.0-dev libqrtr-glib-dev libqmi-glib-dev libprotobuf-c-dev
-protobuf-c-compiler protobuf-compiler python3-dev meson ninja-build`。
+| 内容 | 位置 | 来源 |
+|---|---|---|
+| `hexagonrpcd` | `glue/bin/hexagonrpcd` | [linux-msm/hexagonrpc](https://github.com/linux-msm/hexagonrpc) 自编译（glibc，私有库同目录） |
+| 私有库 | `glue/bin/libhexagonrpc.so.0.5`、`libssc.so.2`、`libprotobuf-c.so.1` | hexagonrpc / libssc / Debian protobuf-c |
+| `ssccli` | `glue/bin/ssccli` | [libssc](https://codeberg.org/DylanVanAssche/libssc) 示例 CLI |
+| 厂商 sensor 配置 | `glue/sensors/config/`（27 个 json，含 `config_list.txt`） | 原厂 `vendor.img` 的 `/etc/sensors/config` |
+| `sns_reg.conf` | `glue/sensors/sns_reg.conf` | 原厂 `vendor.img` 的 `/etc/sensors/sns_reg_config`（改名） |
+| 校准 registry | **运行时**从 persist 分区只读复制 | `/persist/sensors/registry/registry` |
 
-## 光感 / 距感为什么不行
+`glue/bin/sirius-sensors-setup`（unit 的 `ExecStartPre`）负责组装运行时根：
 
-`ambient_light` 在 SSC 里没有注册。根因是 `adsp_default_listener` 全局唯一：
+1. `/run/sirius-qcom/sensors/config` ← glue 里的厂商配置；
+2. `/run/sirius-qcom/sensors/sns_reg.conf` ← glue；
+3. `/run/sirius-qcom/sensors/registry` ← **persist 只读挂载后复制**（DSP 会回写
+   registry，写的是 tmpfs；**persist 分区永远不写**）；
+4. `/run/sirius-qcom/socinfo` ← `mount --bind /sys/devices/soc0`；
+5. `/run/sirius-qcom/dsp` ← 软链到 `/lib/firmware/qcom/sdm710/pyxis/adsp`。
 
-- 启动 sensor PD 要靠 `adsprpcd`（占住 listener，却不提供文件服务）
-- 提供 config/registry 文件服务要靠 `hexagonrpcd`（抢不到 listener）
+unit：`glue/units/sirius-sensors.service`（无 `[Install]`，启用关系在
+`units.enable`）。旧的 `hexagonrpcd.service` 已从 rootfs overlay 删除。
 
-sdm845 有独立 SLPI（`/dev/fastrpc-sdsp`），两者不冲突；sdm670 没有 SLPI，sensor 直接在 ADSP 里，
-天然二选一。试过所有配置层的组合（改名、owner、is_dri、三套并存、清 registry）均无效。
+## 读数据
 
-## 注意
+```sh
+# 新 rootfs 里有软链；旧 rootfs 直接用 glue 路径
+sudo ssccli --sensor=accelerometer --timeout=10
+sudo ssccli --sensor=magnetometer  --timeout=10
+sudo ssccli --sensor=compass       --timeout=10
+# 等价：sudo LD_LIBRARY_PATH=/mnt/sysmod/glue/bin /mnt/sysmod/glue/bin/ssccli ...
+```
 
-- **不要 `systemctl restart hexagonrpcd`**：重启后它抢不到 listener，会变 inactive，
-  只能整机重启恢复（开机时它比 adsprpcd 注册得早）。
+`ssccli` 需要访问 `AF_QIPCRTR`（root 下跑最简单）。光感/距感会报 `UNKNOWN`，
+因为 SSC 没有注册这两个 sensor。
+
+## 排障
+
+```sh
+systemctl status sirius-sensors
+journalctl -b -u sirius-sensors
+ls -la /run/sirius-qcom /run/sirius-qcom/sensors
+qrtr-lookup | grep -i "Sensor Core"      # 期望有 node 400 的服务
+sudo dmesg | grep fastrpc                # listener/DSP 侧报错
+```
+
+- **不要手动 `systemctl restart sirius-sensors`**：重启后 hexagonrpcd 抢不到
+  已经注册的 default listener，只能整机重启恢复（`Restart=on-failure` 只用于
+  启动失败重试）。
+- 注册流程依赖顺序：`sirius-sensors` 必须先于 `adsprpcd-*`。如果看到
+  `adsprpcd-sensorspd` 在跑，说明镜像还是旧的（旧 unit 已删除，旧 rootfs 上
+  可 `systemctl mask hexagonrpcd` 并重刷 rootfs）。
+- persist 读不到时 unit 仍会启动，只是没有校准数据（日志 `continuing without
+  calibration`）。
 - 磁力计会警告 mount matrix 全 0，回退单位矩阵，方向可能偏。
 - `bmp285`（气压计）只是 config 残留，这台机器没有该硬件。

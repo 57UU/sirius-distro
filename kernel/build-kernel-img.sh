@@ -113,6 +113,8 @@ cp -a "$GLUE/." "$STAGE/glue/"
 # Fresh checkouts may lack exec bits (repo index stores 644 for portability,
 # same caveat as the initrd/build scripts).
 chmod 755 "$STAGE"/glue/bin/* 2>/dev/null || true
+# Private .so files live next to the binaries in glue/bin; they are data.
+chmod 644 "$STAGE"/glue/bin/*.so.* 2>/dev/null || true
 chmod 644 "$STAGE"/glue/bin/README.md 2>/dev/null || true
 chmod 644 "$STAGE"/glue/units/*.service "$STAGE"/glue/units/*.timer \
          "$STAGE"/glue/units/*.d/*.conf "$STAGE"/glue/ABI 2>/dev/null || true
