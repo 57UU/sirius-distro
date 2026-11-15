@@ -22,6 +22,7 @@ change分为三大部分：boot,kernel,rootfs，例如 rootfs.gnome: 修复gnome
 - system: **内核耦合服务迁入 system 分区**：音频、蓝牙、WiFi、Modem、zram 等随内核走的服务、脚本、udev 规则和 ALSA UCM 现在打包在 system 分区（`kernel.img` 的 glue 层），rootfs 只保留一个很薄的转发入口。以后内核/驱动相关的升级只需要重刷 system，不用再重刷 rootfs；**本次更新需要一次性重刷 rootfs + system**。
 - system: **设备守护程序也搬进 system 分区**：`adsprpcd`、`pd-mapper`、`uimsel`、`uimwatch` 现在随 `kernel.img` 的 glue 层走，以后改这些设备服务只需要刷 system，不用重刷 rootfs；它们继续复用 rootfs 里的 Debian 运行库，rootfs 只保留 `adsprpcd` 用到的 FastRPC 支持库。已经带 glue 层的版本，本次只刷 system 即可。
 - rootfs: **清理冗余固件**：GNOME 镜像不再安装 `firmware-atheros`/`firmware-qcom-soc`（约 394M，运行时本来就被 system 分区的设备固件覆盖）；两种镜像在构建末尾 purge `wireless-regdb`/`alsa-topology-conf`，rootfs 不再保留固件副本。设备固件现在只来自 system 分区。
+- system: **内置无线管制数据库**：system 分区固件现在带 upstream 签名的 `regulatory.db`，开机加载后按 AP 广播的国家码生效（实测国内 2.4G ch12/13、5.15–5.25 主动扫描、5.8G 33dBm 解锁；5.5GHz 该硬件不支持）。rootfs 不再保留这份数据库。
 
 ## [2.1] - 2026-10-23
 

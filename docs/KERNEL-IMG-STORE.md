@@ -11,8 +11,9 @@ lib/modules/<uname -r>/   内核模块 + depmod 数据库（构建机 modules_in
 lib/firmware/...          设备固件（映射见 rootfs/sirius-device.sh 头注释：
                           a615_zap/a630_sqe/a630_gmu、
                           st_fts_v521.ftb、pyxis-phone 整包、ath10k WCN3990 三件套、
-                          qca 蓝牙两件套；adsprpcd/pd-mapper/uimsel/uimwatch 已随 glue
-                          进 system，rootfs 只留 adsprpcd 的 FastRPC 支持库）
+                          qca 蓝牙两件套、无线管制数据库 regulatory.db(+p7s)；
+                          adsprpcd/pd-mapper/uimsel/uimwatch 已随 glue 进 system，
+                          rootfs 只留 adsprpcd 的 FastRPC 支持库）
 boot/                     Image、dtb、initrd.cpio.gz、extlinux.conf（U-Boot payload）
 glue/                     内核耦合 userspace 层（见下），rootfs 只通过一个 4 行 stub 接入
 ```

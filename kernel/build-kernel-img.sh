@@ -85,6 +85,14 @@ cp -f $FIRMWARE/qca/crnv21.bin.sirius $FW/qca/crnv21.bin
 chmod 644 $FW/qcom/sdm710/pyxis/a615_zap.mbn $FW/qcom/a630_sqe.fw $FW/qcom/a630_gmu.bin \
   $FW/st_fts_v521.ftb $FW/ath10k/WCN3990/hw1.0/firmware-5.bin $FW/ath10k/WCN3990/hw1.0/wlanmdsp.mbn \
   $FW/ath10k/WCN3990/hw1.0/board-2.bin $FW/qca/crnv21.bin
+# Wireless regulatory database: the rootfs ships none (and it would be
+# shadowed by the firmware bind mount anyway) and the kernel only trusts
+# upstream wireless-regdb signatures, so ship the upstream-signed variant.
+# APs advertise a country IE (e.g. CN) which cfg80211 adopts on association.
+cp -f $FIRMWARE/regdb/regulatory.db $FW/regulatory.db
+cp -f $FIRMWARE/regdb/regulatory.db.p7s $FW/regulatory.db.p7s
+chmod 644 $FW/regulatory.db $FW/regulatory.db.p7s
+
 check_md5() { test "$(md5sum < "$1" | cut -d " " -f1)" = "$2" || { echo "md5 mismatch: $1"; exit 1; }; }
 check_md5 $FW/ath10k/WCN3990/hw1.0/firmware-5.bin d16e3444f68ee48c548a891b9f9279e1
 check_md5 $FW/ath10k/WCN3990/hw1.0/wlanmdsp.mbn 259b4f9e4aef57a5051f27a201653262
