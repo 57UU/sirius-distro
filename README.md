@@ -150,6 +150,6 @@ android reference: https://github.com/Rocky7842/android_kernel_xiaomi_sdm710
 ## Other upstream dependencies
 
 remote proc tools: https://github.com/andersson (pd-mapper, tqftpserv, rmtfs, qrtr)
-base system: Debian trixie (rootfs builds, firmware-qcom-soc / firmware-atheros packages)
+base system: Debian trixie (rootfs builds; device firmware ships in the system-partition store)
 qca-swiss-army-knife
 initrd userspace: busybox

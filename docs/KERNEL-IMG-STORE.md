@@ -122,7 +122,7 @@ sudo sirius-otg status
 
 ## rootfs 侧配合
 
-- rootfs 里旧 `/lib/modules/*` 保留当 fallback，别删。
+- rootfs **不再打包内核模块和设备固件**，system 分区是唯一来源；initrd 在 sysmod 缺失时虽然会回落到 rootfs 的文件，但新镜像里这些目录是空的（发行版固件 `wireless-regdb`/`alsa-topology-conf`/`firmware-atheros`/`firmware-qcom-soc` 会在 rootfs 构建末尾 purge）。
 - rootfs 只保留 4 行 generator stub、`/etc/systemd/system-preset/50-sirius-glue.preset`（防首启 preset 在 /etc 落影子软链）和 4 个手动命令软链（`/usr/local/sbin/{sirius-audio-refresh,sirius-bt-watch,sirius-wifi-auto,sirius-zram}`，构建时由 `rootfs/sirius-device.sh` 创建）；这些命令的实现随 system.img 升级。
 - 用户自己的 `/etc/systemd/system/*.service` 优先级高于 generator 输出，可正常覆盖/`systemctl mask` glue unit。
 - 仓库挂载点开机后在 `/mnt/sysmod`；改 glue 内容：重跑 `./build.sh kernel` 并 fastboot 重刷 system。

@@ -3,6 +3,9 @@
 # Device base (WiFi/BT bake + screen/power stack) comes from overlay/
 # via sirius-device.sh sirius_overlay (shared by all flavors);
 # this script only adds: GNOME packages, default user, GDM autologin, enables.
+# Device firmware is NOT installed here: it ships in the system-partition
+# store (kernel.img) and is bind-mounted over /lib/firmware at boot; the
+# distro firmware packages would only be shadowed dead weight.
 #
 # External inputs (fail fast if missing):
 #   SIRIUS_BASE  pristine debian-trixie arm64 tree (e.g. linuxcontainers rootfs)
@@ -58,7 +61,7 @@ chroot $R /bin/bash <<'CHROOT_EOF'
 set -e
 export DEBIAN_FRONTEND=noninteractive
 apt-get update
-apt-get install -y $SIRIUS_BASE_PKGS gnome-core gdm3 firmware-atheros firmware-qcom-soc
+apt-get install -y $SIRIUS_BASE_PKGS gnome-core gdm3
 useradd -m -u 1000 -U -G sudo -s /bin/bash "$SIRIUS_USER" || true
 echo "$SIRIUS_USER:$SIRIUS_PASS" | chpasswd
 printf '%s ALL=(ALL) NOPASSWD:ALL\n' "$SIRIUS_USER" > /etc/sudoers.d/"$SIRIUS_USER"
@@ -94,6 +97,10 @@ lock-enabled=true
 idle-activation-enabled=true
 EOF3
 glib-compile-schemas /usr/share/glib-2.0/schemas/
+# Drop the distro firmware that Recommends pulled in (and any firmware
+# package a future dependency might add): device firmware comes from the
+# system partition, everything here would be shadowed by the bind mount.
+apt-get purge -y firmware-atheros firmware-qcom-soc wireless-regdb alsa-topology-conf || true
 ldconfig
 apt-get clean
 # resolv.conf is finalized host-side by sirius_chroot_end (stub symlink);

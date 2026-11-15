@@ -59,6 +59,11 @@ ln -sf /usr/share/zoneinfo/Asia/Shanghai /etc/localtime
 echo "Asia/Shanghai" > /etc/timezone
 systemctl set-default multi-user.target
 systemctl enable $SIRIUS_BASE_UNITS orbital || true
+# Device firmware lives on the system partition and is bind-mounted over
+# /lib/firmware at boot.  The distro firmware pulled in as Recommends
+# (wireless-regdb <- network-manager, alsa-topology-conf <- alsa/pipewire)
+# is shadowed by it and unused; drop it so the rootfs ships no firmware.
+apt-get purge -y wireless-regdb alsa-topology-conf || true
 ldconfig
 apt-get clean
 # resolv.conf is finalized host-side by sirius_chroot_end (stub symlink);
