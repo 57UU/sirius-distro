@@ -13,6 +13,4 @@ Type=oneshot
 RemainAfterExit=yes
 TimeoutStartSec=45
 ExecStartPre=-/usr/bin/pkill -9 -x btmgmt
-ExecStart=/usr/local/sbin/sirius-bt-addr
-[Install]
-WantedBy=bluetooth.service
+ExecStart=/mnt/sysmod/glue/bin/sirius-bt-addr

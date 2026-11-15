@@ -8,6 +8,4 @@ Wants=bluetooth.service
 [Service]
 Type=oneshot
 TimeoutStartSec=30
-ExecStart=/usr/local/sbin/sirius-bt-auto
-[Install]
-WantedBy=multi-user.target
+ExecStart=/mnt/sysmod/glue/bin/sirius-bt-auto

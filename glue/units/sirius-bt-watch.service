@@ -10,7 +10,4 @@ After=bluetooth.service multi-user.target
 Type=simple
 Restart=always
 RestartSec=5
-ExecStart=/usr/local/sbin/sirius-bt-watch
-
-[Install]
-WantedBy=multi-user.target
+ExecStart=/mnt/sysmod/glue/bin/sirius-bt-watch

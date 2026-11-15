@@ -22,12 +22,12 @@ hci0   02:57:55:08:5E:02
 ## 3. 落点（本库改了哪里）
 
 ```text
-WiFi：rootfs/overlay/etc/systemd/network/10-wlan0.link（udev 层钉死）
+WiFi：glue/network/10-wlan0.link（随 kernel.img 打包，udev 层钉死；rootfs 不再自带）
 蓝牙：firmware/qca/crnv21.bin.sirius → /lib/firmware/qca/crnv21.bin
       （NVM tag 2 烤地址，见 §4；sirius_firmware_pre/post 烤入 + md5）
-      rootfs/overlay/etc/systemd/system/bt-addr.service（best-effort 守卫）
-rootfs/build-server.sh / build-gnome.sh：apt 加 bluez，各 enable 行加 bt-addr
-rootfs/overlay/usr/local/sbin/sirius-bt-auto：只做 power on
+      glue/units/bt-addr.service（随 kernel.img，best-effort 守卫）
+rootfs/build-server.sh / build-gnome.sh：apt 加 bluez；设备相关 unit 由 system 分区 glue 提供
+glue/bin/sirius-bt-auto：只做 power on
 ```
 
 ## 4. 蓝牙：NVM 烤地址（mgmt 路径已证伪）
@@ -71,7 +71,7 @@ rootfs/overlay/usr/local/sbin/sirius-bt-auto：只做 power on
 
 ```text
 机制（boot/initrd/initramfs/init_functions.sh 新增 apply_persist_macs，跟 bind_sysmod 后对新 root 执行）：
-- WiFi：校验文本地址（12 位 hex、单播、非零）→ 写 <新root>/etc/systemd/network/10-wlan0.link，udev 首见 wlan0 即生效。
+- WiFi：校验文本地址（12 位 hex、单播、非零）→ 写 <新root>/etc/systemd/network/10-wlan0.link，udev 首见 wlan0 即生效（rootfs 不再自带该文件；打包的 glue/network/10-wlan0.link 只在 initrd 未写入时兜底）。
 - 蓝牙：校验 bt.mac（6 字节、非零），与 vendor crnv21.bin 0x14 处比对，有差异才短暂 remount rw 打补丁再改回 ro。
 - 幂等：一致零写入（实测第二轮两条都是 already）；读不到保留 baked-in LAA（fail-soft）。
 - 暂存走 /run/persistmac（initramfs 无 /tmp）。

@@ -72,8 +72,8 @@ recover() {
 		sleep 1
 		i=$((i + 1))
 	done
-	if [ -x /usr/local/sbin/sirius-bt-addr ]; then
-		/usr/local/sbin/sirius-bt-addr || true
+	if [ -x /mnt/sysmod/glue/bin/sirius-bt-addr ]; then
+		/mnt/sysmod/glue/bin/sirius-bt-addr || true
 	fi
 
 	# A chip that wedged was in use, so restore the pre-crash power

@@ -11,7 +11,4 @@ Type=simple
 # uimwatch exits after modem restart / QRTR reconnect; restart keeps it listening
 Restart=always
 RestartSec=5
-ExecStart=/usr/local/bin/uimwatch
-
-[Install]
-WantedBy=multi-user.target
+ExecStart=/mnt/sysmod/glue/bin/uimwatch

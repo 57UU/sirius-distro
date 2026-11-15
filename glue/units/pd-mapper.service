@@ -3,7 +3,5 @@ Description=Qualcomm PD mapper service
 After=qrtr-ns.service
 Wants=qrtr-ns.service
 [Service]
-ExecStart=/usr/local/bin/pd-mapper
+ExecStart=/mnt/sysmod/glue/bin/pd-mapper
 Restart=always
-[Install]
-WantedBy=multi-user.target

@@ -13,6 +13,13 @@
 #include <stdlib.h>
 #include <stdio.h>
 
+/* The trigger script lives in the system-partition glue store (it ships with
+ * kernel.img), so the path is a compile-time constant.  Override with
+ * -DSIRIUS_MODEM_UIM=... for local testing (e.g. a /usr/local/bin copy). */
+#ifndef SIRIUS_MODEM_UIM
+#define SIRIUS_MODEM_UIM "/mnt/sysmod/glue/bin/sirius-modem-uim"
+#endif
+
 static GMainLoop *loop = NULL;
 
 static void
@@ -22,7 +29,7 @@ on_event (QmiClientUim *client, gpointer output, gpointer user_data)
     printf ("EVENT %s\n", name);
     fflush (stdout);
     /* 事件触发后做正事（后台跑，不阻塞事件循环） */
-    if (system ("/usr/local/bin/sirius-modem-uim >/dev/null 2>&1 &") < 0)
+    if (system (SIRIUS_MODEM_UIM " >/dev/null 2>&1 &") < 0)
         perror ("system");
 }
 

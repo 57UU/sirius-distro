@@ -4,8 +4,9 @@
 #   R         target tree being built
 #   FIRMWARE  $DISTRO/firmware
 #   DSP_BIN   $DISTRO/rootfs/dsp-bin
-#   Kernel modules + firmware live in the system-partition store
-#   (kernel/build-kernel-img.sh), not in the rootfs tree.
+#   Kernel modules + firmware + kernel-coupled device glue (units/scripts/udev/
+#   module-load/UCM) live in the system-partition store (kernel/build-kernel-img.sh),
+#   not in the rootfs tree; this tree only keeps a 4-line generator stub.
 # Flavor-specific bits (desktop packages, DM login, service enables)
 # stay in each build-*.sh chroot section.
 
@@ -61,7 +62,7 @@ export SIRIUS_BASE_PKGS
 # Shared service enables for every flavor: each build-*.sh runs
 # `systemctl enable $SIRIUS_BASE_UNITS <flavor-extra>` (server: orbital;
 # gnome: gdm). Flavor lines must not repeat these.
-SIRIUS_BASE_UNITS=${SIRIUS_BASE_UNITS:-"ssh systemd-networkd systemd-resolved rmtfs tqftpserv pd-mapper adsprpcd-rootpd adsprpcd-audiopd adsprpcd-sensorspd wifi-shutdown bluetooth bt-addr systemd-timesyncd NetworkManager ModemManager sirius-modem-uim sirius-modem-uim.timer sirius-modem-uim-watch sirius-bt-auto sirius-bt-watch sirius-wifi-auto.timer sirius-zram.service sirius-audio-init"}
+SIRIUS_BASE_UNITS=${SIRIUS_BASE_UNITS:-"ssh systemd-networkd systemd-resolved rmtfs tqftpserv bluetooth systemd-timesyncd NetworkManager ModemManager"}
 export SIRIUS_BASE_UNITS
 # Common device base for every flavor. Static files live in rootfs/overlay/
 # (edit there, not here); this only copies them in, fixes exec bits, and
@@ -77,19 +78,11 @@ sirius_overlay() {
   # NetworkManager 只加载属主 root 且权限 600 的 keyfile，overlay 里带过来的
   # 权限不符合就会被静默忽略（表现为 gsm 连接不存在）。
   chmod 600 $R/etc/NetworkManager/system-connections/*.nmconnection 2>/dev/null || true
-  cp -f $DSP_BIN/pd-mapper $R/usr/local/bin/pd-mapper
-  chmod 755 $R/usr/local/bin/pd-mapper
-  cp -f $DSP_BIN/adsprpcd $R/usr/local/bin/adsprpcd
-  chmod 755 $R/usr/local/bin/adsprpcd
-  # 蜂窝 bring-up 工具（预编译随仓库走，做法同 rootfs/powerd-pkg；
-  # 源码在 src/modem/）。缺了它们 sirius-modem-uim 会因找不到命令而失效。
-  MODEM_PKG=${MODEM_PKG:-$DISTRO/rootfs/modem-pkg}
-  # 用 -f 而不是 -x：仓库在 Windows/NTFS 上检出时可能丢掉可执行位，
-  # 真正的权限由下面的 chmod 755 决定。
-  test -f $MODEM_PKG/uimsel   || { echo "missing $MODEM_PKG/uimsel"; exit 1; }
-  test -f $MODEM_PKG/uimwatch || { echo "missing $MODEM_PKG/uimwatch"; exit 1; }
-  cp -f $MODEM_PKG/uimsel $MODEM_PKG/uimwatch $R/usr/local/bin/
-  chmod 755 $R/usr/local/bin/uimsel $R/usr/local/bin/uimwatch
+  # 设备/内核耦合的可执行文件（adsprpcd/pd-mapper/uimsel/uimwatch）已迁到
+  # system 分区 glue（glue/bin，随 kernel.img 升级；见 docs/KERNEL-IMG-STORE.md）。
+  # rootfs 只保留 adsprpcd 运行期 dlopen 的 FastRPC 支持库：
+  #   /usr/local/lib/{libadsprpc,libadsp_default_listener}.so*
+  #   /usr/local/lib/sirius-dsp/libyaml-0.so.2*
   mkdir -p $R/usr/local/lib
   cp -f $DSP_BIN/libadsp_default_listener.so.1.0.0 $DSP_BIN/libadsprpc.so.1.0.0 $R/usr/local/lib/
   chmod 644 $R/usr/local/lib/libadsp_default_listener.so.1.0.0 $R/usr/local/lib/libadsprpc.so.1.0.0
@@ -107,8 +100,22 @@ sirius_overlay() {
   ln -sf libyaml-0.so.2.0.9 $DSP_LIB/libyaml-0.so.2
   # overlay 里的脚本在 git 里存的是 644（Windows 检出会丢可执行位），
   # 统一在这里补 755。新增 overlay 脚本记得加进这个列表，否则 systemd
-  # 启动时会报 Permission denied。
-  chmod 755 $R/usr/local/sbin/sirius-screen $R/usr/local/sbin/sirius-remodeset $R/usr/local/sbin/sirius-bt-auto $R/usr/local/sbin/sirius-bt-watch $R/usr/local/sbin/sirius-wifi-add $R/usr/local/sbin/safe-reboot $R/usr/local/bin/wifi-shutdown $R/usr/local/sbin/sirius-otg $R/usr/local/sbin/sirius-bt-addr $R/usr/local/sbin/sirius-wifi-auto $R/usr/local/sbin/sirius-zram $R/usr/local/bin/sirius-modem-uim $R/usr/local/sbin/sirius-audio-refresh
+  # 启动时会报 Permission denied。设备/kernel 耦合的脚本已迁到 system
+  # 分区 glue（glue/bin，由 kernel/build-kernel-img.sh 打包），不在此列。
+  chmod 755 $R/usr/local/sbin/sirius-screen $R/usr/local/sbin/sirius-remodeset $R/usr/local/sbin/sirius-wifi-add $R/usr/local/sbin/safe-reboot $R/usr/local/sbin/sirius-otg
+  # rootfs 侧唯一的 glue 入口：4 行 stub（真正实现/清单都在 system 分区，
+  # 随 kernel.img 升级；见 docs/KERNEL-IMG-STORE.md）。
+  GLUE_STUB=$R/usr/lib/systemd/system-generators/sirius-kernel-glue
+  test -f "$GLUE_STUB" || { echo "missing glue generator stub $GLUE_STUB"; exit 1; }
+  chmod 755 "$GLUE_STUB"
+  # systemd preset rules / unit files are read as root but keep them 0644 so
+  # a Windows/NTFS checkout mode does not leak into the shipped image.
+  chmod 644 $R/etc/systemd/system-preset/*.preset 2>/dev/null || true
+  # 有文档记录的手动命令保持旧路径可用；实现确实在 system 分区。
+  mkdir -p $R/usr/local/sbin
+  for _n in sirius-audio-refresh sirius-bt-watch sirius-wifi-auto sirius-zram; do
+    ln -sf /mnt/sysmod/glue/bin/$_n $R/usr/local/sbin/$_n
+  done
   mkdir -p $R/var/lib/rmtfs
   ln -sf /dev/disk/by-partlabel/modemst1 $R/var/lib/rmtfs/modem_fs1
   ln -sf /dev/disk/by-partlabel/modemst2 $R/var/lib/rmtfs/modem_fs2

@@ -6,8 +6,9 @@
 #
 # External inputs (fail fast if missing):
 #   SIRIUS_BASE  pristine debian-trixie arm64 tree (e.g. linuxcontainers rootfs)
-#   Kernel modules + firmware are NOT baked here; they live in the system-partition
-#   store built by kernel/build-kernel-img.sh (see docs/KERNEL-IMG-STORE.md).
+#   Kernel modules + firmware + device glue (units/scripts/udev/UCM) are NOT
+#   baked here; they live in the system-partition store built by
+#   kernel/build-kernel-img.sh (see docs/KERNEL-IMG-STORE.md).
 #   SIRIUS_WORK  scratch/output dir for the tree (default: <distro>/workspace/build/rootfs)
 # Run on x86_64 (qemu-user + binfmt) or aarch64 Linux (native, no qemu); needs sudo:
 #   sudo SIRIUS_BASE=/path/to/base ./build-gnome.sh

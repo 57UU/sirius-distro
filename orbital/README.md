@@ -29,7 +29,7 @@ sirius 实测映射（`orbital.service` 已按此配好，见 rootfs/overlay）�
 缩放   QT_SCALE_FACTOR=2.2；以 root 跑（input/backlight/DRM master 都要权）
 ```
 
-以上 `sirius-*` 节点由 `rootfs/overlay/etc/udev/rules.d/70-sirius-input.rules` 按设备名生成。
+以上 `sirius-*` 节点由 `glue/udev/rules.d/70-sirius-input.rules`（随 `kernel.img` 打进 system 分区）按设备名生成。
 不要写死 `/dev/input/eventN`：新增输入设备（例如 2.1 的振动马达 spmi_haptics）会让编号整体错位。
 
 注意：设置持久化走固定文件 /etc/orbital/Orbital.conf（显式 IniFormat 路径，不依赖 $HOME——systemd 服务默认没有 HOME，用 QSettings 用户域会静默回默认值，踩过）。

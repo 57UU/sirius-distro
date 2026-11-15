@@ -1,0 +1,18 @@
+# Units shipped in the system-partition glue store and their enablement target.
+# Format: <unit> <target>.  The build turns this into manifest `wants` lines;
+# systemd then gets the .wants symlinks from /run/systemd/generator, so an
+# enablement change only needs a new system.img (never a rootfs reflash).
+adsprpcd-audiopd.service        multi-user.target
+adsprpcd-rootpd.service         multi-user.target
+adsprpcd-sensorspd.service      multi-user.target
+bt-addr.service                 bluetooth.service
+pd-mapper.service               multi-user.target
+sirius-audio-init.service       multi-user.target
+sirius-bt-auto.service          multi-user.target
+sirius-bt-watch.service         multi-user.target
+sirius-modem-uim.service        multi-user.target
+sirius-modem-uim.timer          timers.target
+sirius-modem-uim-watch.service  multi-user.target
+sirius-wifi-auto.timer          timers.target
+sirius-zram.service             multi-user.target
+wifi-shutdown.service           multi-user.target

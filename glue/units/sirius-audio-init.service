@@ -10,10 +10,14 @@ Description=Sirius speaker route init (UCM HiFi/Speaker)
 # the same Restart covers the route once the card appears.
 After=sound.target dev-snd-controlC0.device multi-user.target
 Requires=dev-snd-controlC0.device
-ConditionPathExists=/usr/share/alsa/ucm2/SE/SE.conf
+# UCM profile lives in the system-partition glue store (driver-coupled).
+ConditionPathExists=/mnt/sysmod/glue/alsa/ucm2/SE/SE.conf
 
 [Service]
 Type=oneshot
+# UCM lookup uses the stock /usr/share/alsa/ucm2 path; glue's tmpfiles.d
+# symlinks SE/ there (adding a second config root via ALSA_CONFIG_UCM2 would
+# hide the distro's top-level ucm.conf, so don't).
 ExecStart=/usr/bin/alsaucm -c SE set _verb HiFi set _enadev Speaker
 # WirePlumber/ACP already probed the card the instant it appeared, while the
 # route above was still off; that probe fails (-EINVAL from snd_pcm_open) and
@@ -21,12 +25,9 @@ ExecStart=/usr/bin/alsaucm -c SE set _verb HiFi set _enadev Speaker
 # shows "Dummy Output" — see docs/AUDIO-BRINGUP.md §6). ACP never re-probes, so
 # re-create the device now that the route is in place. Harmless when a sink
 # already exists or nobody is logged in.
-ExecStartPost=-/usr/local/sbin/sirius-audio-refresh
+ExecStartPost=-/mnt/sysmod/glue/bin/sirius-audio-refresh
 RemainAfterExit=yes
 # Card probes late (ADSP + userspace PDs take ~30s); first-boot run may hit
 # "no soundcards found". Retry with backoff until the UCM route sticks.
 Restart=on-failure
 RestartSec=15
-
-[Install]
-WantedBy=multi-user.target

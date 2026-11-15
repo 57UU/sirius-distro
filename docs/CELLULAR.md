@@ -261,7 +261,7 @@ method=auto
 
 ## 7. 工具
 
-**生产组件（随镜像发布）**：源码在 `src/modem/`，产物在 `rootfs/modem-pkg/`，由 `rootfs/sirius-device.sh` 的 `sirius_overlay()` 装进 `/usr/local/bin/`（同 `rootfs/powerd-pkg`）。
+**生产组件（随镜像发布）**：源码在 `src/modem/`，预编译产物在 `glue/bin/`（随 `kernel.img` 打进 system 分区，升级不用重刷 rootfs）；`uimwatch` 的触发路径是编译期宏 `SIRIUS_MODEM_UIM`。重编方法见 `glue/bin/README.md`。
 
 | 文件 | 用途 |
 |---|---|

@@ -40,7 +40,7 @@ hci0（内核，管理接口 MGMT）
               unbind/bind 硬复位 + 重配地址 + 上电（§5/§7）
 ```
 
-BD 地址来源（`/usr/local/sbin/sirius-bt-addr`）：persist 分区（mmcblk0p68/69）`wlan_bt/bt.mac`（6 字节）；读不到退回脚本里的 LAA `02:57:55:08:5E:02`。NVM（crnv21.bin）自带出厂地址，正常只做**校验**，不一致才下发。
+BD 地址来源（`glue/bin/sirius-bt-addr`，随 kernel.img 打包）：persist 分区（mmcblk0p68/69）`wlan_bt/bt.mac`（6 字节）；读不到退回脚本里的 LAA `02:57:55:08:5E:02`。NVM（crnv21.bin）自带出厂地址，正常只做**校验**，不一致才下发。
 
 ---
 

@@ -10,6 +10,3 @@ OnBootSec=30s
 OnUnitActiveSec=60s
 AccuracySec=1s
 Unit=sirius-modem-uim.service
-
-[Install]
-WantedBy=timers.target

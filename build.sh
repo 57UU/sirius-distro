@@ -7,7 +7,7 @@
 # 用法:
 #   ./build.sh initrd        initramfs -> workspace/build/initrd.cpio.gz
 #   ./build.sh boot          U-Boot    -> build/boot.img（中间件 workspace/build/uboot/）
-#   ./build.sh kernel        模块+固件 -> build/kernel.img（需先 ./build.sh initrd）
+#   ./build.sh kernel        模块+固件+内核耦合 glue -> build/kernel.img（需先 ./build.sh initrd）
 #   ./build.sh rootfs-gnome  构建+打包 GNOME rootfs（需 sudo + SIRIUS_BASE）
 #   ./build.sh rootfs-server 构建+打包 server rootfs（需 sudo + SIRIUS_BASE）
 #   ./build.sh all           依次 initrd -> boot -> kernel -> rootfs-gnome -> rootfs-server

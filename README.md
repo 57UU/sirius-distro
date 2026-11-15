@@ -10,6 +10,7 @@ rootfs/     rootfs 烘焙：overlay（开机会拷进 / 的文件）+ 构建脚�
 src/        自研源码（sirius-remodeset）；第三方源码只留获取说明
 orbital/    上游仪表盘（获取说明，用于server系统的简易管理GUI）
 kernel/     内核区：build-kernel-img.sh（system 分区仓库打包）+ linux-sirius/（上游内核submodule，57UU/linux-sirius feat/sirius-7.2，需git submodule update --init）
+glue/       内核/设备耦合 userspace 层（unit/脚本/设备守护二进制/udev/模块加载/ALSA UCM/manifest）：随 kernel.img 打进 system 分区，升级内核相关服务只刷 system
 docs/       相关文档以及一些修复经验
 ```
 制作过程见：https://blog.57u.tech/2026/03/18/install-linux-on-android-device-mi8se/
@@ -27,12 +28,15 @@ fastboot flash boot boot.img
 
 只换内核时不用重刷 boot，只刷 system 即可。
 
-## step2：刷写 system（kernel.img：内核+模块+固件）
+## step2：刷写 system（kernel.img：内核+模块+固件+内核耦合服务）
 
-内核模块和设备固件在 system 分区，刷入：
+内核模块、设备固件，以及随内核走的 systemd 服务/udev 规则/ALSA UCM（`glue/`）都在 system 分区，刷入：
+
 ```bash
 fastboot flash system kernel.img
 ```
+
+以后内核/驱动相关的升级只需重刷这一项，不用重刷 rootfs；但**首次引入 glue 的版本需要同时重刷下面的 rootfs**（rootfs 里只保留一个 4 行转发 stub，详见 `docs/KERNEL-IMG-STORE.md`）。
 
 ## step3：刷写 rootfs.img
 解压出simg文件
@@ -118,7 +122,7 @@ charging / battery profile / SMB1355: see `docs/CHARGING.md`.
 ```bash
 ./build.sh initrd        # initramfs  -> workspace/build/initrd.cpio.gz
 ./build.sh boot          # U-Boot     -> build/boot.img
-./build.sh kernel        # 模块+固件  -> build/kernel.img（需先 initrd）
+./build.sh kernel        # 模块+固件+glue -> build/kernel.img（需先 initrd）
 ./build.sh rootfs-gnome  # GNOME rootfs -> build/debian-trixie-sirius-gnome-<日期时间>.simg
 ./build.sh rootfs-server # server rootfs -> build/debian-trixie-sirius-server-<日期时间>.simg
 ./build.sh all           # initrd -> boot -> kernel -> 两个 rootfs

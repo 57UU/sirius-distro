@@ -5,6 +5,3 @@ Description=Run sirius-wifi-auto every 5 minutes
 OnBootSec=2min
 OnUnitActiveSec=5min
 Unit=sirius-wifi-auto.service
-
-[Install]
-WantedBy=timers.target

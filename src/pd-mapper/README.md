@@ -9,7 +9,7 @@ cd pd-mapper/pd-mapper
 make CC=aarch64-linux-gnu-gcc
 ```
 
-说明：手机上的 `/usr/local/bin/pd-mapper` 是按服务器
+说明：手机上的 `/mnt/sysmod/glue/bin/pd-mapper`（原 `/usr/local/bin/pd-mapper`，已随 glue 进 system 分区）是按服务器
 `pd-mapper-src/` 说明自编译的（带 query 日志，见 docs）。
 如上游对不上我们用的版本，以手机现行二进制 + 服务器目录为准，
 差异记到这里来（TODO：核对上游版本）。

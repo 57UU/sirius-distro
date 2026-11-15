@@ -13,7 +13,7 @@
 set -u
 
 QRTR=qrtr://0
-UIMSEL=/usr/local/bin/uimsel
+UIMSEL=/mnt/sysmod/glue/bin/uimsel
 # 冷却标记（/run 是 tmpfs，重启清空）
 STAMP=/run/sirius-modem-uim.stamp
 log() { echo "sirius-modem-uim: $*"; }
