@@ -2,7 +2,7 @@
 
 `userdata` 的 rootfs 只装系统；内核模块、设备固件以及**与内核 ABI/驱动/固件耦合的 userspace 层（glue）**住 `system` 分区（`mmcblk0p79`），开机由 initrd 把仓库挂进新根。内核/模块/固件/glue 同版本一起走，因此升级这些内容只需要刷 `system` 分区，不用重刷 rootfs。
 
-> 历史：曾在 system（mmcblk0p79，sysmod）↔ vendor（mmcblk0p80，vendormod）间搬迁；2026-10-14 为 U-Boot sysboot mmc 0:4f 搬回 system；2026-10-18 名改回 sysmod（cmdline `sysmod_part=`、挂载点 `/mnt/sysmod`），旧名 `vendor_part=` 在 initrd 里仍兼容。刷机 `fastboot flash system kernel.img`。
+> 历史：曾在 system（mmcblk0p79，sysmod）↔ vendor（mmcblk0p80，vendormod）间搬迁；2026-10-14 为 U-Boot sysboot mmc 0:4f 搬回 system；2026-10-18 名改回 sysmod（cmdline `sysmod_part=`、挂载点 `/mnt/sysmod`）。刷机 `fastboot flash system kernel.img`。
 
 ## 布局（system 分区内）
 
@@ -74,7 +74,7 @@ run     <dest>   <src>
 
 ## 启动流程（boot/initrd/initramfs/init + systemd）
 
-1. `find_sysmod_dev`：用 `/dev/mmcblk0p79`（system 分区），cmdline `sysmod_part=` 可覆盖（旧名 `vendor_part=` 兼容）。
+1. `find_sysmod_dev`：用 `/dev/mmcblk0p79`（system 分区），cmdline `sysmod_part=` 可覆盖。
 2. `mount --move` 仓库进新根 `/mnt/sysmod`；再把 `lib/modules/<uname -r>`、`lib/firmware` bind 进新根。
 3. `switch_root` 后 systemd 发现 rootfs 的 4 行 stub → 执行 `/mnt/sysmod/glue/bin/sirius-kernel-glue` → 生成 `/run` 下的软链。
 4. 每步写 kmsg：`dmesg | grep -E "sysmod|sirius-glue"` 查命中分支。
