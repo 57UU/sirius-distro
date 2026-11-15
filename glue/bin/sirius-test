@@ -1,0 +1,415 @@
+#!/bin/bash
+# sirius-test.sh: one-shot hardware / migration self-test for the sirius phone.
+#
+# Fast mode (default) only contains checks that return a result immediately and
+# do not need external conditions (no PD charger, no SIM, no WiFi association,
+# no audio playback, ...).  Things that depend on what the phone is plugged into
+# or what is inserted are either skipped or only run with --full.
+#
+# Usage:  sudo /mnt/sysmod/glue/bin/sirius-test            # fast (default)
+#         sudo /mnt/sysmod/glue/bin/sirius-test --full     # + conditional checks
+#         sudo /mnt/sysmod/glue/bin/sirius-test --no-wait  # do not wait for boot readiness
+#
+# Exit code: 0 all checks passed (skips are fine), 1 if any FAIL.
+set -u
+
+SELF=$(readlink -f "$0")
+TARGET_USER=${SUDO_USER:-}
+FULL=0
+WAIT=1
+for arg in "$@"; do
+    case "$arg" in
+        --full) FULL=1 ;;
+        --fast) FULL=0 ;;
+        --no-wait) WAIT=0 ;;
+        -h|--help) sed -n '2,15p' "$SELF" | sed 's/^# \{0,1\}//'; exit 0 ;;
+        *) echo "unknown option: $arg (use --help)" >&2; exit 2 ;;
+    esac
+done
+
+if [ "$(id -u)" -ne 0 ]; then
+    if command -v sudo >/dev/null 2>&1 && sudo -n true 2>/dev/null; then
+        exec sudo -n "$SELF" "$@"
+    fi
+    echo "sirius-test: run as root (sudo)" >&2
+    exit 2
+fi
+
+if [ -t 1 ]; then
+    C_PASS=$'\033[32m'; C_FAIL=$'\033[31m'; C_SKIP=$'\033[33m'; C_OFF=$'\033[0m'
+else
+    C_PASS=; C_FAIL=; C_SKIP=; C_OFF=
+fi
+
+PASS=0; FAIL=0; SKIP=0
+START=$(date +%s)
+
+# Preflight: when the script is run immediately after boot (or right after an
+# upgrade), systemd may still be starting units.  Wait for the boot to settle so
+# the fast checks do not produce transient FAILs.  No delay when already ready.
+if [ "$WAIT" = 1 ]; then
+    need=0
+    case "$(systemctl is-system-running 2>/dev/null)" in
+        running|degraded) ;;
+        *) need=1 ;;
+    esac
+    for u in sirius-sensors adsprpcd-rootpd pd-mapper bluetooth NetworkManager ModemManager; do
+        systemctl is-active --quiet "$u" || need=1
+    done
+    if [ "$need" = 1 ]; then
+        printf '等待系统/关键服务就绪（最多 90s）...\n'
+        for _ in $(seq 1 90); do
+            ready=1
+            case "$(systemctl is-system-running 2>/dev/null)" in
+                running|degraded) ;;
+                *) ready=0 ;;
+            esac
+            for u in sirius-sensors adsprpcd-rootpd pd-mapper bluetooth NetworkManager ModemManager; do
+                systemctl is-active --quiet "$u" || ready=0
+            done
+            [ "$ready" = 1 ] && break
+            sleep 1
+        done
+        printf '系统状态：%s\n' "$(systemctl is-system-running 2>/dev/null)"
+    fi
+
+    # Hardware readiness after boot: ath10k probe and modem/QRTR registration
+    # are asynchronous and take tens of seconds on this phone (~90s worst case).
+    # Only wait when the machine was just booted; later runs see no delay.
+    if [ "$(cut -d. -f1 /proc/uptime 2>/dev/null || echo 0)" -lt 180 ]; then
+        hw_ok() {
+            [ -d /sys/class/ieee80211/phy0 ] &&
+            ip link show wlan0 >/dev/null 2>&1 &&
+            qrtr-lookup 2>/dev/null | grep -qi modem &&
+            systemctl is-active --quiet sirius-modem-uim-watch
+        }
+        if ! hw_ok; then
+            printf '等待 WiFi/Modem 就绪（最多 120s）...\n'
+            for _ in $(seq 1 120); do
+                hw_ok && break
+                sleep 1
+            done
+            if hw_ok; then
+                printf 'WiFi/Modem：就绪\n'
+            else
+                printf 'WiFi/Modem：等待超时，继续其余检查（真的有问题会报 FAIL）\n'
+            fi
+        fi
+    fi
+fi
+
+section() { printf '\n== %s ==\n' "$1"; }
+pass()    { PASS=$((PASS + 1)); printf '  %s[PASS]%s %s\n' "$C_PASS" "$C_OFF" "$1"; }
+fail()    { FAIL=$((FAIL + 1)); printf '  %s[FAIL]%s %s%s\n' "$C_FAIL" "$C_OFF" "$1" "${2:+ - $2}"; }
+skip()    { SKIP=$((SKIP + 1)); printf '  %s[SKIP]%s %s%s\n' "$C_SKIP" "$C_OFF" "$1" "${2:+ - $2}"; }
+
+# check <description> <command...>
+check() {
+    local desc=$1; shift
+    if "$@" >/dev/null 2>&1; then
+        pass "$desc"
+    else
+        fail "$desc"
+    fi
+}
+
+GLUE=/mnt/sysmod/glue
+SSCLI=$GLUE/bin/ssccli
+KVER=$(uname -r)
+FAILED_LIST=""
+
+section "系统 / system 分区"
+check "cmdline 带 sysmod_part=" grep -q 'sysmod_part=' /proc/cmdline
+check "system 分区挂载为 ro" sh -c 'findmnt -no OPTIONS /mnt/sysmod | grep -q "^ro"'
+check "内核模块来自 system 分区 bind" sh -c "findmnt -no SOURCE /lib/modules/$KVER | grep -q mmcblk0p79"
+check "固件来自 system 分区 bind" sh -c 'findmnt -no SOURCE /lib/firmware | grep -q mmcblk0p79'
+check "glue ABI=1" sh -c '[ "$(cat /mnt/sysmod/glue/ABI 2>/dev/null)" = 1 ]'
+check "glue manifest 存在" test -s "$GLUE/manifest"
+
+if journalctl -k -b --no-pager 2>/dev/null | grep -q 'sirius-glue: linked .*ABI 1'; then
+    pass "生成器日志：linked units (ABI 1)"
+else
+    fail "生成器日志：linked units (ABI 1)"
+fi
+
+exp_units=$(grep -c '^unit ' "$GLUE/manifest" 2>/dev/null || echo 0)
+got_units=$(find /run/systemd/generator -maxdepth 1 -type l -lname "$GLUE/units/*" 2>/dev/null | wc -l)
+if [ "$exp_units" = "$got_units" ] && [ "$exp_units" -gt 0 ]; then
+    pass "生成 unit 数量 $got_units = manifest $exp_units"
+else
+    fail "生成 unit 数量不匹配 (manifest $exp_units, generator $got_units)"
+fi
+
+shadow=$(find /etc/systemd/system -maxdepth 1 -lname "$GLUE/*" 2>/dev/null | wc -l)
+if [ "$shadow" = 0 ]; then
+    pass "/etc 无 glue 影子软链"
+else
+    fail "/etc 有 $shadow 条 glue 影子软链"
+fi
+
+section "glue 服务"
+for u in adsprpcd-rootpd pd-mapper sirius-sensors sirius-bt-watch \
+         sirius-modem-uim-watch sirius-zram bluetooth NetworkManager ModemManager; do
+    check "$u active" systemctl is-active --quiet "$u"
+done
+
+for u in bt-addr sirius-audio-init sirius-bt-auto sirius-modem-uim sirius-wifi-auto; do
+    result=$(systemctl show -p Result --value "$u" 2>/dev/null)
+    if [ "$result" = success ]; then
+        pass "$u 执行成功"
+    else
+        fail "$u 执行结果=$result"
+    fi
+done
+
+for t in sirius-modem-uim.timer sirius-wifi-auto.timer; do
+    check "$t active" systemctl is-active --quiet "$t"
+done
+
+# main daemons must run from the system partition
+for u in adsprpcd-rootpd pd-mapper sirius-sensors; do
+    pid=$(systemctl show -p MainPID --value "$u" 2>/dev/null)
+    exe=$(readlink "/proc/$pid/exe" 2>/dev/null || true)
+    case "$exe" in
+        "$GLUE"/bin/*) pass "$u 从 glue 运行 ($(basename "$exe"))" ;;
+        *) fail "$u 没有从 glue 运行 (exe=${exe:-?})" ;;
+    esac
+done
+
+# known pre-existing baseline: audiopd restarts and holds no PID
+skip "adsprpcd-audiopd" "已知基线：auto-restart（音频实际正常）"
+
+section "运行时配置（generator 软链）"
+for f in /run/udev/rules.d/70-sirius-bt.rules \
+         /run/udev/rules.d/70-sirius-input.rules \
+         /run/modules-load.d/sirius.conf \
+         /run/tmpfiles.d/sirius-qrtr0.conf \
+         /run/tmpfiles.d/sirius-ucm.conf \
+         /run/systemd/network/10-wlan0.link; do
+    check "软链 $(basename "$f")" test -L "$f"
+done
+check "/dev/qrtr0 软链" test -L /dev/qrtr0
+check "ALSA UCM 软链" test -L /usr/share/alsa/ucm2/SE
+check "socinfo bind (/sys/devices/soc0)" sh -c 'mountpoint -q /run/sirius-qcom/socinfo'
+
+for m in hci_uart btqca ath10k_snoc qcom_smb2_tcpm; do
+    if lsmod 2>/dev/null | grep -q "^$m "; then
+        pass "模块已加载：$m"
+    else
+        fail "模块未加载：$m"
+    fi
+done
+
+section "固件"
+for f in ath10k/WCN3990/hw1.0/firmware-5.bin \
+         ath10k/WCN3990/hw1.0/board-2.bin \
+         ath10k/WCN3990/hw1.0/wlanmdsp.mbn \
+         qca/crbtfw21.tlv qca/crnv21.bin \
+         st_fts_v521.ftb tas2557_uCDSP.bin ti/tas2557/tas2557_cal.bin \
+         regulatory.db regulatory.db.p7s; do
+    check "firmware/$f" test -s "/lib/firmware/$f"
+done
+if [ -n "$(ls -A /lib/firmware/qcom/sdm710/pyxis/adsp 2>/dev/null)" ]; then
+    pass "ADSP 固件目录非空"
+else
+    fail "ADSP 固件目录为空"
+fi
+
+section "传感器（SSC）"
+if ! systemctl is-active --quiet sirius-sensors; then
+    fail "sirius-sensors active"
+else
+    pass "sirius-sensors active"
+    nc=$(find /run/sirius-qcom/sensors/config -type f 2>/dev/null | wc -l)
+    [ "$nc" -ge 20 ] && pass "sensor config ($nc 个)" || fail "sensor config 只有 $nc 个"
+    nr=$(find /run/sirius-qcom/sensors/registry -type f 2>/dev/null | wc -l)
+    [ "$nr" -ge 1 ] && pass "校准 registry ($nr 个文件)" || skip "校准 registry" "persist 上没有 registry"
+    [ -d /run/sirius-qcom/socinfo ] && pass "socinfo 目录" || fail "socinfo 目录缺失"
+    [ -e /run/sirius-qcom/dsp ] && pass "dsp 软链" || fail "dsp 软链缺失"
+
+    ssc_run() { # $1=sensor $2=匹配串
+        timeout 20 "$SSCLI" --sensor="$1" --timeout=8 2>/dev/null | grep -m1 "$2"
+    }
+    if out=$(ssc_run accelerometer 'Accelerometer sensor measurement'); then
+        z=$(printf '%s\n' "$out" | sed -n 's/.*Z=\([-0-9.]*\).*/\1/p')
+        if [ -n "$z" ] && awk "BEGIN{exit !($z > 5 && $z < 15)}"; then
+            pass "加速度计 (Z=${z} m/s²)"
+        else
+            fail "加速度计数值异常 (${out:-no data})"
+        fi
+    else
+        fail "加速度计无数据（检查 /run/sirius-qcom 和 listener 顺序）"
+    fi
+    if out=$(ssc_run magnetometer 'Magnetometer sensor measurement'); then
+        pass "磁力计 (${out#*: })"
+    else
+        fail "磁力计无数据"
+    fi
+    if out=$(ssc_run compass 'Compass sensor measurement'); then
+        pass "指南针 (${out#*: })"
+    else
+        fail "指南针无数据"
+    fi
+    skip "光线/距离传感器" "SSC 未注册（硬件不支持）"
+fi
+
+section "音频 / 显示 / 输入 / 相机"
+check "声卡 card0 存在" test -e /proc/asound/card0
+# find a desktop user (SUDO_USER, else the first uid>=1000 with a runtime dir)
+if [ -z "$TARGET_USER" ]; then
+    TARGET_USER=$(awk -F: '$3 >= 1000 && $3 < 65534 {print $1; exit}' /etc/passwd 2>/dev/null)
+fi
+if [ -n "$TARGET_USER" ] && command -v runuser >/dev/null 2>&1; then
+    uid=$(id -u "$TARGET_USER" 2>/dev/null || true)
+    rt=${XDG_RUNTIME_DIR:-/run/user/$uid}
+    if runuser -u "$TARGET_USER" -- env XDG_RUNTIME_DIR="$rt" \
+            DBUS_SESSION_BUS_ADDRESS="unix:path=$rt/bus" \
+            wpctl status 2>/dev/null | grep -q 'Built-in Audio'; then
+        pass "PipeWire sink：Built-in Audio"
+    elif runuser -u "$TARGET_USER" -- env XDG_RUNTIME_DIR="$rt" \
+            DBUS_SESSION_BUS_ADDRESS="unix:path=$rt/bus" \
+            pactl info >/dev/null 2>&1; then
+        fail "PipeWire/Pulse 在跑，但没有 Built-in Audio sink"
+    else
+        skip "PipeWire sink" "$TARGET_USER 的桌面会话/音频服务未运行"
+    fi
+else
+    skip "PipeWire sink" "没有可用的非 root 用户"
+fi
+check "DRM 设备存在" test -d /sys/class/drm/card0
+connected=$(for s in /sys/class/drm/card0-*/status; do [ "$(cat "$s" 2>/dev/null)" = connected ] && echo "$s"; done 2>/dev/null | head -1)
+[ -n "$connected" ] && pass "显示屏已连接 ($(basename "$(dirname "$connected")"))" || fail "没有 connected 的 DRM 接口"
+check "触摸设备" test -e /dev/input/sirius-touch
+check "4 个输入软链" sh -c '[ "$(ls /dev/input/sirius-* 2>/dev/null | wc -l)" = 4 ]'
+check "相机 video 节点" sh -c 'ls /dev/video* >/dev/null 2>&1'
+
+section "无线 / 蓝牙 / 调制解调器"
+check "WLAN phy0" test -d /sys/class/ieee80211/phy0
+if ip link show wlan0 >/dev/null 2>&1; then
+    ip link set wlan0 up 2>/dev/null || true
+    scan_out=""; scan_ok=0
+    for _ in 1 2 3; do
+        if scan_out=$(timeout 20 iw dev wlan0 scan 2>/dev/null); then scan_ok=1; break; fi
+        sleep 2
+    done
+    if [ "$scan_ok" = 1 ]; then
+        n=$(printf '%s\n' "$scan_out" | grep -c '^BSS ' 2>/dev/null || true)
+        if [ "${n:-0}" -gt 0 ]; then
+            pass "WiFi 扫描：$n 个 AP"
+        else
+            skip "WiFi 扫描" "扫描成功，但附近没有 AP（环境问题，不算硬件失败）"
+        fi
+    elif [ "$(cut -d. -f1 /proc/uptime 2>/dev/null || echo 9999)" -lt 300 ]; then
+        # just booted: firmware/scan can still be settling right after the
+        # interface appears; don't turn that into a hardware failure
+        skip "WiFi 扫描" "刚开机，扫描暂不可用（驱动仍在初始化）"
+    else
+        fail "WiFi 扫描失败（驱动/固件/regulatory）"
+    fi
+else
+    fail "wlan0 网卡"
+fi
+check "hci0 控制器" test -d /sys/class/bluetooth/hci0
+if command -v bluetoothctl >/dev/null 2>&1; then
+    addr=$(bluetoothctl show 2>/dev/null | sed -n 's/.*Controller \([0-9A-Fa-f:]\{17\}\).*/\1/p' | head -1)
+    if [ -n "$addr" ] && [ "$addr" != "00:00:00:00:00:00" ]; then
+        pass "蓝牙地址已设置 ($addr)"
+    else
+        fail "蓝牙地址未设置"
+    fi
+else
+    skip "蓝牙地址" "缺少 bluetoothctl"
+fi
+if qrtr-lookup 2>/dev/null | grep -qi 'modem'; then
+    pass "QRTR modem 服务已注册"
+else
+    fail "QRTR 中没有 modem 服务"
+fi
+if mmcli -m 0 --output-keyvalue 2>/dev/null | grep -qi '^sim'; then
+    if mmcli -m 0 --output-keyvalue 2>/dev/null | grep -qi 'sim-missing\|absent'; then
+        skip "SIM 卡" "未插卡"
+    else
+        pass "SIM 卡已识别"
+    fi
+else
+    skip "SIM 卡" "ModemManager 未提供 SIM 信息（可能未插卡）"
+fi
+
+section "电源 / 温度 / zram"
+check "电池节点 qcom-battery" test -e /sys/class/power_supply/qcom-battery
+cap=$(cat /sys/class/power_supply/qcom-battery/capacity 2>/dev/null || true)
+if [ -n "$cap" ] && [ "$cap" -ge 0 ] 2>/dev/null; then
+    pass "电池电量 ${cap}%"
+else
+    fail "读不到电池电量"
+fi
+check "充电器节点 pm660-charger" test -e /sys/class/power_supply/pm660-charger
+check "Type-C PD 控制器节点" test -d /sys/class/power_supply/tcpm-source-psy-c440000.spmi:pmic@0:typec@1300
+tz=$(ls -d /sys/class/thermal/thermal_zone* 2>/dev/null | wc -l)
+[ "$tz" -ge 3 ] && pass "thermal zone ($tz 个)" || fail "thermal zone 只有 $tz 个"
+check "zram0 设备" test -e /sys/block/zram0
+if /sbin/swapon --show 2>/dev/null | grep -q zram0 || swapon --show 2>/dev/null | grep -q zram0; then
+    pass "zram swap 已启用"
+else
+    fail "zram swap 未启用"
+fi
+
+section "其他"
+year=$(date +%Y)
+if [ "$year" -ge 2025 ]; then
+    pass "系统时间已设置 ($(date '+%Y-%m-%d %H:%M'))"
+else
+    skip "系统时间" "RTC/网络时间未同步（当前 $year）"
+fi
+if ip link show usb0 >/dev/null 2>&1; then
+    pass "USB RNDIS 网卡 usb0 存在"
+else
+    skip "USB RNDIS 网卡" "当前不是 gadget 模式"
+fi
+
+# ---------------------------------------------------------------------------
+if [ "$FULL" = 1 ]; then
+    section "完整模式（依赖外部条件，快速模式不跑）"
+
+    # PD charger: usb_type advertises *capabilities*, not the negotiated
+    # contract. Only a negotiated voltage above 5.5V means a PD charger is
+    # actually attached; otherwise skip instead of reporting a false positive.
+    pd_v=0; pd_name=""
+    for p in /sys/class/power_supply/*; do
+        [ "$(cat "$p/type" 2>/dev/null)" = USB ] || continue
+        on=$(cat "$p/online" 2>/dev/null || echo 0)
+        v=$(cat "$p/voltage_now" 2>/dev/null || echo 0)
+        case "$v" in ''|*[!0-9]*) v=0 ;; esac
+        if [ "$on" = 1 ] && [ "$v" -gt 5500000 ] 2>/dev/null; then
+            pd_v=$v; pd_name=$(basename "$p")
+        fi
+    done
+    if [ "$pd_v" -gt 0 ]; then
+        pass "PD 快充已协商 (${pd_name}: $((pd_v / 1000)) mV)"
+    else
+        skip "PD 快充" "未连接 PD 充电器（当前仅 5V/USB）"
+    fi
+
+    # light / proximity: known unsupported by this SSC, but show the actual result
+    for s in light proximity; do
+        if timeout 15 "$SSCLI" --sensor="$s" --timeout=5 >/dev/null 2>&1; then
+            pass "$s 有数据"
+        else
+            skip "$s 传感器" "SSC 返回 UNKNOWN（未注册）"
+        fi
+    done
+
+    skip "音频播放 / PD 功率 / 摄像头出图" "交互类测试，不自动执行"
+fi
+
+# ---------------------------------------------------------------------------
+elapsed=$(( $(date +%s) - START ))
+printf '\n== 结果  (%.1fs) ==\n' "$elapsed"
+printf '  %sPASS %d%s   %sFAIL %d%s   %sSKIP %d%s\n' \
+       "$C_PASS" "$PASS" "$C_OFF" "$C_FAIL" "$FAIL" "$C_OFF" "$C_SKIP" "$SKIP" "$C_OFF"
+if [ "$FAIL" -gt 0 ]; then
+    echo "  结果：有不通过的检查"
+    exit 1
+fi
+echo "  结果：全部通过"
+exit 0

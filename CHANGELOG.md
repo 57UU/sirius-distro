@@ -9,7 +9,7 @@ change分为三大部分：boot,kernel,rootfs，例如 rootfs.gnome: 修复gnome
 本文档格式基于 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.0.0/)，
 本项目遵循[语义化版本规范](https://semver.org/spec/v2.0.0.html)。
 
-## [Unreleased]
+## [Unreleased](https://github.com/57UU/sirius-distro/compare/v2.1...HEAD)
 
 ### 修复
 
@@ -20,13 +20,15 @@ change分为三大部分：boot,kernel,rootfs，例如 rootfs.gnome: 修复gnome
 
 - kernel: **内核升级到 7.3.4**：底座从 Linux 7.3 更新到 7.3.4，包含多项安全性与 Bug 修复。
 - system: **内核耦合服务迁入 system 分区**：音频、蓝牙、WiFi、Modem、zram 等随内核走的服务、脚本、udev 规则和 ALSA UCM 现在打包在 system 分区（`kernel.img` 的 glue 层），rootfs 只保留一个很薄的转发入口。以后内核/驱动相关的升级只需要重刷 system，不用再重刷 rootfs；**本次更新需要一次性重刷 rootfs + system**。
-- system: **设备守护程序也搬进 system 分区**：`adsprpcd`、`pd-mapper`、`uimsel`、`uimwatch` 现在随 `kernel.img` 的 glue 层走，以后改这些设备服务只需要刷 system，不用重刷 rootfs；它们继续复用 rootfs 里的 Debian 运行库，rootfs 只保留 `adsprpcd` 用到的 FastRPC 支持库。已经带 glue 层的版本，本次只刷 system 即可。
+- system: **设备守护程序也搬进 system 分区**：`adsprpcd`、`pd-mapper`、`uimsel`、`uimwatch` 现在随 `kernel.img` 的 glue 层走，以后改这些设备服务只需要刷 system，不用重刷 rootfs；rootfs 只保留 `adsprpcd` 用到的 FastRPC 支持库。
 - rootfs: **清理冗余固件**：GNOME 镜像不再安装 `firmware-atheros`/`firmware-qcom-soc`（约 394M，运行时本来就被 system 分区的设备固件覆盖）；两种镜像在构建末尾 purge `wireless-regdb`/`alsa-topology-conf`，rootfs 不再保留固件副本。设备固件现在只来自 system 分区。
-- system: **内置无线管制数据库**：system 分区固件现在带 upstream 签名的 `regulatory.db`，开机加载后按 AP 广播的国家码生效（实测国内 2.4G ch12/13、5.15–5.25 主动扫描、5.8G 33dBm 解锁；5.5GHz 该硬件不支持）。rootfs 不再保留这份数据库。
-- system: **传感器恢复**：Sensor Core 文件服务（`hexagonrpcd`）、厂商 sensor 配置、persist 里的校准 registry（运行时只读复制到 tmpfs）和 `libssc`/`ssccli` 都随 glue 层打进 system 分区；加速度计/磁力计/指南针恢复可用（光感/距感仍不可用）。
-- rootfs: **移除失效的 `hexagonrpcd.service`**（旧实验 unit 空转刷日志），新增 `/usr/local/bin/ssccli` 软链；旧 rootfs 上的残留 unit 可 `systemctl mask hexagonrpcd` 或重刷 rootfs 清理。
+- system: **内置无线管制数据库**：system 分区固件现在带 upstream 签名的 `regulatory.db`，开机加载后按 AP 广播的国家码生效。
+- system: **传感器修复**：Sensor Core 文件服务（`hexagonrpcd`）、厂商 sensor 配置、persist 里的校准 registry（运行时只读复制到 tmpfs）和 `libssc`/`ssccli` 都随 glue 层打进 system 分区。
+- system: 新增一键自检脚本 `glue/bin/sirius-test`（`sudo /mnt/sysmod/glue/bin/sirius-test`）：覆盖 system 分区/glue/unit/固件/传感器/音频/显示/输入/无线（含 WiFi 扫描）/蓝牙/Modem/电源/zram 等即时检查；`--full` 才跑依赖外部条件的项目（PD 快充等，快速模式不包含）。脚本随 glue 进 system 分区；自带 boot-readiness preflight（--no-wait 可关）。
+- system: **FastRPC 支持库移入 glue/lib**（`libadsp_default_listener`/`libadsprpc`/`libyaml`），adsprpcd unit 用 `LD_LIBRARY_PATH=/mnt/sysmod/glue/lib` 加载；库以运行时文件名存放，不建软链。rootfs 不再携带任何 Qualcomm 私有库（`rootfs/dsp-bin/` 删除）。
+- rootfs: 不再创建任何指向 system 分区的软链；自检直接运行 `sudo /mnt/sysmod/glue/bin/sirius-test`。
 
-## [2.1] - 2026-10-23
+## [2.1](https://github.com/57UU/sirius-distro/compare/v2.0...v2.1) - 2026-10-23
 
 ### 新增
 
@@ -58,7 +60,7 @@ change分为三大部分：boot,kernel,rootfs，例如 rootfs.gnome: 修复gnome
 - kernel: **NFC 支持已移除**：确认 sirius 没有这颗设备，删掉了设备树里的 NFC 节点。
 - rootfs: 删掉了用户态的「伪自动」USB 角色跟随（`sirius-usb-bind` 及其 systemd 服务、udev 规则）。现在内核自己认线，它留着只会和内核抢角色、抢 OTG 供电。
 - rootfs: `sirius-otg` 的 `on`/`off`/`auto` 一并删除 ——角色和 OTG 供电都由内核按线缆状态自动处理，脚本只剩 `status`/`watch` 两个只读诊断命令。
-- rootfs: **移除 `sirius-reboot`**：它的 fastboot 模式进的是 U-Boot 自带 fastboot，USB 支持不完善，很容易卡在 U-Boot 里，只能长按电源冷启动恢复。刷机请用「音量下 + 电源」进原厂 fastboot；需要启动菜单时开机按音量键打断 autoboot。
+- rootfs: **移除** **`sirius-reboot`**：它的 fastboot 模式进的是 U-Boot 自带 fastboot，USB 支持不完善，很容易卡在 U-Boot 里，只能长按电源冷启动恢复。刷机请用「音量下 + 电源」进原厂 fastboot；需要启动菜单时开机按音量键打断 autoboot。
 
 ### 修复
 
@@ -68,7 +70,7 @@ change分为三大部分：boot,kernel,rootfs，例如 rootfs.gnome: 修复gnome
 - **USB-C 充电电流跟随协商结果**：充电器不再自己按「普通 USB 口」猜一个 500mA 限流，而是按谈下来的电流充。
 - gnome version:锁屏状态下按电源键现在会立即息屏，息屏后触摸屏不再误触界面，锁屏界面唤醒后不再黑屏。
 
-## [2.0] - 2026-10-17
+## [2.0](https://github.com/57UU/sirius-distro/compare/v1.3.2...v2.0) - 2026-10-17
 
 > 本次更新重做了引导方式，**升级必须换刷机流程**，请先读完「变更」中的破坏性变更条目。
 
@@ -100,7 +102,7 @@ change分为三大部分：boot,kernel,rootfs，例如 rootfs.gnome: 修复gnome
 
 - 移除 ABL 直启方案及其构建脚本。
 - vendor 分区不再用于存放内核模块与固件。
-- 移除 snd_soc_sm8250 的 modprobe 黑名单（实际声卡驱动是 sdm660-int，黑名单打空）。
+- 移除 snd\_soc\_sm8250 的 modprobe 黑名单（实际声卡驱动是 sdm660-int，黑名单打空）。
 
 ### 修复
 
@@ -115,7 +117,3 @@ change分为三大部分：boot,kernel,rootfs，例如 rootfs.gnome: 修复gnome
 ### known issue
 
 GNOME Version: 目前的电源键方案有点别扭，体验也不是很好
-
-[Unreleased]: https://github.com/57UU/sirius-distro/compare/v2.1...HEAD
-[2.1]: https://github.com/57UU/sirius-distro/compare/v2.0...v2.1
-[2.0]: https://github.com/57UU/sirius-distro/compare/v1.3.2...v2.0

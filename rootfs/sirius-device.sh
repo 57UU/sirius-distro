@@ -3,7 +3,6 @@
 # Sourced (not executed) by build-*.sh. Requires caller to set:
 #   R         target tree being built
 #   FIRMWARE  $DISTRO/firmware
-#   DSP_BIN   $DISTRO/rootfs/dsp-bin
 #   Kernel modules + firmware + kernel-coupled device glue (units/scripts/udev/
 #   module-load/UCM) live in the system-partition store (kernel/build-kernel-img.sh),
 #   not in the rootfs tree; this tree only keeps a 4-line generator stub.
@@ -80,24 +79,8 @@ sirius_overlay() {
   chmod 600 $R/etc/NetworkManager/system-connections/*.nmconnection 2>/dev/null || true
   # 设备/内核耦合的可执行文件（adsprpcd/pd-mapper/uimsel/uimwatch）已迁到
   # system 分区 glue（glue/bin，随 kernel.img 升级；见 docs/KERNEL-IMG-STORE.md）。
-  # rootfs 只保留 adsprpcd 运行期 dlopen 的 FastRPC 支持库：
-  #   /usr/local/lib/{libadsprpc,libadsp_default_listener}.so*
-  #   /usr/local/lib/sirius-dsp/libyaml-0.so.2*
-  mkdir -p $R/usr/local/lib
-  cp -f $DSP_BIN/libadsp_default_listener.so.1.0.0 $DSP_BIN/libadsprpc.so.1.0.0 $R/usr/local/lib/
-  chmod 644 $R/usr/local/lib/libadsp_default_listener.so.1.0.0 $R/usr/local/lib/libadsprpc.so.1.0.0
-  ln -sf libadsp_default_listener.so.1.0.0 $R/usr/local/lib/libadsp_default_listener.so.1
-  ln -sf libadsp_default_listener.so.1 $R/usr/local/lib/libadsp_default_listener.so
-  ln -sf libadsprpc.so.1.0.0 $R/usr/local/lib/libadsprpc.so.1
-  ln -sf libadsprpc.so.1 $R/usr/local/lib/libadsprpc.so
-  # libyaml is a private dependency of libadsprpc, not a system library: keep
-  # it out of /usr/local/lib (which ldconfig scans) and let the adsprpcd units
-  # find it via LD_LIBRARY_PATH instead.
-  DSP_LIB=$R/usr/local/lib/sirius-dsp
-  mkdir -p $DSP_LIB
-  cp -f $DSP_BIN/libyaml-0.so.2.0.9 $DSP_LIB/
-  chmod 644 $DSP_LIB/libyaml-0.so.2.0.9
-  ln -sf libyaml-0.so.2.0.9 $DSP_LIB/libyaml-0.so.2
+  # FastRPC 支持库（libadsp_default_listener/libadsprpc/libyaml）也随
+  # adsprpcd 放在 system 分区的 glue/lib，rootfs 不再携带 Qualcomm 私有库。
   # overlay 里的脚本在 git 里存的是 644（Windows 检出会丢可执行位），
   # 统一在这里补 755。新增 overlay 脚本记得加进这个列表，否则 systemd
   # 启动时会报 Permission denied。设备/kernel 耦合的脚本已迁到 system
@@ -111,13 +94,8 @@ sirius_overlay() {
   # systemd preset rules / unit files are read as root but keep them 0644 so
   # a Windows/NTFS checkout mode does not leak into the shipped image.
   chmod 644 $R/etc/systemd/system-preset/*.preset 2>/dev/null || true
-  # 有文档记录的手动命令保持旧路径可用；实现确实在 system 分区。
-  mkdir -p $R/usr/local/sbin
-  for _n in sirius-audio-refresh sirius-bt-watch sirius-wifi-auto sirius-zram; do
-    ln -sf /mnt/sysmod/glue/bin/$_n $R/usr/local/sbin/$_n
-  done
-  mkdir -p $R/usr/local/bin
-  ln -sf /mnt/sysmod/glue/bin/ssccli $R/usr/local/bin/ssccli
+  # rootfs 不为 system 分区里的命令建软链：需要时直接运行
+  # /mnt/sysmod/glue/bin/<cmd>（如 ssccli、sirius-test、sirius-bt-watch）。
   mkdir -p $R/var/lib/rmtfs
   ln -sf /dev/disk/by-partlabel/modemst1 $R/var/lib/rmtfs/modem_fs1
   ln -sf /dev/disk/by-partlabel/modemst2 $R/var/lib/rmtfs/modem_fs2

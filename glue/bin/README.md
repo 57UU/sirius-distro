@@ -6,7 +6,7 @@
 
 | 文件 | 作用 | 源码/上游 | 运行期库依赖 |
 |---|---|---|---|
-| `adsprpcd` | Qualcomm FastRPC ADSP 用户态装载服务(一式三份:rootpd/audiopd/sensorspd) | https://github.com/qualcomm/fastrpc ,自编译 `main@2026-10-02` | 动态链接 rootfs 的 glibc;`dlopen` 根分区里的 `libadsp_default_listener.so` / `libadsprpc.so` / `libyaml`(见 `rootfs/dsp-bin/README.md`) |
+| `adsprpcd` | Qualcomm FastRPC ADSP 用户态装载服务(一式三份:rootpd/audiopd/sensorspd) | https://github.com/qualcomm/fastrpc ,自编译 `main@2026-10-02` | 动态链接 rootfs 的 glibc/libbsd;`dlopen` system 分区 `glue/lib` 的 `libadsp_default_listener`/`libadsprpc`/`libyaml`(见 `../lib/README.md`) |
 | `pd-mapper` | Qualcomm PD 映射服务(读 firmware 里的 servreg `.jsn`,建 QRTR PD 映射) | https://github.com/andersson/pd-mapper ,按 `src/pd-mapper/README.md` 自编译(带 query 日志) | 动态链接 rootfs 的 `libqrtr.so.1`、`liblzma.so.5`、glibc |
 | `uimsel` | 直接发 QMI `ChangeProvisioningSession`,绕过 qmicli 的 power-off 步骤 | `../../src/modem/uimsel.c` | 动态链接 rootfs 的 `libqmi-glib.so.5`、`libqrtr-glib.so.0`、glib/gobject/gio、glibc |
 | `uimwatch` | 常驻订阅 UIM `card-status`/`slot-status`,事件触发 `sirius-modem-uim` | `../../src/modem/uimwatch.c` | 同上 |
@@ -14,6 +14,7 @@
 | `ssccli` + `libssc.so.2` | Sensor Core 读取 CLI/库(加速度计/磁力计/指南针) | https://codeberg.org/DylanVanAssche/libssc 自编译 | rootfs 的 glib/qmi/qrtr-glib + 自带 `libprotobuf-c.so.1` |
 | `libprotobuf-c.so.1` | libssc 私有依赖(rootfs 默认没有) | Debian trixie `libprotobuf-c1` |
 | `sirius-sensors-setup` | `sirius-sensors.service` 的 ExecStartPre/ExecStopPost:组装 `/run/sirius-qcom`(厂商配置 + persist registry 只读拷贝 + socinfo bind + dsp 软链) | 本目录 |
+| `sirius-test` | 一键硬件/迁移自检脚本(快速模式只做即时检查, `--full` 才跑 PD 等外部条件项目);rootfs 不建软链，直接运行 `/mnt/sysmod/glue/bin/sirius-test` | 本目录 | 依赖 rootfs 的 bash/coreutils/util-linux/iw/wpctl 等 |
 
 设计选择(2026-11-15):**不携带 libc/运行库**,设备二进制直接复用 rootfs 的
 Debian 库(glibc ABI 向下兼容;libqmi/glib 等由 `ModemManager`/`libqmi-utils` 包带到
@@ -36,7 +37,7 @@ gcc -O2 -o uimwatch uimwatch.c $(pkg-config --cflags --libs qmi-glib qrtr-glib g
 `/mnt/sysmod/glue/bin/sirius-modem-uim`;本地测试可
 `-DSIRIUS_MODEM_UIM=/usr/local/bin/sirius-modem-uim` 覆盖。
 
-`adsprpcd` 与 `pd-mapper` 的重编方式见 `rootfs/dsp-bin/README.md` 和
+`adsprpcd` 的重编方式见 `../lib/README.md`，`pd-mapper` 见 `src/pd-mapper/README.md` 和
 `src/pd-mapper/README.md`(构建机没有 arm64 开发包时可直接沿用本目录成品)。
 
 改完源码后记得把新产物替换回本目录——**这些二进制随仓库走,构建不会重新编译**。

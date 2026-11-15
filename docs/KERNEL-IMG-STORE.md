@@ -28,6 +28,8 @@ glue/
   manifest               # 构建时由 kernel/gen-glue-manifest.sh 生成，不手写
   bin/                   # 生成器实现、设备脚本、设备守护二进制（adsprpcd、pd-mapper、
                          # uimsel/uimwatch、hexagonrpcd/ssccli）及其私有 .so
+  lib/                   # 设备层私有库（FastRPC：libadsp_default_listener/libadsprpc/libyaml；
+                         # 直接以运行时文件名存放，无软链，见 glue/lib/README.md）
   units/                 # 与内核/驱动耦合的 systemd unit（含 rmtfs 的 drop-in）
   units.enable           # <unit> <target> 列表，构建时转成 manifest 的 wants 行
   udev/rules.d/          # 设备命名/自动恢复规则
@@ -105,7 +107,7 @@ fastboot flash system kernel.img && fastboot reboot
 | 改动内容 | 需要刷 |
 |---|---|
 | 内核 Image / dtb / initrd / modules / firmware | system |
-| `glue/` 里的 unit、脚本、udev 规则、模块加载、UCM、生成器实现、manifest | system |
+| `glue/` 里的 unit、脚本、设备私有库、udev 规则、模块加载、UCM、生成器实现、manifest | system |
 | rootfs 的发行版包、GNOME/Orbital、用户自建 unit | rootfs（userdata） |
 
 首次引入 glue 的版本需要**同时**刷 rootfs + system（rootfs 装 4 行 stub、删除旧位置的服务文件）；之后内核/驱动相关的升级都只刷 system。
@@ -127,7 +129,7 @@ sudo sirius-otg status
 ## rootfs 侧配合
 
 - rootfs **不再打包内核模块和设备固件**，system 分区是唯一来源；initrd 在 sysmod 缺失时虽然会回落到 rootfs 的文件，但新镜像里这些目录是空的（发行版固件 `wireless-regdb`/`alsa-topology-conf`/`firmware-atheros`/`firmware-qcom-soc` 会在 rootfs 构建末尾 purge）。
-- rootfs 只保留 4 行 generator stub、`/etc/systemd/system-preset/50-sirius-glue.preset`（防首启 preset 在 /etc 落影子软链）和 4 个手动命令软链（`/usr/local/sbin/{sirius-audio-refresh,sirius-bt-watch,sirius-wifi-auto,sirius-zram}`）+ `ssccli`（`/usr/local/bin/ssccli` → glue），构建时由 `rootfs/sirius-device.sh` 创建；这些命令的实现随 system.img 升级。
+- rootfs 只保留 4 行 generator stub 和 `/etc/systemd/system-preset/50-sirius-glue.preset`（防首启 preset 在 /etc 落影子软链），**不创建任何指向 system 分区的软链**；glue 里的命令直接运行 `/mnt/sysmod/glue/bin/<cmd>`（如 `sirius-test`、`ssccli`、`sirius-bt-watch`）。
 - 用户自己的 `/etc/systemd/system/*.service` 优先级高于 generator 输出，可正常覆盖/`systemctl mask` glue unit。
 - 仓库挂载点开机后在 `/mnt/sysmod`；改 glue 内容：重跑 `./build.sh kernel` 并 fastboot 重刷 system。
 - 开发时可在设备上临时 `mount -o remount,rw /mnt/sysmod` 改 glue，再 `systemctl daemon-reload` 让生成器重跑（重启后恢复只读）。
@@ -143,7 +145,7 @@ sudo sirius-otg status
 - `rmtfs` 的 3 个 drop-in、`70-sirius-{bt,input}.rules`、`modules-load.d/sirius.conf`、`tmpfiles.d`（qrtr0 + UCM 软链）、`10-wlan0.link`、ALSA UCM `SE/`；
 - 生成器实现本身（原计划放 rootfs 的 shim 逻辑）也在 system 分区：`/glue/bin/sirius-kernel-glue`。
 
-**rootfs 侧只留固定件**：4 行 generator stub、`/etc/systemd/system-preset/50-sirius-glue.preset`、4 个手动命令软链 + `ssccli`，以及 `adsprpcd` 运行期 `dlopen` 的 FastRPC 支持库（`rootfs/dsp-bin/`：`libadsp_default_listener`/`libadsprpc`/`libyaml`）。设备层可执行文件已迁到 `glue/bin`（见下节“设备层二进制”），发行版包、Orbital/GNOME 仍留 rootfs。
+**rootfs 侧只留固定件**：4 行 generator stub、`/etc/systemd/system-preset/50-sirius-glue.preset`；设备层可执行文件和 FastRPC 私有库都在 system 分区（`glue/bin`、`glue/lib`，见下节“设备层二进制”），发行版包、Orbital/GNOME 仍留 rootfs。
 
 **机制**：`build-kernel-img.sh` 打包 glue，并用 `gen-glue-manifest.sh` 生成 manifest（`abi/unit/dropin/wants/run`，构建期校验）；开机 initrd 挂好 `/mnt/sysmod` 后，stub exec 生成器，生成器把 unit/wants 链到 `/run/systemd/generator/`、把 udev/modules-load/tmpfiles/network 配置链到对应 `/run` 目录。glue/manifest 缺失或 ABI 不符时只打 kmsg 并继续启动（设备服务降级，SSH 可用）。
 

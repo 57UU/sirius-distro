@@ -115,6 +115,9 @@ cp -a "$GLUE/." "$STAGE/glue/"
 chmod 755 "$STAGE"/glue/bin/* 2>/dev/null || true
 # Private .so files live next to the binaries in glue/bin; they are data.
 chmod 644 "$STAGE"/glue/bin/*.so.* 2>/dev/null || true
+# FastRPC support libs (device layer): stored as real files under their
+# runtime names (SONAME), so no symlinks are needed.
+chmod 644 "$STAGE"/glue/lib/*.so.* 2>/dev/null || true
 chmod 644 "$STAGE"/glue/bin/README.md 2>/dev/null || true
 chmod 644 "$STAGE"/glue/units/*.service "$STAGE"/glue/units/*.timer \
          "$STAGE"/glue/units/*.d/*.conf "$STAGE"/glue/ABI 2>/dev/null || true

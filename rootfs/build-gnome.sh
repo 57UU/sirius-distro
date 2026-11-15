@@ -20,7 +20,6 @@
 # SIRIUS_PASS, device-lab convention). Change the password on first boot.
 set -e
 DISTRO="$(cd "$(dirname "$0")/.." && pwd)"
-DSP_BIN=$DISTRO/rootfs/dsp-bin
 OVERLAY=$DISTRO/rootfs/overlay
 POWERKEY_PKG=$DISTRO/rootfs/powerkey-pkg
 WORK=${SIRIUS_WORK:-${SCRATCH:-$DISTRO/workspace/build}/rootfs}
