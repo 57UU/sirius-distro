@@ -1,7 +1,8 @@
 #!/bin/bash
 # build.sh: sirius-distro 统一构建入口。
 #   最终产物(.img/.simg) -> build/          （入库约定：img/simg 放 build/）
-#   中间产物(其余一切)   -> workspace/build/ （.gitignore 已忽略 workspace/）
+#   rootfs 临时构建/打包 -> /tmp/（默认；--no-tmp 改用 workspace/build/）
+#   base、其他中间产物及日志 -> workspace/build/ （.gitignore 已忽略 workspace/）
 #   主机架构自适应：aarch64 原生（无需 qemu）；其余交叉（rootfs 需 qemu-user + binfmt）。
 #
 # 用法:
@@ -14,6 +15,11 @@
 #   ./build.sh all           依次 initrd -> boot -> kernel -> rootfs-gnome -> rootfs-server
 #   ./build.sh clean         清 workspace/build/（中间产物；build/ 下的 img/simg 不动）
 #
+# 参数（可以放在目标前或后，仅影响 rootfs 目标及 all 中的 rootfs 阶段）:
+#   --tmp        在 /tmp 下建立独立的临时 rootfs 构建目录（默认）
+#   --no-tmp     在 $SCRATCH/rootfs 下构建并保留工作树
+#   成功时清理 /tmp 工作树；失败时保留，路径会打印。日志始终在 $SCRATCH/logs/。
+#
 # 环境变量:
 #   OUT_DIR      最终产物目录（默认 <repo>/build）
 #   SCRATCH      中间产物目录（默认 <repo>/workspace/build）
@@ -22,6 +28,26 @@
 #   CROSS_COMPILE 交叉前缀（默认按主机架构：aarch64 空 / 其他 aarch64-linux-gnu-）
 #   KERNEL_SRC / IMG_SIZE / IMG_LABEL / ARCH / JOBS 等透传给子脚本
 set -euo pipefail
+usage() { sed -n '2,/^set -/{ /^set -/d; s/^# \{0,1\}//; p; }' "$0"; }
+TARGET=
+ROOTFS_USE_TMP=1
+for arg in "$@"; do
+  case "$arg" in
+    --tmp) ROOTFS_USE_TMP=1 ;;
+    --no-tmp) ROOTFS_USE_TMP=0 ;;
+    help|-h|--help) usage; exit 0 ;;
+    -*) echo "未知参数：$arg" >&2; exit 2 ;;
+    *)
+      [ -z "$TARGET" ] || { echo "只能指定一个构建目标" >&2; exit 2; }
+      TARGET=$arg
+      ;;
+  esac
+done
+case "$TARGET" in
+  initrd|boot|kernel|rootfs-gnome|rootfs-server|all|clean) ;;
+  '') usage; exit 1 ;;
+  *) echo "未知构建目标：$TARGET" >&2; exit 2 ;;
+esac
 DISTRO="$(cd "$(dirname "$0")" && pwd)"
 OUT_DIR=${OUT_DIR:-$DISTRO/build}
 SCRATCH=${SCRATCH:-$DISTRO/workspace/build}
@@ -54,7 +80,7 @@ as_root() {
   # we override PATH.
   # TMPDIR is dropped on purpose: rootfs builds chroot into the tree, where the
   # host scratch path does not exist (dpkg postinsts would fail on mktemp).
-  if [ "$(id -u)" = 0 ]; then "$@"; else
+  if [ "$(id -u)" = 0 ]; then env -u TMPDIR "$@"; else
     sudo env -u TMPDIR PATH="$PATH:/usr/sbin:/sbin" \
       OUT_DIR="$OUT_DIR" SCRATCH="$SCRATCH" HOST_ARCH="$HOST_ARCH" \
       SIRIUS_BASE="${SIRIUS_BASE:-}" SIRIUS_WORK="${SIRIUS_WORK:-}" \
@@ -106,6 +132,7 @@ cmd_kernel() {
 
 cmd_rootfs() {                                    # $1 = gnome | server
   local flavor=$1 tree=debian-trixie-$1
+  local SIRIUS_WORK=${SIRIUS_WORK:-$SCRATCH/rootfs} pack_tmp mounts
   test -d "$SIRIUS_BASE" || { echo "缺 SIRIUS_BASE=$SIRIUS_BASE（原始 trixie arm64 树）"; exit 1; }
   # 非 arm64 主机需要 qemu-user 模拟（arm64 主机原生 chroot，完全不碰 qemu）
   case "$HOST_ARCH" in
@@ -117,12 +144,36 @@ cmd_rootfs() {                                    # $1 = gnome | server
         echo "注意：binfmt_misc 未见 qemu-aarch64 条目，chroot 可能跑不起来（sudo systemctl restart systemd-binfmt）"
       ;;
   esac
-  export SIRIUS_WORK="$SCRATCH/rootfs"
-  as_root bash "$DISTRO/rootfs/build-$flavor.sh"
-  # packing runs host-side (mktemp for the loop mount), so keep it in the scratch dir
-  as_root env TMPDIR="$TMPDIR" bash "$DISTRO/rootfs/pack-image.sh" "$SCRATCH/rootfs/$tree" \
-    "$OUT_DIR" "debian-trixie-sirius-$flavor-$TAG"
+  if [ "$ROOTFS_USE_TMP" = 1 ]; then
+    SIRIUS_WORK=$(mktemp -d /tmp/sirius-rootfs.XXXXXX)
+  fi
+  export SIRIUS_WORK
+  pack_tmp=$SIRIUS_WORK/tmp
+  as_root mkdir -p "$pack_tmp"
+  mkdir -p "$SCRATCH/logs"
+  fix_owner "$SCRATCH/logs"
+  ACTIVE_ROOTFS_WORK=$SIRIUS_WORK
+  ACTIVE_ROOTFS_LOG=$SCRATCH/logs/rootfs-$flavor-$TAG.log
+  echo "rootfs 工作目录：$SIRIUS_WORK"
+  echo "rootfs 日志：$ACTIVE_ROOTFS_LOG"
+  as_root bash "$DISTRO/rootfs/build-$flavor.sh" 2>&1 | tee "$ACTIVE_ROOTFS_LOG"
+  as_root env TMPDIR="$pack_tmp" bash "$DISTRO/rootfs/pack-image.sh" "$SIRIUS_WORK/$tree" \
+    "$OUT_DIR" "debian-trixie-sirius-$flavor-$TAG" 2>&1 | tee -a "$ACTIVE_ROOTFS_LOG"
   fix_owner "$OUT_DIR/debian-trixie-sirius-$flavor-$TAG.simg"
+  fix_owner "$ACTIVE_ROOTFS_LOG"
+  if [ "$ROOTFS_USE_TMP" = 1 ]; then
+    # Never recurse into a leftover bind/loop mount, even after a successful build.
+    if ! mounts=$(findmnt -rn -o TARGET); then
+      echo "无法读取挂载表，保留工作目录：$SIRIUS_WORK" >&2
+    elif printf '%s\n' "$mounts" | awk -v root="$SIRIUS_WORK" \
+        '$0 == root || index($0, root "/") == 1 {found=1} END {exit !found}'; then
+      echo "工作目录仍有挂载，保留：$SIRIUS_WORK" >&2
+    else
+      as_root rm -rf --one-file-system -- "$SIRIUS_WORK"
+    fi
+  fi
+  ACTIVE_ROOTFS_WORK=
+  ACTIVE_ROOTFS_LOG=
 }
 
 cmd_clean() {
@@ -137,7 +188,19 @@ cmd_clean() {
 # left root-owned by older sudo'd builds.
 fix_owner "$OUT_DIR" "$SCRATCH" "$TMPDIR" "$OUT_DIR"/*.img "$OUT_DIR"/*.simg
 
-case "${1:-help}" in
+ACTIVE_ROOTFS_WORK=
+ACTIVE_ROOTFS_LOG=
+build_exit() {
+  local status=$?
+  if [ "$status" -ne 0 ] && [ -n "$ACTIVE_ROOTFS_WORK" ]; then
+    echo "rootfs 构建失败，工作树保留：$ACTIVE_ROOTFS_WORK" >&2
+    echo "日志：$ACTIVE_ROOTFS_LOG" >&2
+    fix_owner "$ACTIVE_ROOTFS_LOG"
+  fi
+}
+trap build_exit EXIT
+
+case "$TARGET" in
   initrd)        cmd_initrd ;;
   boot)          cmd_boot ;;
   kernel)        cmd_kernel ;;
@@ -145,5 +208,4 @@ case "${1:-help}" in
   rootfs-server) cmd_rootfs server ;;
   all)           cmd_initrd; cmd_boot; cmd_kernel; cmd_rootfs gnome; cmd_rootfs server ;;
   clean)         cmd_clean ;;
-  *|help|-h)     sed -n '2,/^set -/p' "$0"; exit 1 ;;
 esac

@@ -236,8 +236,9 @@ fastboot flash system kernel.img && fastboot reboot
 
 **产物所有权**：`kernel` 目标最后要 chown/mkfs，所以需要 root；但 `build/` 里的最终产物
 （`*.img`/`*.simg`）会交还给调用者——`sudo ./build.sh ...` 跑完仍是当前用户所有，不会留下
-root 文件挡住后续非 root 构建、`./build.sh clean` 或 fastboot。只有 `workspace/build/` 里的
-rootfs 工作树/`base` 是有意 root 所有的（chroot 需要）。
+root 文件挡住后续非 root 构建、`./build.sh clean` 或 fastboot。rootfs 工作树和
+`workspace/build/base` 是有意 root 所有的（chroot 需要）：rootfs 默认位于 `/tmp/`，
+成功后自动清理，`--no-tmp` 则保留在 `workspace/build/rootfs/`。
 
 ## 8. 升级范围与过渡语义
 
