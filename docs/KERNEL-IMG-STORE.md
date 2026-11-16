@@ -124,7 +124,8 @@ glue/
 
 **`glue/run/` 的语义**：system 分区是 ro，不能往 `/etc` 写东西；而 systemd/NM 等
 都支持 `/run` 下的运行时配置目录，所以这类文件在镜像里放在 `glue/run/<相对 /run 的路径>`，
-开机由生成器链到 `/run/<同一路径>`。当前只有 flavor 中立项：
+开机由 `sirius-glue-setup.service` 链到 `/run/<同一路径>`，生成器只负责 unit。
+初始化服务在 udev、模块加载、sysctl、tmpfiles 和 NetworkManager 之前执行。当前只有 flavor 中立项：
 
 | 文件 | 开机链接到 | 作用 |
 |---|---|---|
@@ -162,10 +163,10 @@ glue/
 
 manifest 是 **system 镜像内部协议**：构建时 `kernel/gen-glue-manifest.sh` 从 glue 树生成，
 开机由同一镜像里的 `/glue/bin/sirius-kernel-glue` 解析。rootfs 侧只有一个转发 stub（§1），
-所以 schema 改动只影响 system.img。生成器把 manifest 翻译成运行时软链：
+所以 schema 改动只影响 system.img。manifest 由两部分消费：
 
-- `/run/systemd/generator/`：`unit` 软链、`<target>.wants/`、`<unit>.d/` drop-in；
-- `/run/` 下的运行时配置：`udev/rules.d`、`modules-load.d`、`modprobe.d`、`tmpfiles.d`、
+- 生成器只写 `/run/systemd/generator/`：`unit` 软链、`<target>.wants/`、`<unit>.d/` drop-in；
+- `sirius-glue-setup.service` 负责 `/run/` 下的运行时配置：`udev/rules.d`、`modules-load.d`、`modprobe.d`、`tmpfiles.d`、
   `systemd/network`，以及 §3 里 `glue/run/**` 的任意树。
 
 manifest schema v1（一行一条，未知类型记录后忽略，便于前向兼容）：
@@ -182,6 +183,22 @@ run     <dest>   <src>          # 链到 /run/<dest>/<basename(src)>
 只写 `/dev/kmsg` 后 `exit 0`（设备服务降级，SSH 仍可用）。`/mnt/sysmod` 是 ro，生成器只建软链、
 不存状态。
 
+**运行时配置生命周期**：`daemon-reload` 只重新生成 unit，不修改其他服务的配置。
+显式重跑 `systemctl restart sirius-glue-setup` 会根据 `/run/sirius-glue/links` 清理之前创建的
+软链，再应用当前 manifest；已被消费者替换的文件或链接会保留。配置消费者是否需要
+reload/restart 由各服务决定；正常的 system 升级仍以刷机后重启为准。
+
+**WiFi 工厂 MAC**：基础规则在 `glue/network/10-wlan0.link`，初始化服务只读挂载
+persist（`ro`，允许 ext4 在需要时回放日志恢复一致性），读取有效工厂地址后写入
+`/run/systemd/network/10-wlan0.link.d/50-factory-mac.conf`。drop-in 仅设置
+`MACAddressPolicy=none` 和 `MACAddress=`，不会覆盖基础规则的匹配、命名等属性。
+读不到有效地址时不生成该 drop-in，保留基础规则的备用 MAC。
+
+迁移时只删除与旧 initrd 按当前工厂地址生成的内容**逐字一致**的
+`/etc/systemd/network/10-wlan0.link`。有额外设置、不同地址、空文件或软链的用户覆盖会保留；
+存在用户主 `.link` 时不生成工厂 drop-in，避免反过来覆盖用户设置。
+用户也可以在 `/etc/systemd/network/10-wlan0.link.d/90-user.conf` 中覆盖工厂属性。
+
 **enablement 与 `[Install]`**：glue unit **故意不写 `[Install]`**，启用关系只由
 `units.enable` → manifest `wants` → generator 表达；首启 preset（§1）负责让 `/etc` 保持干净。
 新增 glue unit 时按 `sirius-*` / `adsprpcd-*` 规范命名即可被 preset 覆盖。
@@ -196,9 +213,11 @@ run     <dest>   <src>          # 链到 /run/<dest>/<basename(src)>
    `expand-part` 扩分区，再 `mount -o ro`、`mount --move` 进新根 `/mnt/sysmod`。
 2. bind `lib/modules/<uname -r>`、`lib/firmware` 进新根（缺失时回落 rootfs，但新 rootfs 里
    这些目录是空的——发行版固件包已在 rootfs 构建末尾 purge）。
-3. `switch_root` 后 systemd 执行 rootfs 的 4 行 stub → 生成器按 manifest 建 `/run` 软链 →
-   各 unit 从 `/run/systemd/generator` 启动，设备配置从 `/run` 流动。
-4. 每步写 kmsg：`dmesg | grep -E "sysmod|sirius-glue"`。
+3. initrd 只处理蓝牙 NVM，不再往 rootfs 的 `/etc` 生成 WiFi `.link`。
+4. `switch_root` 后 systemd 执行 rootfs 的 stub → 生成器生成 unit →
+   `sirius-glue-setup.service` 在 udev 等消费者前准备 `/run` 配置、迁移旧 WiFi 文件并生成工厂 MAC drop-in。
+5. 启动日志：`dmesg | grep -E "sysmod|sirius-glue"`；初始化服务日志见
+   `journalctl -b -u sirius-glue-setup`。
 
 ## 7. 构建与刷机
 
@@ -249,7 +268,7 @@ rootfs 工作树/`base` 是有意 root 所有的（chroot 需要）。
 构建侧（不碰设备）：
 
 ```bash
-bash scripts/test-glue.sh                     # 全部通过（当前 84 项）
+bash scripts/test-glue.sh                     # unit/运行时分离、配置清理、MAC 与迁移回归测试
 # 挂 build/kernel.img 检查：/glue 全 root:root、cellular.nmconnection 0600、
 # 二进制 RUNPATH 为 $ORIGIN/../lib、manifest 的 run 行与 §3 一致
 ```

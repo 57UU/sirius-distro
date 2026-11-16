@@ -153,7 +153,7 @@ for u in adsprpcd-rootpd pd-mapper sirius-sensors sirius-bt-watch \
     check "$u active" systemctl is-active --quiet "$u"
 done
 
-for u in bt-addr sirius-audio-init sirius-bt-auto sirius-modem-uim sirius-wifi-auto; do
+for u in sirius-glue-setup bt-addr sirius-audio-init sirius-bt-auto sirius-modem-uim sirius-wifi-auto; do
     result=$(systemctl show -p Result --value "$u" 2>/dev/null)
     if [ "$result" = success ]; then
         pass "$u 执行成功"
@@ -179,7 +179,7 @@ done
 # known pre-existing baseline: audiopd restarts and holds no PID
 skip "adsprpcd-audiopd" "已知基线：auto-restart（音频实际正常）"
 
-section "运行时配置（generator 软链）"
+section "运行时配置（glue 初始化服务）"
 for f in /run/udev/rules.d/70-sirius-bt.rules \
          /run/udev/rules.d/70-sirius-input.rules \
          /run/modules-load.d/sirius.conf \
@@ -188,6 +188,11 @@ for f in /run/udev/rules.d/70-sirius-bt.rules \
          /run/systemd/network/10-wlan0.link; do
     check "软链 $(basename "$f")" test -L "$f"
 done
+if [ -f /run/systemd/network/10-wlan0.link.d/50-factory-mac.conf ]; then
+    check "工厂 WiFi MAC drop-in" grep -q '^MACAddress=' /run/systemd/network/10-wlan0.link.d/50-factory-mac.conf
+else
+    skip "工厂 WiFi MAC drop-in" "未读到有效工厂地址，使用基础规则或用户覆盖"
+fi
 check "/dev/qrtr0 软链" test -L /dev/qrtr0
 check "ALSA UCM 软链" test -L /usr/share/alsa/ucm2/SE
 check "socinfo bind (/sys/devices/soc0)" sh -c 'mountpoint -q /run/sirius-qcom/socinfo'
@@ -231,9 +236,21 @@ else
         timeout 20 "$SSCLI" --sensor="$1" --timeout=8 2>/dev/null | grep -m1 "$2"
     }
     if out=$(ssc_run accelerometer 'Accelerometer sensor measurement'); then
-        z=$(printf '%s\n' "$out" | sed -n 's/.*Z=\([-0-9.]*\).*/\1/p')
-        if [ -n "$z" ] && awk "BEGIN{exit !($z > 5 && $z < 15)}"; then
-            pass "加速度计 (Z=${z} m/s²)"
+        # Gravity changes axes/sign when the phone is upright or face down.
+        # Validate all three readings before computing their magnitude.
+        accel=$(printf '%s\n' "$out" | awk '
+            {
+                for (i = 1; i <= NF; i++) {
+                    if ($i !~ /^[XYZ]=/) continue
+                    split($i, p, "=")
+                    if (p[2] !~ /^[+-]?([0-9]+([.][0-9]*)?|[.][0-9]+)([eE][+-]?[0-9]+)?$/) exit
+                    v[p[1]] = p[2]
+                }
+                if (("X" in v) && ("Y" in v) && ("Z" in v))
+                    printf "%.6f", sqrt(v["X"]^2 + v["Y"]^2 + v["Z"]^2)
+            }')
+        if [ -n "$accel" ] && awk -v a="$accel" 'BEGIN{exit !(a > 5 && a < 15)}'; then
+            pass "加速度计 (|a|=${accel} m/s²)"
         else
             fail "加速度计数值异常 (${out:-no data})"
         fi
@@ -327,12 +344,13 @@ if qrtr-lookup 2>/dev/null | grep -qi 'modem'; then
 else
     fail "QRTR 中没有 modem 服务"
 fi
-if mmcli -m 0 --output-keyvalue 2>/dev/null | grep -qi '^sim'; then
-    if mmcli -m 0 --output-keyvalue 2>/dev/null | grep -qi 'sim-missing\|absent'; then
-        skip "SIM 卡" "未插卡"
-    else
-        pass "SIM 卡已识别"
-    fi
+mm_info=$(mmcli -m 0 --output-keyvalue 2>/dev/null || true)
+sim_path=$(printf '%s\n' "$mm_info" | awk '$1 == "modem.generic.sim" && $2 == ":" {print $3; exit}')
+sim_failure=$(printf '%s\n' "$mm_info" | awk '$1 == "modem.generic.state-failed-reason" && $2 == ":" {print $3; exit}')
+if [ "$sim_failure" = sim-missing ]; then
+    skip "SIM 卡" "未插卡"
+elif printf '%s\n' "$sim_path" | grep -q '^/org/freedesktop/ModemManager1/SIM/[0-9][0-9]*$'; then
+    pass "SIM 卡已识别"
 else
     skip "SIM 卡" "ModemManager 未提供 SIM 信息（可能未插卡）"
 fi

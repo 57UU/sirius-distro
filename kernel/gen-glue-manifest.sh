@@ -1,6 +1,6 @@
 #!/bin/bash
-# gen-glue-manifest.sh: generate the glue manifest consumed by
-# glue/bin/sirius-kernel-glue (schema v1).
+# gen-glue-manifest.sh: generate the internal manifest consumed by the unit
+# generator and sirius-glue-setup runtime service (schema v1).
 #
 # Usage: ./gen-glue-manifest.sh <glue-src-dir> <output-manifest>
 #

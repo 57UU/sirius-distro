@@ -13,6 +13,7 @@
 | `hexagonrpcd` | Sensor Core(SSC)文件服务,给 ADSP sensor PD 提供 config/registry/socinfo/dsp 文件 | https://github.com/linux-msm/hexagonrpc 自编译 | 仅 glibc;`libhexagonrpc` 在 `../lib` |
 | `ssccli` | Sensor Core 读取 CLI(加速度计/磁力计/指南针) | https://codeberg.org/DylanVanAssche/libssc 自编译 | 仅 glibc;libssc/protobuf-c/glib/qmi/qrtr 在 `../lib` |
 | `sirius-sensors-setup` | `sirius-sensors.service` 的 ExecStartPre/ExecStopPost:组装 `/run/sirius-qcom`(厂商配置 + persist registry 只读拷贝 + socinfo bind + dsp 软链) | 本目录 |
+| `sirius-glue-setup` | 早期准备 manifest 的 `/run` 配置，生成工厂 WiFi MAC drop-in，并迁移精确匹配的旧 `/etc` 文件 | 本目录 | 在 udev/modules-load/sysctl/tmpfiles 前运行；persist 用 `ro` 只读挂载，允许 ext4 日志恢复 |
 | `sirius-test` | 一键硬件/迁移自检脚本(快速模式只做即时检查, `--full` 才跑 PD 等外部条件项目);rootfs 不建软链，直接运行 `/mnt/sysmod/glue/bin/sirius-test` | 本目录 | 依赖 rootfs 的 bash/coreutils/util-linux/iw/wpctl 等 |
 
 设计选择：**库/ABI 层面只依赖 rootfs 的 glibc**（运行期仍会调用 rootfs 的底座命令和

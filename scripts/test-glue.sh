@@ -1,10 +1,8 @@
 #!/bin/bash
 # test-glue.sh: host-side offline test for the system-partition glue layer.
 #
-# Runs kernel/gen-glue-manifest.sh and glue/bin/sirius-kernel-glue against a
-# throwaway copy of the glue tree.  Nothing outside the temporary directory is
-# touched: the generator's /mnt/sysmod and /run roots are redirected with its
-# test-only environment hooks.
+# Exercises the unit generator and early runtime setup against a throwaway
+# glue tree. Factory data and /etc are fixtures; no partition is mounted.
 #
 # Usage: ./scripts/test-glue.sh
 set -euo pipefail
@@ -12,7 +10,9 @@ set -euo pipefail
 DISTRO=$(cd "$(dirname "$0")/.." && pwd)
 GENMAN=$DISTRO/kernel/gen-glue-manifest.sh
 GEN=$DISTRO/glue/bin/sirius-kernel-glue
-TMP=$(mktemp -d)
+SETUP=$DISTRO/glue/bin/sirius-glue-setup
+mkdir -p "$DISTRO/workspace/build/tmp"
+TMP=$(mktemp -d "${TMPDIR:-$DISTRO/workspace/build/tmp}/test-glue.XXXXXX")
 trap 'rm -rf "$TMP"' EXIT
 
 pass=0
@@ -34,10 +34,27 @@ check "manifest generated" test -s "$FIX/manifest"
 # ---- 1. happy path: every manifest record turns into the expected symlink ---
 OUT=$TMP/out1
 RUN=$TMP/run1
-mkdir -p "$OUT" "$RUN"
+ETC=$TMP/etc
+PERSIST=$TMP/persist
+mkdir -p "$OUT" "$RUN" "$ETC/systemd/network" "$PERSIST"
+printf 'wlan0=025755085e10\n' > "$PERSIST/wlan_mac.bin"
+LEGACY=$ETC/systemd/network/10-wlan0.link
+DROP=$RUN/systemd/network/10-wlan0.link.d/50-factory-mac.conf
+printf '[Match]\nOriginalName=wlan0\n\n[Link]\nMACAddress=02:57:55:08:5e:10\n' > "$LEGACY"
+setup_runtime() {
+    SIRIUS_GLUE_ROOT=$FIX SIRIUS_GLUE_RUN_ROOT=$RUN \
+        SIRIUS_GLUE_ETC_ROOT=$ETC SIRIUS_GLUE_PERSIST_ROOT=$PERSIST \
+        sh "$SETUP" 2>/dev/null
+}
 SIRIUS_GLUE_ROOT=$FIX SIRIUS_GLUE_RUN_ROOT=$RUN \
     sh "$GEN" "$OUT" 2>/dev/null
 check "generator exit 0 on valid manifest" test -d "$OUT"
+check "generator writes no runtime config" test -z "$(find "$RUN" -mindepth 1 -print -quit)"
+setup_runtime
+check "factory MAC drop-in" grep -qx 'MACAddress=02:57:55:08:5e:10' "$DROP"
+check "factory MAC disables generated MAC policy" grep -qx 'MACAddressPolicy=none' "$DROP"
+check "drop-in contains no Match override" test "$(grep -c '^\[Match\]' "$DROP" || true)" = 0
+check "exact legacy .link migrated" test ! -e "$LEGACY"
 
 units=0
 while read -r kind a b; do
@@ -108,6 +125,53 @@ if bash "$GENMAN" "$BROKEN" "$TMP/broken.manifest" >/dev/null 2>&1; then
 else
     ok
 fi
+
+# ---- 6. runtime configuration lifecycle and user overrides ----------------
+cp "$FIX/manifest" "$TMP/runtime.manifest"
+stale=$RUN/sysctl.d/60-sysrq.conf
+sed '\|^run sysctl.d |d' "$TMP/runtime.manifest" > "$FIX/manifest"
+setup_runtime
+check "removed runtime record cleans up its old link" test ! -L "$stale"
+cp "$TMP/runtime.manifest" "$FIX/manifest"
+setup_runtime
+rm "$stale"
+printf 'kernel.sysrq=0\n' > "$stale"
+setup_runtime
+check "consumer-written runtime override preserved" grep -qx 'kernel.sysrq=0' "$stale"
+sed '\|^run sysctl.d |d' "$TMP/runtime.manifest" > "$FIX/manifest"
+setup_runtime
+check "removing a record preserves consumer-written file" test -f "$stale"
+cp "$TMP/runtime.manifest" "$FIX/manifest"
+
+printf '[Match]\nOriginalName=wlan0\n\n[Link]\nMACAddress=02:57:55:08:5e:10\nMTUBytes=1400\n' > "$LEGACY"
+setup_runtime
+check "legacy file with user settings preserved" grep -qx 'MTUBytes=1400' "$LEGACY"
+check "factory drop-in does not override user settings" test ! -e "$DROP"
+printf '[Match]\nOriginalName=wlan0\n\n[Link]\nMACAddress=02:57:55:08:5e:20\n' > "$LEGACY"
+setup_runtime
+check "user MAC override preserved" grep -qx 'MACAddress=02:57:55:08:5e:20' "$LEGACY"
+check "factory drop-in does not override user MAC" test ! -e "$DROP"
+rm "$LEGACY"
+ln -s /dev/null "$LEGACY"
+setup_runtime
+check "user .link mask preserved" test -L "$LEGACY"
+check "factory drop-in does not override user mask" test ! -e "$DROP"
+rm "$LEGACY"
+
+# Invalid/missing factory data must remove a previous managed drop-in and
+# leave the base .link in place. Test the actual multicast bit (second digit).
+for value in 035755085e10 000000000000 025755085e1 invalid ''; do
+    printf 'wlan0=%s\n' "$value" > "$PERSIST/wlan_mac.bin"
+    setup_runtime
+    check "invalid MAC '$value' uses fallback" test ! -e "$DROP"
+    check "invalid MAC keeps base rule" test -L "$RUN/systemd/network/10-wlan0.link"
+done
+printf 'wlan0=A45046085E10\r\n' > "$PERSIST/wlan_mac.bin"
+setup_runtime
+check "valid unicast with odd first nibble and CRLF" grep -qx 'MACAddress=a4:50:46:08:5e:10' "$DROP"
+rm "$PERSIST/wlan_mac.bin"
+setup_runtime
+check "missing factory data removes previous drop-in" test ! -e "$DROP"
 
 echo
 echo "test-glue: $pass passed, $fail failed"

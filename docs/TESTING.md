@@ -23,9 +23,9 @@ QRTR modem 和 uim-watch 就绪（最多 120s）。已就绪时零等待，避�
   生成器 unit 数量、`/etc` 无影子软链、无 failed unit
 - **glue 服务**：常驻 unit active、oneshot `Result=success`、timer active、
   主守护进程确实从 `/mnt/sysmod/glue/bin` 运行
-- **运行时配置**：udev/modules-load/tmpfiles/network 软链、`/dev/qrtr0`、ALSA UCM
+- **运行时配置**：`sirius-glue-setup` 执行结果、udev/modules-load/tmpfiles/network 软链、工厂 WiFi MAC drop-in（没有工厂数据或存在用户主 `.link` 时 SKIP）、`/dev/qrtr0`、ALSA UCM
 - **模块/固件**：WiFi/BT/rmtfs 模块，ath10k/qca/touch/tas2557/regdb 固件，ADSP 目录
-- **传感器（SSC）**：`sirius-sensors`、runtime 树、加速度计（Z≈9.8）、磁力计、指南针
+- **传感器（SSC）**：`sirius-sensors`、runtime 树、加速度计（三轴合加速度≈9.8，不受摆放方向影响）、磁力计、指南针
 - **音频/显示/输入/相机**：声卡、PipeWire sink、DSI connected、触摸/按键软链、video 节点
 - **无线/蓝牙/Modem**：phy0/wlan0、WiFi 扫描（扫到 AP 为 PASS；扫描成功但 0 个 AP 为 SKIP；`iw scan` 本身失败为 FAIL）、hci0+蓝牙地址、QRTR modem 服务、SIM（没插卡则 SKIP）
 - **电源/温度/zram**：电池电量、充电器节点、Type-C PD 控制器、thermal zone、zram swap

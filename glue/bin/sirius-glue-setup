@@ -1,0 +1,110 @@
+#!/bin/sh
+# Prepare non-unit glue configuration before udev/modules-load/sysctl/tmpfiles.
+# Only /run is managed; /etc is reserved for user overrides, apart from the
+# exact legacy WiFi .link that initrd used to generate from the factory MAC.
+set -eu
+PATH=/usr/bin:/bin:/usr/sbin:/sbin
+
+GLUE=${SIRIUS_GLUE_ROOT:-/mnt/sysmod/glue}
+RUN=${SIRIUS_GLUE_RUN_ROOT:-/run}
+ETC=${SIRIUS_GLUE_ETC_ROOT:-/etc}
+STATE=$RUN/sirius-glue
+DROP=$RUN/systemd/network/10-wlan0.link.d/50-factory-mac.conf
+mounted=0
+
+log() { echo "sirius-glue-setup: $*" >&2; }
+cleanup() {
+    if [ "$mounted" = 1 ]; then
+        umount "$STATE/persist" || log "cannot unmount read-only persist"
+    fi
+    rm -f "$STATE/links.new" "$DROP.tmp" "$STATE/legacy-wlan0.link"
+}
+trap cleanup EXIT
+
+# Refuse a mismatched manifest before changing existing configuration.
+[ -f "$GLUE/manifest" ] || { log "missing manifest"; exit 1; }
+[ "$(head -n 1 "$GLUE/manifest")" = 'abi 1' ] || { log "unsupported manifest ABI"; exit 1; }
+mkdir -p "$STATE"
+
+valid_run_path() {
+    case "$1" in ''|/*|..|../*|*/../*|*/..) return 1 ;; esac
+}
+
+# On an explicit service restart, remove only links we previously created
+# and which still point to our source. Preserve files replaced by a consumer.
+if [ -f "$STATE/links" ]; then
+    while read -r dest src; do
+        valid_run_path "$dest" && valid_run_path "$src" || exit 1
+        if [ -L "$RUN/$dest" ] && [ "$(readlink "$RUN/$dest")" = "$GLUE/$src" ]; then
+            rm -f "$RUN/$dest"
+        fi
+    done < "$STATE/links"
+fi
+: > "$STATE/links.new"
+while read -r kind dest src; do
+    [ "$kind" = run ] || continue
+    valid_run_path "$dest" && valid_run_path "$src" || { log "invalid runtime path"; exit 1; }
+    rel=$dest/${src##*/}
+    target=$RUN/$rel
+    mkdir -p "$RUN/$dest"
+    if [ -e "$target" ] || [ -L "$target" ]; then
+        if [ ! -L "$target" ] || [ "$(readlink "$target")" != "$GLUE/$src" ]; then
+            log "keeping runtime override $target"
+            continue
+        fi
+    fi
+    ln -sfn "$GLUE/$src" "$target"
+    printf '%s %s\n' "$rel" "$src" >> "$STATE/links.new"
+done < "$GLUE/manifest"
+mv -f "$STATE/links.new" "$STATE/links"
+
+# A missing/invalid factory address leaves the system image's fallback MAC.
+rm -f "$DROP"
+persist=${SIRIUS_GLUE_PERSIST_ROOT:-}
+if [ -z "$persist" ]; then
+    part=mmcblk0p68
+    for arg in $(cat /proc/cmdline); do
+        case "$arg" in persist_part=*) part=${arg#persist_part=} ;; esac
+    done
+    mkdir -p "$STATE/persist"
+    # Raw nodes already exist from initrd; do not wait for udev partlabel links.
+    # Read-only filesystem access; allow ext4 journal recovery when needed.
+    for dev in "/dev/$part" /dev/mmcblk0p69; do
+        if mount -t ext4 -o ro "$dev" "$STATE/persist" 2>/dev/null; then
+            mounted=1
+            persist=$STATE/persist
+            break
+        fi
+    done
+fi
+hex=
+if [ -n "$persist" ] && [ -f "$persist/wlan_mac.bin" ]; then
+    hex=$(awk -F= '$1 == "wlan0" {gsub(/\r/, "", $2); print $2; exit}' "$persist/wlan_mac.bin")
+fi
+case "$hex" in ''|*[!0-9a-fA-F]*|000000000000) log "no valid factory WiFi MAC; using fallback"; exit 0 ;; esac
+[ "${#hex}" -eq 12 ] || { log "invalid factory WiFi MAC length; using fallback"; exit 0; }
+# The multicast bit is in the second hex digit of the first byte.
+second=${hex#?}
+case "$second" in [02468aceACE]*) ;; *) log "factory WiFi MAC is multicast; using fallback"; exit 0 ;; esac
+legacy_mac=$(printf '%s\n' "$hex" | sed 's/\(..\)/\1:/g;s/:$//')
+mac=$(printf '%s\n' "$legacy_mac" | tr A-F a-f)
+
+# Migrate only the exact file produced by the old initrd for this factory
+# address. A different MAC, extra settings, a mask or a symlink is user-owned.
+legacy=$ETC/systemd/network/10-wlan0.link
+printf '[Match]\nOriginalName=wlan0\n\n[Link]\nMACAddress=%s\n' "$legacy_mac" > "$STATE/legacy-wlan0.link"
+if [ -f "$legacy" ] && [ ! -L "$legacy" ] && cmp -s "$STATE/legacy-wlan0.link" "$legacy"; then
+    rm -f "$legacy"
+    log "removed legacy factory WiFi .link from /etc"
+fi
+if [ -e "$legacy" ] || [ -L "$legacy" ]; then
+    # Drop-ins are merged after the selected main .link, even one in /etc.
+    # Do not override a user-provided MAC or mask with our factory drop-in.
+    log "keeping user WiFi .link; no factory MAC drop-in generated"
+    exit 0
+fi
+mkdir -p "${DROP%/*}"
+printf '[Link]\nMACAddressPolicy=none\nMACAddress=%s\n' "$mac" > "$DROP.tmp"
+chmod 644 "$DROP.tmp"
+mv -f "$DROP.tmp" "$DROP"
+log "runtime configuration ready; factory WiFi MAC supplied by drop-in"

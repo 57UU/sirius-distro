@@ -71,7 +71,7 @@ glue/bin/sirius-bt-auto：只做 power on
 
 ```text
 机制（boot/initrd/initramfs/init_functions.sh 新增 apply_persist_macs，跟 bind_sysmod 后对新 root 执行）：
-- WiFi：校验文本地址（12 位 hex、单播、非零）→ 写 <新root>/etc/systemd/network/10-wlan0.link，udev 首见 wlan0 即生效（rootfs 不再自带该文件；打包的 glue/network/10-wlan0.link 只在 initrd 未写入时兜底）。
+- WiFi：原先由 initrd 写 /etc/systemd/network/10-wlan0.link；现已迁到 system 内的早期初始化服务，见 §9。
 - 蓝牙：校验 bt.mac（6 字节、非零），与 vendor crnv21.bin 0x14 处比对，有差异才短暂 remount rw 打补丁再改回 ro。
 - 幂等：一致零写入（实测第二轮两条都是 already）；读不到保留 baked-in LAA（fail-soft）。
 - 暂存走 /run/persistmac（initramfs 无 /tmp）。
@@ -86,3 +86,24 @@ sirius-bt-addr 改 persist 感知：与 btmgmt info 当前址一致直接 VERIFI
 - NM 扫描随机改 MAC：`wifi.scan-rand-mac-address` 默认 yes，扫描时改 wlan0 随机地址、扫完改回（日志 `set-hw-addr ... (scanning)`），实测撞停随机址（`7a:..`）致 DHCP 拿错 IP。修：`glue/run/NetworkManager/conf.d/sirius-server.conf`（随 system 分区，开机链到 `/run`）加 `[device] wifi.scan-rand-mac-address=no`。
 - 换出厂 MAC 后路由器 DHCP 重分（本次 .216），固定 IP 绑定按新 MAC（48:2C:A0:4B:C6:0D）重做，旧 LAA 绑定失效。
 ```
+
+## 9. 基础规则与工厂地址分离
+
+`sirius-glue-setup.service` 在 udev、模块加载和网络服务之前准备运行时配置。
+基础 `.link` 由 system 的 `glue/network/10-wlan0.link` 提供；工厂地址从 persist
+以 `ro` 只读挂载（允许 ext4 日志恢复），生成 `/run/systemd/network/10-wlan0.link.d/50-factory-mac.conf`：
+
+```ini
+[Link]
+MACAddressPolicy=none
+MACAddress=<工厂 MAC>
+```
+
+这样工厂地址只覆盖 MAC 属性，基础匹配、命名等规则可随 system 更新。
+地址缺失或无效时不生成 drop-in，继续使用基础规则的备用地址。
+
+旧 `/etc/systemd/network/10-wlan0.link` 仅在内容与旧 initrd 按当前工厂地址生成的文件
+完全一致时移除。用户修改过的主文件、空文件和软链会保留，此时不生成工厂 drop-in。
+需要覆盖单个属性时，也可使用 `/etc/systemd/network/10-wlan0.link.d/90-user.conf`。
+
+此变更需要重新构建 initrd 和 system 镜像，已完成 glue 迁移的 rootfs 无需重刷。

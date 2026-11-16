@@ -13,25 +13,20 @@
 #   unit <relpath>               unit file to expose (e.g. units/foo.service)
 #   dropin <unit> <relpath>      drop-in for a unit of any origin
 #   wants <target> <unit>        enablement (.wants symlink)
-#   run <dest> <relpath>         symlink into /run/<dest>/<file>.  Used for the
-#                                fixed dirs (udev/rules.d, modules-load.d,
-#                                modprobe.d, tmpfiles.d, systemd/network) and
-#                                for arbitrary trees mirrored from glue/run/
-#                                (e.g. NetworkManager/conf.d, sysctl.d, and
-#                                NetworkManager/system-connections)
+#   run <dest> <relpath>         consumed by sirius-glue-setup.service, not
+#                                by the generator (which only emits units).
 # Unknown record kinds are logged and ignored (forward compatibility).
 #
 # Failure policy: never block boot.  Any error is logged to /dev/kmsg and the
 # generator exits 0, leaving the system in a degraded (but bootable) state.
 # The system partition is mounted read-only; this script only creates
-# symlinks (in the generator dir and /run) and keeps no persistent state.
+# symlinks in the generator output directory and keeps no persistent state.
 set -u
 PATH=/usr/bin:/bin:/usr/sbin:/sbin
 
 NORMAL=${1:-}
 # Test hooks: unset in production, used by scripts/test-glue.sh on the host.
 GLUE=${SIRIUS_GLUE_ROOT:-/mnt/sysmod/glue}
-RUN_ROOT=${SIRIUS_GLUE_RUN_ROOT:-/run}
 GLUE_ABI=1
 
 log() { echo "sirius-glue: $*" > /dev/kmsg 2>/dev/null || true; }
@@ -66,8 +61,8 @@ while read -r kind a b; do
             ln -sfn "$NORMAL/$b" "$NORMAL/$a.wants/$b"
             ;;
         run)
-            mkdir -p "$RUN_ROOT/$a"
-            ln -sfn "$GLUE/$b" "$RUN_ROOT/$a/${b##*/}"
+            # Non-unit configuration belongs to an early boot service, so
+            # generator sandboxing and daemon-reload do not affect it.
             ;;
         *)
             log "unknown manifest kind '$kind', ignored"
