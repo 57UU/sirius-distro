@@ -19,7 +19,7 @@
 |---|---|
 | 与内核模块/驱动/固件/QRTR/FastRPC 耦合的 unit、脚本、二进制 | 发行版包、Orbital/GNOME、桌面与用户策略 |
 | 设备相关的 udev 规则、模块加载、tmpfiles、ALSA UCM、Sensor Core 配置 | **flavor 策略**（server/gnome 行为不同的东西） |
-| 设备层私有运行库（除 glibc 外自带） | 用户可改的 `/etc` 配置、CLI 用户脚本（`sirius-screen` 等） |
+| 设备层私有运行库（glibc 与 glib 家族由 rootfs 提供，其余自带） | 用户可改的 `/etc` 配置、CLI 用户脚本（`sirius-screen` 等） |
 | 设备相关、**flavor 中立**、低 churn 的运行期配置（经 `glue/run/` 链进 `/run`） | 需要用户用 `nmcli`/编辑器随时改的配置文件 |
 | —（glue 只是**调用**它们，不打包它们） | OS 底座服务与工具：systemd、udev/kmod、qrtr-tools、tqftpserv、rmtfs、BlueZ、NetworkManager、ModemManager、ALSA、PipeWire…（见 §1 第 5 项） |
 
@@ -28,9 +28,9 @@
 `glue/run/` 会让共用镜像把 server 的策略串到 GNOME 上（systemd 按 drop-in 文件名字典序
 合并，`sirius-server.conf` 排在 `sirius-gnome.conf` 之后就会覆盖它）。
 
-## 1. 解耦接口：rootfs 侧只有 stub、preset 和 glibc ABI
+## 1. 解耦接口：rootfs 侧只有 stub、preset 和 glibc/glib 家族 ABI
 
-**镜像层面**的接口很少：rootfs 侧只有 stub、首启 preset 和 glibc ABI；manifest、生成器实现、
+**镜像层面**的接口很少：rootfs 侧只有 stub、首启 preset 和 glibc/glib 家族 ABI；manifest、生成器实现、
 unit 与配置内容全部属于 system 镜像内部，rootfs 不读、不解析、也不感知——协议两端
 （`gen-glue-manifest.sh` 与 `sirius-kernel-glue`）同属一个 system.img，改 schema 只刷 system，
 不存在跨镜像版本错配。
@@ -56,10 +56,11 @@ CLI / D-Bus / unit 名字契约，不是包或 ABI 耦合，但它们划定了"�
    开机把分区 ro 挂到新根 `/mnt/sysmod`，并把 `lib/modules/<uname -r>`、`lib/firmware`
    bind 进新根（版本不匹配时回落 rootfs 里的空目录）。rootfs 侧只依赖这个路径存在。
 
-3. **glibc ABI（rootfs 提供给 system）**：glue 里的 ELF 在**链接层面**只依赖 rootfs 的
-   glibc 与 loader，当前要求 **`GLIBC_2.38`**（trixie 2.41 可以，bookworm 2.36 不行，原因见 §4）。
-   system 不链接 rootfs 的任何其它库；但运行期会**执行** rootfs 的命令、`systemctl` 控制其
-   unit，见第 5 项。
+3. **glibc + glib 家族 ABI（rootfs 提供给 system）**：glue 里的 ELF 在**链接层面**依赖 rootfs 的
+   glibc 与 loader（当前要求 **`GLIBC_2.38`**，trixie 2.41 可以，bookworm 2.36 不行，原因见 §4），
+   以及 glib 家族 `libglib-2.0`/`libgio-2.0`/`libgobject-2.0`/`libgmodule-2.0`（GLib 2.x ABI 稳定，
+   trixie 2.84.x）。system 不链接 rootfs 的其它库；但运行期会**执行** rootfs 的命令、`systemctl`
+   控制其 unit，见第 5 项。
 
 4. **首启 preset（rootfs 侧配合 systemd，不是数据接口）**：
    `/etc/systemd/system-preset/50-sirius-glue.preset`（`disable adsprpcd-* / sirius-* /
@@ -108,7 +109,7 @@ glue/
   bin/                   # 设备守护二进制（adsprpcd、pd-mapper、uimsel/uimwatch、
                          # hexagonrpcd、ssccli）、设备脚本、生成器实现；
                          # 运行库不在本目录，RPATH 指向 ../lib
-  lib/                   # 设备层私有运行库闭包（除 glibc 外全部自带），见 glue/lib/README.md
+  lib/                   # 设备层私有运行库闭包（glibc 与 glib 家族由 rootfs 提供），见 glue/lib/README.md
   units/                 # 与内核/驱动耦合的 systemd unit（含 rmtfs 的 drop-in）
   units.enable           # <unit> <target> 列表，构建时转成 manifest 的 wants 行
   udev/rules.d/          # 设备命名/自动恢复规则
@@ -136,28 +137,24 @@ glue/
 **不要**把 flavor 策略、或用户需要长期编辑的配置放这里：`/run` 是 tmpfs，重启即从 system
 镜像恢复；`/etc` 里的同名文件优先级更高，是给用户覆盖用的。真要加，先回到 §0 的判据。
 
-## 4. 运行库策略：除 glibc 外全部自带 + RPATH
+## 4. 运行库策略
 
-第三方库闭包（FastRPC、Sensor Core、glib/qmi/qrtr/bsd/lzma/protobuf-c 等）全部放在
-`glue/lib`，所以 system 分区**在链接/ABI 层面**对 rootfs 的依赖只剩 glibc，unit 里不再需要
-`LD_LIBRARY_PATH`。注意这不等于"运行期零依赖"：glue 仍会执行 rootfs 的底座命令与 service
-（systemd/udev/kmod/qrtr-ns/rmtfs/tqftpserv/NM/MM/BlueZ/ALSA/PipeWire…），清单见 §1 第 5 项。
+`glue/lib` 自带除 glibc 和 glib 家族以外的全部依赖；glib 家族
+（`libglib-2.0`/`libgio-2.0`/`libgobject-2.0`/`libgmodule-2.0` 及其
+`pcre2-8`/`ffi`/`mount`/`blkid`/`selinux`/`z`/`atomic` 依赖）直接用 rootfs 的 Debian
+trixie 包（GLib 2.x ABI 稳定，trixie 2.84.x）。因此 system 分区在链接/ABI 层面对 rootfs 的
+依赖是 glibc（≥2.38）+ glib 家族，unit 里不需要 `LD_LIBRARY_PATH`。
 
-- `glue/lib` 里按 **SONAME 实名**存放真实文件（不建软链），来源与版本见
-  [glue/lib/README.md](../glue/lib/README.md)（FastRPC 自编译；Sensor Core 自编译；
-  glib/qmi/qrtr/bsd/lzma/protobuf-c 闭包取自 Debian trixie）。
-- 打包时 `kernel/build-kernel-img.sh` 用 `patchelf` 给 staging 树里的每个 ELF **原子地**写入
-  RPATH：`glue/bin/*` → `$ORIGIN/../lib`，`glue/lib/*` → `$ORIGIN`。仓库里提交的文件本身
-  没有被改过；手工往设备上替换二进制时必须自己补 patchelf（见 glue/lib/README.md）。
-- 为什么用 RPATH 而不是 unit 里的 `LD_LIBRARY_PATH`：`LD_LIBRARY_PATH` 会继承给 unit 里
-  exec 的 rootfs 程序（`iw`/`bluetoothctl`/`amixer`…），一旦 `glue/lib` 里有 glib 就可能给
-  它们加载错库；RPATH 只作用于自身。且 RPATH 在 `ld.so.cache` 之前查找，rootfs 里同名库
-  版本不同也顶不掉闭包。`dlopen` 也认调用者的 RPATH（FastRPC listener 靠这个加载）。
-- **新增依赖 = 新增库文件**：构建脚本没有任何"闭包完整性校验"，`readelf -d` 里多一个
-  NEEDED 就必须把对应 `.so` 放进 `glue/lib`，否则只有上设备才会暴露（服务重启循环）。
-  刷机后自检：`ldd /mnt/sysmod/glue/bin/* | grep 'not found'`（应为空）。
-- 代价：`glue/lib` ≈ 14M（glue 总计 ≈ 18M），且这些库**不随 apt 升级**，glib/qmi 的安全
-  更新需要重新取库并重刷 system 镜像。
+- 库按 SONAME 实名存放、不建软链，来源见 [glue/lib/README.md](../glue/lib/README.md)。
+- 打包时 `kernel/build-kernel-img.sh` 用 `patchelf` 给 staging 树里的每个 ELF 写 RPATH
+  （bin → `$ORIGIN/../lib`，lib → `$ORIGIN`），仓库里的文件本身没有被改过。
+- 用 RPATH 而不是 `LD_LIBRARY_PATH`：后者会继承给 unit 里 exec 的 rootfs 程序
+  （`iw`/`bluetoothctl`/`amixer`…），把 qmi/qrtr 顶到不该用的版本；RPATH 只作用于自身，
+  且在 `ld.so.cache` 之前查找。`dlopen` 也认调用者的 RPATH（FastRPC listener 靠它）。
+- 新增依赖：除 glib 家族外的 NEEDED 必须把 `.so` 放进 `glue/lib`；构建不校验，刷机后
+  `ldd /mnt/sysmod/glue/bin/* | grep 'not found'` 自检。
+- 代价：`glue/lib` ≈ 7.6M（打包后 glue ≈ 10M）；这些库不随 apt 升级，qmi/qrtr 等的
+  安全更新要重取并重刷 system 镜像。
 
 ## 5. 生成器与 manifest
 

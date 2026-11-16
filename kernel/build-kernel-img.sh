@@ -130,12 +130,9 @@ chmod 755 "$STAGE"/glue/bin/* 2>/dev/null || true
 # Device-layer private libs are stored as real files under their runtime
 # names (SONAME), so no symlinks are needed.
 chmod 644 "$STAGE"/glue/lib/*.so.* 2>/dev/null || true
-# Rewrite RPATH so every glue binary resolves its libs from glue/lib and only
-# the C library comes from the rootfs (avoids depending on rootfs glib/qmi/
-# qrtr/libbsd/lzma ABI).  Binaries: $ORIGIN/../lib; libs: $ORIGIN.
-# Invariant: every non-glibc NEEDED entry of every ELF below must exist in
-# glue/lib; adding a dependency therefore means adding the library too (see
-# glue/lib/README.md) - nothing else provides it at runtime.
+# Rewrite RPATH: glue binaries/libs resolve from glue/lib; glibc and the glib
+# family come from the rootfs.  Binaries: $ORIGIN/../lib; libs: $ORIGIN.
+# Invariant: NEEDED entries other than glibc + glib* must exist in glue/lib.
 for _f in "$STAGE"/glue/bin/* "$STAGE"/glue/lib/*; do
     [ -f "$_f" ] || continue
     case "$(file -b "$_f" 2>/dev/null)" in

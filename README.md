@@ -129,18 +129,12 @@ charging / battery profile / SMB1355: see `docs/CHARGING.md`.
 ./build.sh clean         # 清 workspace/build/（中间产物；build/ 下的 img/simg 不动）
 ```
 
-`kernel` 目标的主机依赖：`patchelf`（给 glue 里的二进制/库写 RPATH，让 system 分区只依赖
-rootfs 的 glibc）、`file`；另外镜像里的 glue 必须是 root 所有（NetworkManager 只认 root 的
-keyfile），脚本会用 `sudo` 完成 chown/mkfs，所以需要 NOPASSWD sudo，或直接用
-`sudo ./build.sh kernel`。system 分区**在库/ABI 层面**只依赖 rootfs 的 glibc（运行期仍会
-调用 rootfs 的底座服务，见 `docs/KERNEL-IMG-STORE.md` §1 第 5 项），因此要求 rootfs 的
-glibc ≥ 2.38（trixie 及以后）。
+`kernel` 目标需要 `patchelf`、`file` 和 NOPASSWD sudo（镜像里的 glue 必须是 root 所有）。
+system 分区在 ABI 层面只依赖 rootfs 的 glibc（≥2.38）和 glib 家族，见
+[docs/KERNEL-IMG-STORE.md](docs/KERNEL-IMG-STORE.md) §4。
 
-产物分两级：**最终产物（`*.img` / `*.simg`）落 `build/`**；其余中间产物（initrd、U-Boot 构建目录、
-rootfs 工作树、SIRIUS_BASE 原始树、临时目录）全部在 `workspace/build/` 下。
-
-内核 Image/dtb 仍需先在 `kernel/linux-sirius/`（submodule）里 `make` 出来，`build_kernel` 只做
-system 分区镜像的汇编。
+产物分两级：最终产物（`*.img` / `*.simg`）在 `build/`，中间产物在 `workspace/build/`。
+内核 Image/dtb 先在 `kernel/linux-sirius/` 里 `make`，`./build.sh kernel` 只做 system 分区镜像。
 
 
 # Acknowledgements

@@ -30,7 +30,7 @@ audio/root PD。
 | 内容 | 位置 | 来源 |
 |---|---|---|
 | `hexagonrpcd` | `glue/bin/hexagonrpcd` | [linux-msm/hexagonrpc](https://github.com/linux-msm/hexagonrpc) 自编译（glibc，私有库同目录） |
-| 私有库 | `glue/lib/libhexagonrpc.so.0.5`、`libssc.so.2`、`libprotobuf-c.so.1`（另有 glib/qmi 闭包，见 `glue/lib/README.md`） | hexagonrpc / libssc / Debian trixie |
+| 私有库 | `glue/lib/libhexagonrpc.so.0.5`、`libssc.so.2`、`libprotobuf-c.so.1`（另有 qmi/qrtr 闭包；glib 家族用 rootfs 的，见 `glue/lib/README.md`） | hexagonrpc / libssc / Debian trixie |
 | `ssccli` | `glue/bin/ssccli` | [libssc](https://codeberg.org/DylanVanAssche/libssc) 示例 CLI |
 | 厂商 sensor 配置 | `glue/sensors/config/`（27 个 json，含 `config_list.txt`） | 原厂 `vendor.img` 的 `/etc/sensors/config` |
 | `sns_reg.conf` | `glue/sensors/sns_reg.conf` | 原厂 `vendor.img` 的 `/etc/sensors/sns_reg_config`（改名） |
