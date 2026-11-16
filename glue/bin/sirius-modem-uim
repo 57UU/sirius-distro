@@ -6,7 +6,7 @@
 #
 # 行为约定：
 #   - 无卡 / 卡上没有 usim 应用（纯 CSIM 卡）→ 静默退出，不报错
-#   - 已有 Primary GW session → 什么都不做（幂等）
+#   - 已有 Primary GW session → 保留正在初始化的 MM，只恢复确认失败/长期无对象的 MM
 #   - 否则读出该卡的 usim AID 建 primary-gw 会话
 #
 # AID 必须每次现读：不同卡的 USIM AID 第 12 字节可能不同（模板 FF / 本机卡 03）。
@@ -14,9 +14,12 @@ set -u
 
 QRTR=qrtr://0
 UIMSEL=/mnt/sysmod/glue/bin/uimsel
-# 冷却标记（/run 是 tmpfs，重启清空）
-STAMP=/run/sirius-modem-uim.stamp
+STAMP=/run/sirius-modem-uim.monotonic
+MM_INIT_GRACE=90
+MM_RESTART_COOLDOWN=60
 log() { echo "sirius-modem-uim: $*"; }
+monotonic() { cut -d. -f1 /proc/uptime; }
+card_status() { timeout 8 qmicli -d "$QRTR" --uim-get-card-status 2>&1; }
 
 # 互斥锁：本脚本会被三条路径触发——开机 oneshot、timer、uimwatch 事件，
 # 其中 uimwatch 是直接 exec（绕过 systemd），所以不能指望 systemd 帮我们串行化。
@@ -30,24 +33,62 @@ fi
 # 重启 ModemManager 唤醒它重新探测。
 # 必须用 --no-block：MM 停止过程很慢（实测 >25s，会等 QMI 请求收尾），
 # 阻塞调用会把本脚本拖到 TimeoutStartSec 被杀，restart 反而做不完。
-restart_mm() {
+recover_mm() {
     systemctl is-active --quiet ModemManager 2>/dev/null || return 0
+    sub=$(systemctl show ModemManager -p SubState --value 2>/dev/null)
+    case "$sub" in running) ;; *) return 0 ;; esac
+
+    # Type=dbus only says MM owns its bus name. QMI/LOC initialization may
+    # still take tens of seconds before a modem object is exported.
+    if ! modems=$(timeout 5 mmcli -L 2>/dev/null); then
+        log "MM 查询失败，保留当前进程等待下次检查"
+        return 0
+    fi
+    modem=$(printf '%s\n' "$modems" | sed -n 's|.*\(/org/freedesktop/ModemManager1/Modem/[0-9][0-9]*\).*|\1|p' | head -n 1)
+    now=$(monotonic)
+    if [ -n "$modem" ]; then
+        if ! info=$(timeout 5 mmcli -m "$modem" --output-keyvalue 2>/dev/null); then
+            return 0
+        fi
+        failure=$(printf '%s\n' "$info" | awk '$1 == "modem.generic.state-failed-reason" {print $3; exit}')
+        # A session created after MM gave up on an absent SIM needs reprobe.
+        # An initializing, locked, searching or connected modem does not.
+        [ "$failure" = sim-missing ] || return 0
+    else
+        started=$(systemctl show ModemManager -p ActiveEnterTimestampMonotonic --value 2>/dev/null)
+        case "$started" in ''|*[!0-9]*|0) return 0 ;; esac
+        age=$((now - started / 1000000))
+        if [ "$age" -lt "$MM_INIT_GRACE" ]; then
+            log "MM 正在初始化（已 ${age}s），暂不重启"
+            return 0
+        fi
+    fi
+
+    last=0
+    [ ! -f "$STAMP" ] || last=$(cat "$STAMP" 2>/dev/null || echo 0)
+    case "$last" in ''|*[!0-9]*) last=0 ;; esac
+    # Discard a stamp outside this boot's monotonic time domain.
+    [ "$last" -le "$now" ] || last=0
+    if [ "$last" -gt 0 ] && [ $((now - last)) -lt "$MM_RESTART_COOLDOWN" ]; then
+        log "MM 恢复冷却中，暂不重启"
+        return 0
+    fi
     log "重启 ModemManager 以重新探测 modem"
-    date +%s > "$STAMP" 2>/dev/null || true
+    printf '%s\n' "$now" > "$STAMP" 2>/dev/null || true
     systemctl try-restart --no-block ModemManager 2>/dev/null || true
 }
 
 # ---- 1. 等 modem 的 UIM 服务可用 ----
 # 本 service 带 Before=ModemManager，这段等待位于启动关键路径上：
-# qrtr-ns/rmtfs → 本脚本 → ModemManager → NetworkManager。
+# qrtr-ns/rmtfs → 本脚本 → ModemManager；NetworkManager 并行启动。
 # 实测 modem 从开机到 QMI 可服务约 10~20s，这里留一倍余量取 40s：
 # 正常时循环很早就 break，无感；只有基带真起不来才会等满，
 # 那时宁可早点放行让 MM/NM 起来，也好过把整个网络栈拖住。
 # 用时间戳而不是计数：单轮 = sleep 2 + qmicli 耗时(约 0.5s)，按次数算会超时。
-deadline=$(( $(date +%s) + 40 ))
+deadline=$(( $(monotonic) + 40 ))
 out=""
-while [ "$(date +%s)" -lt "$deadline" ]; do
-    out=$(qmicli -d "$QRTR" --uim-get-card-status 2>&1)
+while [ "$(monotonic)" -lt "$deadline" ]; do
+    out=$(card_status)
     case "$out" in
         *"Card state"*) break ;;
     esac
@@ -59,35 +100,17 @@ if ! printf '%s' "$out" | grep -q "Card state"; then
 fi
 
 # ---- 2. 置 online（上次 MM 失败可能把基带留在 shutting-down）----
-mode=$(qmicli -d "$QRTR" --dms-get-operating-mode 2>&1 | sed -n "s/.*Mode: '\([^']*\)'.*/\1/p")
-if [ "${mode:-unknown}" != "online" ]; then
+mode=$(timeout 8 qmicli -d "$QRTR" --dms-get-operating-mode 2>&1 | sed -n "s/.*Mode: '\([^']*\)'.*/\1/p")
+if [ -n "$mode" ] && [ "$mode" != online ]; then
     log "operating mode=${mode:-unknown}，置为 online"
-    qmicli -d "$QRTR" --dms-set-operating-mode=online >/dev/null 2>&1
+    timeout 8 qmicli -d "$QRTR" --dms-set-operating-mode=online >/dev/null 2>&1
     sleep 2
-    out=$(qmicli -d "$QRTR" --uim-get-card-status 2>&1)
+    out=$(card_status)
 fi
 
 # ---- 3. 已经有会话：只需确认 ModemManager 是否还活着 ----
 if printf '%s' "$out" | grep -q "Primary GW:   slot"; then
-    if systemctl is-active --quiet ModemManager 2>/dev/null; then
-        # MM 正在启停时不要插手：它的 stop 要等 QMI 请求收尾（实测 >25s），
-        # 这期间 mmcli -L 必然是空的，误判成"无 modem"会导致反复重启。
-        sub=$(systemctl show ModemManager -p SubState --value 2>/dev/null)
-        case "${sub:-}" in
-            start*|stop*) exit 0 ;;
-        esac
-        if ! mmcli -L 2>/dev/null | grep -q "Modem/"; then
-            now=$(date +%s)
-            last=0
-            [ -f "$STAMP" ] && last=$(cat "$STAMP" 2>/dev/null || echo 0)
-            case "$last" in ''|*[!0-9]*) last=0 ;; esac
-            if [ $((now - last)) -gt 60 ]; then
-                restart_mm
-            else
-                log "MM 暂无 modem，冷却中（$((60 - (now - last)))s 后再试）"
-            fi
-        fi
-    fi
+    printf '%s' "$out" | grep -q "Card state: 'present'" && recover_mm
     exit 0
 fi
 
@@ -116,7 +139,7 @@ while :; do
     [ "$waited" -ge 10 ] && break
     waited=$((waited + 1))
     sleep 1
-    out=$(qmicli -d "$QRTR" --uim-get-card-status 2>&1)
+    out=$(card_status)
 done
 
 if [ -z "$slot_aid" ]; then
@@ -133,10 +156,9 @@ res=$(UIMSEL_AID="$aid" UIMSEL_ST=0 "$UIMSEL" "$slot" 2>&1)
 case "$res" in
     *SUCCESS*)
         log "会话建立成功"
-        # 热插拔场景：此时 ModemManager 早就因为看不到卡而放弃了这个 modem，
-        # 它不会自己重试，必须重启才能让它重新探测（现在 session 已经在位）。
-        # 开机场景 MM 还没起来，restart_mm 内部会直接返回——顺序由 Before= 保证。
-        restart_mm
+        # Confirm a missing-SIM failure before restarting; MM may still be
+        # initializing when hotplug indications arrive immediately at boot.
+        recover_mm
         ;;
     *)
         log "会话建立失败: $res"

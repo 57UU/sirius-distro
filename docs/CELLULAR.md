@@ -239,14 +239,15 @@ method=auto
 
 | 单元 | 触发时机 | 职责 |
 |---|---|---|
-| `sirius-modem-uim.service` | 开机（`Before=ModemManager`）、timer、事件 | 读卡 → 取 AID → 建 primary-gw 会话 → 必要时异步重启 MM |
+| `sirius-modem-uim.service` | 开机（`Before=ModemManager`）、timer | 读卡 → 取 AID → 建 primary-gw 会话 → 检查是否需要恢复 MM |
 | `sirius-modem-uim.timer` | 每 60 秒 | 兜底：事件丢失时仍能补上 |
-| `sirius-modem-uim-watch` | 常驻（`Restart=always`） | 订阅 UIM 的 `card-status`/`slot-status`，有变化就触发上面那个 service |
+| `sirius-modem-uim-watch` | 常驻（`Restart=always`） | 订阅 UIM 的 `card-status`/`slot-status`，有变化直接执行同一脚本（不经过 oneshot unit） |
 
-- **顺序**：`qrtr-ns`/`rmtfs` → `sirius-modem-uim` → `ModemManager` → `NetworkManager`；service 必须早于 MM，否则 MM 因 `GW primary session index unknown` 判 sim-missing 并放弃 modem。
-- **modem 起不来时**等待上限 40 秒（`qmicli` 轮询），会拖住 MM/NM 启动——刻意换"MM 一次启动成功"（反过来让 MM 先失败再重启更慢，它停止要等 QMI 收尾）。
+- **顺序**：`qrtr-ns`/`rmtfs` → `sirius-modem-uim` → `ModemManager`；NetworkManager 在 rmtfs 之后并行启动，不等待 MM。开机 oneshot 必须早于 MM，否则 MM 因 `GW primary session index unknown` 判 sim-missing 并放弃 modem。
+- **modem 起不来时**先等待 40 秒（`qmicli` 轮询，单次查询有 8 秒超时），会推迟 MM 和 `multi-user.target`，不推迟 NM 自身。等待和冷却都使用单调时间，避免 RTC/NTP 校时影响。
 - **互斥**：脚本开头有 `flock`。三条触发路径中 watch 是**直接 exec**（绕过 systemd），一次拔插产生十几条事件，没锁会并发十几个实例同时发 QMI。
-- **重启 MM 要冷却**：记 `/run/sirius-modem-uim.stamp`，60 秒内不重复重启，防"重启 → 新事件 → 再重启"循环。
+- **MM active 不等于 modem 就绪**：MM 是 `Type=dbus`，取得总线名称后仍可能在初始化 QMI/定位功能。没有导出 modem 对象时，从本次 MM 进入 active 起保留 90 秒宽限；不要因 `mmcli -L` 暂时为空打断初始化。D-Bus 查询失败也不触发重启。
+- **恢复条件与冷却**：已有有效 SIM 主会话时，只恢复明确的 `sim-missing` 失败，或宽限结束仍无 modem 对象的 MM；停止中、用户停用、已连接、搜索网络或等待 PIN 均不重启。恢复时间记 `/run/sirius-modem-uim.monotonic`，60 秒内不重复恢复。新建会话后的热插拔路径也使用同一判断。
 - **"无卡"和"卡还没读完"是两件事**：卡 present 但应用列表为空时重试最多 10 秒（实测插卡后 2~6 秒应用才出现）；卡真 absent 立即退出。
 
 ## 6. 会让整机冻死的操作（务必避让）
@@ -260,6 +261,10 @@ method=auto
 要重启基带就整机重启；系统还活着（SSH 可用）时自己 `sync && reboot -f`——`-f` 跳过服务停止，绕开 rmtfs 的已知 stop hang。
 
 ## 7. 工具
+
+MM 的 LOC 通知时序补丁及可选构建方法见 `scripts/modemmanager/README.md`，
+独立执行 `bash scripts/build-modemmanager.sh`，不接入主构建流程。
+UIM helper 的离线回归测试：`python3 scripts/test-modem-uim.py`。
 
 **生产组件（随镜像发布）**：源码在 `src/modem/`，预编译产物在 `glue/bin/`（随 `kernel.img` 打进 system 分区，升级不用重刷 rootfs）；`uimwatch` 的触发路径是编译期宏 `SIRIUS_MODEM_UIM`。重编方法见 `glue/bin/README.md`。
 
