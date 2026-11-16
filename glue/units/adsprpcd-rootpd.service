@@ -5,7 +5,6 @@ Wants=qrtr-ns.service
 
 [Service]
 Environment=ADSP_LIBRARY_PATH=/usr/lib/firmware/qcom/sdm710/pyxis/adsp
-Environment=LD_LIBRARY_PATH=/mnt/sysmod/glue/lib
 ExecStart=/mnt/sysmod/glue/bin/adsprpcd
 Restart=always
 RestartSec=3

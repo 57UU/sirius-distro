@@ -43,7 +43,7 @@ lock-enabled=true                     # 灭屏 = 锁屏，唤醒要密码
 idle-activation-enabled=true
 ```
 
-`/etc/systemd/logind.conf.d/sirius-gnome.conf`：`HandlePowerKey=lock` 仅 backstop（gsd 挂了才轮到），`HandlePowerKeyLongPress=poweroff`（长按 = PMIC 硬件关机），`IdleAction=ignore`。
+`/etc/systemd/logind.conf.d/sirius-gnome.conf`（GNOME 构建时写入，见 `rootfs/build-gnome.sh`；server 版是 `rootfs/overlay/etc/systemd/logind.conf.d/sirius-server.conf`，GNOME 构建会先删掉它）：`HandlePowerKey=lock` 仅 backstop（gsd 挂了才轮到），`HandlePowerKeyLongPress=poweroff`（长按 = PMIC 硬件关机），`IdleAction=ignore`。logind 是 flavor 策略，两个文件都留在 rootfs，不随 system 分区走（否则两个 flavor 共用的 system 镜像会让 server 的 `HandlePowerKey=ignore` 覆盖 GNOME 的 backstop）。
 
 `systemctl mask suspend.target hibernate.target hybrid-sleep.target suspend-then-hibernate.target` 保留。
 

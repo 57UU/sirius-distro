@@ -11,9 +11,9 @@ ConditionPathExists=/dev/fastrpc-adsp-secure
 
 [Service]
 Type=simple
-# Private libraries (libhexagonrpc/libssc/libprotobuf-c) ship next to the
-# binaries in the glue store, so the rootfs only needs the distro glib/qmi.
-Environment=LD_LIBRARY_PATH=/mnt/sysmod/glue/bin
+# Private libraries (libhexagonrpc/libssc/libprotobuf-c) live in
+# /mnt/sysmod/glue/lib; RPATH written at image build time finds them, so the
+# rootfs only needs the distro glibc.
 ExecStartPre=/mnt/sysmod/glue/bin/sirius-sensors-setup
 ExecStart=/mnt/sysmod/glue/bin/hexagonrpcd -f /dev/fastrpc-adsp-secure -s -R /run/sirius-qcom
 ExecStopPost=/mnt/sysmod/glue/bin/sirius-sensors-setup --teardown

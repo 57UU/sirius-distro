@@ -59,9 +59,10 @@ export SIRIUS_BASE_PKGS
 SIRIUS_BASE_UNITS=${SIRIUS_BASE_UNITS:-"ssh systemd-networkd systemd-resolved rmtfs tqftpserv bluetooth systemd-timesyncd NetworkManager ModemManager"}
 export SIRIUS_BASE_UNITS
 # Common device base for every flavor. Static files live in rootfs/overlay/
-# (edit there, not here); this only copies them in, fixes exec bits, and
-# creates the rmtfs partlabel symlinks (kept in code so re-bakes always
-# track the current partlabel names).
+# (edit there, not here); this only copies them in and fixes exec bits.
+# Kernel/device-coupled files live in glue/ and are packed into the system
+# image; flavor policy (e.g. logind power-key handling) stays in the overlay of
+# each build-*.sh so one system image works for both flavors.
 # Requires: R, DISTRO. OVERLAY defaults to $DISTRO/rootfs/overlay.
 sirius_overlay() {
   OVERLAY=${OVERLAY:-$DISTRO/rootfs/overlay}
@@ -69,23 +70,18 @@ sirius_overlay() {
   # Overlay checkout is user-owned; plain cp -a would stamp that owner onto every
   # shipped dir (phone / once ended up u57u, apt refused it). Copy as root instead.
   cp -a --no-preserve=ownership $OVERLAY/. $R/
-  # NetworkManager 只加载属主 root 且权限 600 的 keyfile，overlay 里带过来的
-  # 权限不符合就会被静默忽略（表现为 gsm 连接不存在）。
+  # NetworkManager 只加载属主 root 且权限 600 的 keyfile；蜂窝连接的 keyfile 在
+  # system 分区 glue/run 里（由打包脚本置 600），这里只兜底 rootfs 自带的。
   chmod 600 $R/etc/NetworkManager/system-connections/*.nmconnection 2>/dev/null || true
-  # overlay 脚本在 git 里存的是 644，打包前统一补 755；
+  # preset/unit 在 git 里保持 0644，打包前再确认一次。
+  chmod 644 $R/etc/systemd/system-preset/*.preset 2>/dev/null || true
+  # overlay 里的 CLI 脚本在 git 里是 644，打包前统一补 755；
   # 新增 overlay 脚本要加进这个列表，否则 systemd 启动会报 Permission denied。
   chmod 755 $R/usr/local/sbin/sirius-screen $R/usr/local/sbin/sirius-remodeset $R/usr/local/sbin/sirius-wifi-add $R/usr/local/sbin/safe-reboot $R/usr/local/sbin/sirius-otg
   # 4 行 generator stub；实现在 system 分区（见 docs/KERNEL-IMG-STORE.md）。
   GLUE_STUB=$R/usr/lib/systemd/system-generators/sirius-kernel-glue
   test -f "$GLUE_STUB" || { echo "missing glue generator stub $GLUE_STUB"; exit 1; }
   chmod 755 "$GLUE_STUB"
-  # preset/unit 在 git 里保持 0644，打包前再确认一次。
-  chmod 644 $R/etc/systemd/system-preset/*.preset 2>/dev/null || true
-  mkdir -p $R/var/lib/rmtfs
-  ln -sf /dev/disk/by-partlabel/modemst1 $R/var/lib/rmtfs/modem_fs1
-  ln -sf /dev/disk/by-partlabel/modemst2 $R/var/lib/rmtfs/modem_fs2
-  ln -sf /dev/disk/by-partlabel/fsc $R/var/lib/rmtfs/modem_fsc
-  ln -sf /dev/disk/by-partlabel/fsg $R/var/lib/rmtfs/modem_fsg
   # Empty authorized_keys for the default user (uid/gid fixed at 1000 in the
   # build scripts) so a public key can be dropped in over ssh right after
   # first boot. Runs outside chroot, so chown by number works before the user

@@ -6,21 +6,21 @@
 
 | 文件 | 作用 | 源码/上游 | 运行期库依赖 |
 |---|---|---|---|
-| `adsprpcd` | Qualcomm FastRPC ADSP 用户态装载服务(一式三份:rootpd/audiopd/sensorspd) | https://github.com/qualcomm/fastrpc ,自编译 `main@2026-10-02` | 动态链接 rootfs 的 glibc/libbsd;`dlopen` system 分区 `glue/lib` 的 `libadsp_default_listener`/`libadsprpc`/`libyaml`(见 `../lib/README.md`) |
-| `pd-mapper` | Qualcomm PD 映射服务(读 firmware 里的 servreg `.jsn`,建 QRTR PD 映射) | https://github.com/andersson/pd-mapper ,按 `src/pd-mapper/README.md` 自编译(带 query 日志) | 动态链接 rootfs 的 `libqrtr.so.1`、`liblzma.so.5`、glibc |
-| `uimsel` | 直接发 QMI `ChangeProvisioningSession`,绕过 qmicli 的 power-off 步骤 | `../../src/modem/uimsel.c` | 动态链接 rootfs 的 `libqmi-glib.so.5`、`libqrtr-glib.so.0`、glib/gobject/gio、glibc |
+| `adsprpcd` | Qualcomm FastRPC ADSP 用户态装载服务(rootpd/audiopd) | https://github.com/qualcomm/fastrpc ,自编译 `main@2026-10-02` | 仅 glibc;FastRPC 库在 `../lib`(RPATH 已指向) |
+| `pd-mapper` | Qualcomm PD 映射服务(读 firmware 里的 servreg `.jsn`,建 QRTR PD 映射) | https://github.com/andersson/pd-mapper ,按 `src/pd-mapper/README.md` 自编译(带 query 日志) | 仅 glibc;`libqrtr`/`liblzma` 在 `../lib` |
+| `uimsel` | 直接发 QMI `ChangeProvisioningSession`,绕过 qmicli 的 power-off 步骤 | `../../src/modem/uimsel.c` | 仅 glibc;qmi/qrtr/glib 在 `../lib` |
 | `uimwatch` | 常驻订阅 UIM `card-status`/`slot-status`,事件触发 `sirius-modem-uim` | `../../src/modem/uimwatch.c` | 同上 |
-| `hexagonrpcd` + `libhexagonrpc.so.0.5` | Sensor Core(SSC)文件服务,给 ADSP sensor PD 提供 config/registry/socinfo/dsp 文件 | https://github.com/linux-msm/hexagonrpc 自编译(私有库放同目录,unit 用 `LD_LIBRARY_PATH`) | rootfs 的 glibc |
-| `ssccli` + `libssc.so.2` | Sensor Core 读取 CLI/库(加速度计/磁力计/指南针) | https://codeberg.org/DylanVanAssche/libssc 自编译 | rootfs 的 glib/qmi/qrtr-glib + 自带 `libprotobuf-c.so.1` |
-| `libprotobuf-c.so.1` | libssc 私有依赖(rootfs 默认没有) | Debian trixie `libprotobuf-c1` |
+| `hexagonrpcd` | Sensor Core(SSC)文件服务,给 ADSP sensor PD 提供 config/registry/socinfo/dsp 文件 | https://github.com/linux-msm/hexagonrpc 自编译 | 仅 glibc;`libhexagonrpc` 在 `../lib` |
+| `ssccli` | Sensor Core 读取 CLI(加速度计/磁力计/指南针) | https://codeberg.org/DylanVanAssche/libssc 自编译 | 仅 glibc;libssc/protobuf-c/glib/qmi/qrtr 在 `../lib` |
 | `sirius-sensors-setup` | `sirius-sensors.service` 的 ExecStartPre/ExecStopPost:组装 `/run/sirius-qcom`(厂商配置 + persist registry 只读拷贝 + socinfo bind + dsp 软链) | 本目录 |
 | `sirius-test` | 一键硬件/迁移自检脚本(快速模式只做即时检查, `--full` 才跑 PD 等外部条件项目);rootfs 不建软链，直接运行 `/mnt/sysmod/glue/bin/sirius-test` | 本目录 | 依赖 rootfs 的 bash/coreutils/util-linux/iw/wpctl 等 |
 
-设计选择(2026-11-15):**不携带 libc/运行库**,设备二进制直接复用 rootfs 的
-Debian 库(glibc ABI 向下兼容;libqmi/glib 等由 `ModemManager`/`libqmi-utils` 包带到
-rootfs)。这样做体积为 0,代价是这些库必须存在于 rootfs;若以后要彻底解耦,可把
-13.6 MiB 第三方库闭包(或 16.3 MiB 含 libc)拷进 `glue/lib` 并给 unit 加
-`LD_LIBRARY_PATH`——方案与实测数据见 `../../docs/KERNEL-IMG-STORE.md`。
+设计选择：**库/ABI 层面只依赖 rootfs 的 glibc**（运行期仍会调用 rootfs 的底座命令和
+service，如 systemd/udev/kmod/qrtr-ns/rmtfs/tqftpserv/NM/MM/BlueZ/ALSA，见
+`../../docs/KERNEL-IMG-STORE.md` §1 第 5 项）。除 glibc 外的全部运行库（glib/gio/gobject、
+qmi-glib、qrtr-glib、libqrtr、libbsd、liblzma、protobuf-c 以及 FastRPC 库）都在
+`../lib`；`kernel/build-kernel-img.sh` 打包时用 `patchelf` 给每个 ELF 写入 RPATH
+（bin → `$ORIGIN/../lib`，lib → `$ORIGIN`），所以不需要 `LD_LIBRARY_PATH`。
 
 ## 怎么重新编译
 

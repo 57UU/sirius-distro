@@ -83,6 +83,6 @@ sirius-bt-addr 改 persist 感知：与 btmgmt info 当前址一致直接 VERIFI
 - initramfs 无 /tmp：`cat 暂存 > 目标` 重定向先截断目标 → 0 字节 10-wlan0.link，udev 忽略，wlan0 随机地址（a6:xx）。修复：暂存改 /run/persistmac + `-s` 非空守卫；BT 提取失败不盲打补丁。
 - cmp 与 /dev/zero 比永远报 EOF-differ：全零判断改用 dd 取 6 字节有限零文件再比。
 - btmgmt public-addr 并非从没成功：开机时序（pre-config）下实测两次 SET complete；power on 下报 0x0b Rejected。NVM 补丁是否被固件采用未确证，两层都留，以实测为准。
-- NM 扫描随机改 MAC：`wifi.scan-rand-mac-address` 默认 yes，扫描时改 wlan0 随机地址、扫完改回（日志 `set-hw-addr ... (scanning)`），实测撞停随机址（`7a:..`）致 DHCP 拿错 IP。修：`rootfs/overlay/etc/NetworkManager/conf.d/sirius-server.conf` 加 `[device] wifi.scan-rand-mac-address=no`。
+- NM 扫描随机改 MAC：`wifi.scan-rand-mac-address` 默认 yes，扫描时改 wlan0 随机地址、扫完改回（日志 `set-hw-addr ... (scanning)`），实测撞停随机址（`7a:..`）致 DHCP 拿错 IP。修：`glue/run/NetworkManager/conf.d/sirius-server.conf`（随 system 分区，开机链到 `/run`）加 `[device] wifi.scan-rand-mac-address=no`。
 - 换出厂 MAC 后路由器 DHCP 重分（本次 .216），固定 IP 绑定按新 MAC（48:2C:A0:4B:C6:0D）重做，旧 LAA 绑定失效。
 ```

@@ -15,7 +15,8 @@
 #                             generator stub.
 #                             See docs/KERNEL-IMG-STORE.md (glue section).
 #
-# Run on the kernel build host (needs the kernel tree already built).
+# Run on the kernel build host (needs the kernel tree already built, patchelf,
+# and root for the final chown/mkfs steps: passwordless sudo or run as root).
 # Host arch is auto-detected: aarch64 builds natively (empty CROSS_COMPILE),
 # anything else (x86_64) uses the aarch64 cross toolchain.
 #   ./build-kernel-img.sh
@@ -46,8 +47,21 @@ test -d "$KERNEL_SRC" || { echo "missing kernel tree $KERNEL_SRC"; exit 1; }
 test -d "$FIRMWARE" || { echo "missing firmware $FIRMWARE"; exit 1; }
 command -v "$DEPMOD" >/dev/null || { echo "missing depmod"; exit 1; }
 command -v "$MKFS" >/dev/null || { echo "missing mkfs.ext4"; exit 1; }
+command -v patchelf >/dev/null || { echo "missing patchelf (needed for glue RPATH)"; exit 1; }
+# The store must be root-owned inside the image (NetworkManager rejects
+# non-root-owned keyfiles, and mke2fs -d as a user cannot write root-owned
+# inodes), so the last steps need root.  Fail fast: otherwise a passwordless
+# sudo problem only shows up after modules_install + the whole staging step.
+if [ "$(id -u)" -ne 0 ] && ! sudo -n true 2>/dev/null; then
+    echo "kernel image needs root: rerun as 'sudo ./build.sh kernel' or configure"
+    echo "passwordless sudo (the script chowns the staging tree and runs mke2fs as root)"
+    exit 1
+fi
 STAGE="$(mktemp -d)"
-trap 'rm -rf "$STAGE"' EXIT
+cleanup_stage() {
+    rm -rf "$STAGE" 2>/dev/null || sudo -n rm -rf "$STAGE" 2>/dev/null || true
+}
+trap cleanup_stage EXIT
 echo "=== modules_install from $KERNEL_SRC ==="
 make -C "$KERNEL_SRC" ARCH="$ARCH" CROSS_COMPILE="$CROSS_COMPILE" \
   INSTALL_MOD_PATH="$STAGE" modules_install
@@ -113,12 +127,29 @@ cp -a "$GLUE/." "$STAGE/glue/"
 # Fresh checkouts may lack exec bits (repo index stores 644 for portability,
 # same caveat as the initrd/build scripts).
 chmod 755 "$STAGE"/glue/bin/* 2>/dev/null || true
-# Private .so files live next to the binaries in glue/bin; they are data.
-chmod 644 "$STAGE"/glue/bin/*.so.* 2>/dev/null || true
-# FastRPC support libs (device layer): stored as real files under their
-# runtime names (SONAME), so no symlinks are needed.
+# Device-layer private libs are stored as real files under their runtime
+# names (SONAME), so no symlinks are needed.
 chmod 644 "$STAGE"/glue/lib/*.so.* 2>/dev/null || true
+# Rewrite RPATH so every glue binary resolves its libs from glue/lib and only
+# the C library comes from the rootfs (avoids depending on rootfs glib/qmi/
+# qrtr/libbsd/lzma ABI).  Binaries: $ORIGIN/../lib; libs: $ORIGIN.
+# Invariant: every non-glibc NEEDED entry of every ELF below must exist in
+# glue/lib; adding a dependency therefore means adding the library too (see
+# glue/lib/README.md) - nothing else provides it at runtime.
+for _f in "$STAGE"/glue/bin/* "$STAGE"/glue/lib/*; do
+    [ -f "$_f" ] || continue
+    case "$(file -b "$_f" 2>/dev/null)" in
+        *ELF*) ;;
+        *) continue ;;
+    esac
+    case "$_f" in
+        "$STAGE"/glue/bin/*) patchelf --set-rpath '$ORIGIN/../lib' "$_f" ;;
+        *)                   patchelf --set-rpath '$ORIGIN' "$_f" ;;
+    esac
+done
 chmod 644 "$STAGE"/glue/bin/README.md 2>/dev/null || true
+# NetworkManager only accepts root-owned 0600 keyfiles.
+chmod 600 "$STAGE"/glue/run/NetworkManager/system-connections/*.nmconnection 2>/dev/null || true
 chmod 644 "$STAGE"/glue/units/*.service "$STAGE"/glue/units/*.timer \
          "$STAGE"/glue/units/*.d/*.conf "$STAGE"/glue/ABI 2>/dev/null || true
 bash "$DISTRO/kernel/gen-glue-manifest.sh" "$GLUE" "$STAGE/glue/manifest"
@@ -147,10 +178,32 @@ while IFS= read -r line; do
 done < "$DISTRO/boot/extlinux.conf" > "$PAYLOAD/extlinux/extlinux.conf"
 chmod 644 $PAYLOAD/Image $PAYLOAD/efi/BOOTAA64.EFI $PAYLOAD/dtb/*.dtb $PAYLOAD/initrd.cpio.gz $PAYLOAD/extlinux/extlinux.conf
 
+# All files in the system store must be owned by root: some consumers
+# (NetworkManager keyfiles) reject connections from non-root-owned files.
+if [ "$(id -u)" -eq 0 ]; then
+    chown -R 0:0 "$STAGE"
+else
+    sudo -n chown -R 0:0 "$STAGE" 2>/dev/null || { echo "failed to chown $STAGE (need root)"; exit 1; }
+fi
+
 echo "=== mkfs $OUT ($IMG_SIZE) ==="
 mkdir -p "$(dirname "$OUT")"
-"$MKFS" -d "$STAGE" -L "$IMG_LABEL" "$OUT" "$IMG_SIZE" >/dev/null
-e2fsck -n -f "$OUT" >/dev/null
+# The staging tree is root-owned (see chown above), so mkfs must run as root
+# too; mke2fs -d as a user refuses to write root-owned inodes.
+if [ "$(id -u)" -eq 0 ]; then
+    "$MKFS" -d "$STAGE" -L "$IMG_LABEL" "$OUT" "$IMG_SIZE" >/dev/null
+    e2fsck -n -f "$OUT" >/dev/null
+else
+    sudo -n "$MKFS" -d "$STAGE" -L "$IMG_LABEL" "$OUT" "$IMG_SIZE" >/dev/null
+    sudo -n e2fsck -n -f "$OUT" >/dev/null
+    sudo -n chown "$(id -u):$(id -g)" "$OUT"
+fi
+# When the build was started through sudo, hand the artifact back to the
+# invoking user: a root-owned image in build/ blocks later non-root builds,
+# `build.sh clean` and tools that open it as the normal user.
+if [ "$(id -u)" -eq 0 ] && [ -n "${SUDO_UID:-}" ]; then
+    chown "$SUDO_UID:${SUDO_GID:-$SUDO_UID}" "$OUT" 2>/dev/null || true
+fi
 md5sum "$OUT"
 ls -lh "$OUT"
 echo KERNEL-IMG-DONE

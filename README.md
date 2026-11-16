@@ -10,7 +10,7 @@ rootfs/     rootfs 烘焙：overlay（开机会拷进 / 的文件）+ 构建脚�
 src/        自研源码（sirius-remodeset）；第三方源码只留获取说明
 orbital/    上游仪表盘（获取说明，用于server系统的简易管理GUI）
 kernel/     内核区：build-kernel-img.sh（system 分区仓库打包）+ linux-sirius/（上游内核submodule，57UU/linux-sirius feat/sirius-7.2，需git submodule update --init）
-glue/       内核/设备耦合 userspace 层（unit/脚本/设备守护二进制/Sensor Core 配置/自检脚本/udev/模块加载/ALSA UCM/manifest）：随 kernel.img 打进 system 分区，升级内核相关服务只刷 system
+glue/       内核/设备耦合 userspace 层（unit/脚本/设备守护二进制/私有运行库/Sensor Core 配置/自检脚本/udev/模块加载/ALSA UCM/运行期配置/manifest）：随 kernel.img 打进 system 分区，升级内核相关服务只刷 system
 docs/       相关文档以及一些修复经验
 ```
 制作过程见：https://blog.57u.tech/2026/03/18/install-linux-on-android-device-mi8se/
@@ -128,6 +128,13 @@ charging / battery profile / SMB1355: see `docs/CHARGING.md`.
 ./build.sh all           # initrd -> boot -> kernel -> 两个 rootfs
 ./build.sh clean         # 清 workspace/build/（中间产物；build/ 下的 img/simg 不动）
 ```
+
+`kernel` 目标的主机依赖：`patchelf`（给 glue 里的二进制/库写 RPATH，让 system 分区只依赖
+rootfs 的 glibc）、`file`；另外镜像里的 glue 必须是 root 所有（NetworkManager 只认 root 的
+keyfile），脚本会用 `sudo` 完成 chown/mkfs，所以需要 NOPASSWD sudo，或直接用
+`sudo ./build.sh kernel`。system 分区**在库/ABI 层面**只依赖 rootfs 的 glibc（运行期仍会
+调用 rootfs 的底座服务，见 `docs/KERNEL-IMG-STORE.md` §1 第 5 项），因此要求 rootfs 的
+glibc ≥ 2.38（trixie 及以后）。
 
 产物分两级：**最终产物（`*.img` / `*.simg`）落 `build/`**；其余中间产物（initrd、U-Boot 构建目录、
 rootfs 工作树、SIRIUS_BASE 原始树、临时目录）全部在 `workspace/build/` 下。

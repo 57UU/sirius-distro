@@ -26,14 +26,16 @@
 亮度记忆：  每次关屏存当前值，开屏恢复；Orbital 滑杆随便拖，灭亮一次也不丢。
 网络：      NM 自连（`sirius-wifi-add` 烤首个网络，powersave=2）+ RNDIS usb0 静态（`172.16.42.1`）+ BT 自启。
 logind：    HandlePowerKey=ignore（按键归 Orbital，否则按电源会触发 suspend），IdleAction=ignore。
-```## 3. 文件（本库 `rootfs/overlay/`，手机端位置镜像对应）
+```
+
+## 3. 文件（flavor 私有项在 `rootfs/overlay/`，设备中立项随 system 分区的 `glue/`）
 
 ```text
 overlay/usr/local/sbin/  sirius-screen sirius-remodeset（救援用）
                          sirius-bt-auto sirius-wifi-add
 overlay/etc/systemd/system/  orbital.service（server 专用）
-overlay/etc/systemd/logind.conf.d/sirius-server.conf（server：按键归 Orbital；gnome 构建时换成 sirius-gnome.conf：按键归 gsd，logind 只做 backstop）
-overlay/etc/NetworkManager/conf.d/sirius-server.conf
+overlay/etc/systemd/logind.conf.d/sirius-server.conf（server：按键归 Orbital；GNOME 构建换成 sirius-gnome.conf，见 docs/POWER.md）
+glue/run/NetworkManager/conf.d/sirius-server.conf（两个 flavor 共用的设备策略：powersave / 不随机 MAC；开机链到 /run）
 build-server.sh（另有 build-gnome.sh GNOME 桌面版：计时/锁屏/灭屏全是 GNOME 原生，电源键归 gsd 弹关机对话框，见 docs/POWER.md）
 src/sirius-remodeset.c（救援工具源码）
 ```

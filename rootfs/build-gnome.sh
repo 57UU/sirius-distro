@@ -44,6 +44,8 @@ mkdir -p $R/usr/local/bin $R/etc/systemd/user
 cp -f $POWERKEY_PKG/sirius-powerkey $R/usr/local/bin/sirius-powerkey
 cp -f $POWERKEY_PKG/sirius-powerkey.service $R/etc/systemd/user/sirius-powerkey.service
 chmod 755 $R/usr/local/bin/sirius-powerkey
+# logind 的电源键策略是 flavor 私有：overlay 里的 server 版（按键归 Orbital）
+# 在这里换成 GNOME 版；两份都留 rootfs，system 分区镜像保持 flavor 中立。
 rm -f $R/etc/systemd/logind.conf.d/sirius-server.conf
 cat > $R/etc/systemd/logind.conf.d/sirius-gnome.conf <<'EOF2'
 [Login]

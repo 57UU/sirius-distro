@@ -7,7 +7,8 @@
 # 用法:
 #   ./build.sh initrd        initramfs -> workspace/build/initrd.cpio.gz
 #   ./build.sh boot          U-Boot    -> build/boot.img（中间件 workspace/build/uboot/）
-#   ./build.sh kernel        模块+固件+内核耦合 glue -> build/kernel.img（需先 ./build.sh initrd）
+#   ./build.sh kernel        模块+固件+内核耦合 glue -> build/kernel.img（需先 ./build.sh initrd；
+#                            镜像里的 glue 必须是 root 所有，所以需要 root/NOPASSWD sudo）
 #   ./build.sh rootfs-gnome  构建+打包 GNOME rootfs（需 sudo + SIRIUS_BASE）
 #   ./build.sh rootfs-server 构建+打包 server rootfs（需 sudo + SIRIUS_BASE）
 #   ./build.sh all           依次 initrd -> boot -> kernel -> rootfs-gnome -> rootfs-server
@@ -61,7 +62,25 @@ as_root() {
   fi
 }
 
-cmd_initrd() { bash "$DISTRO/boot/initrd/build.sh" "$SCRATCH/initrd.cpio.gz"; }
+# When the whole build is started through sudo (`sudo ./build.sh ...`), root
+# creates build/ artifacts and scratch dirs, which then break later non-root
+# runs (`clean`, overwriting images, md5sum, fastboot's file access).  Hand
+# everything this script produces back to the invoking user.
+# No-op without sudo; directories are only chowned themselves, not recursively
+# (rootfs/chroot trees are intentionally root-owned).
+fix_owner() {
+  [ "$(id -u)" -eq 0 ] && [ -n "${SUDO_UID:-}" ] || return 0
+  local f
+  for f in "$@"; do
+    [ -e "$f" ] || continue
+    chown "$SUDO_UID:${SUDO_GID:-$SUDO_UID}" "$f" 2>/dev/null || true
+  done
+}
+
+cmd_initrd() {
+  bash "$DISTRO/boot/initrd/build.sh" "$SCRATCH/initrd.cpio.gz"
+  fix_owner "$SCRATCH/initrd.cpio.gz"
+}
 
 cmd_boot() {
   # Kernel cmdline has one source of truth: boot/bootargs. Render it into a
@@ -76,11 +95,13 @@ cmd_boot() {
   grep -qF "efi_args=setenv bootargs $args" "$envout" || { echo "生成 efi_args 失败：$envout"; exit 1; }
   OUT="$SCRATCH/uboot" IMG="$OUT_DIR/boot.img" ENV_FILE="$envout" \
     bash "$DISTRO/uboot/sirius-build.sh"
+  fix_owner "$envout" "$OUT_DIR/boot.img"
 }
 
 cmd_kernel() {
   test -f "$SCRATCH/initrd.cpio.gz" || { echo "缺 $SCRATCH/initrd.cpio.gz，先 ./build.sh initrd"; exit 1; }
   bash "$DISTRO/kernel/build-kernel-img.sh"      # OUT 默认已是 build/kernel.img
+  fix_owner "$OUT_DIR/kernel.img"
 }
 
 cmd_rootfs() {                                    # $1 = gnome | server
@@ -101,9 +122,20 @@ cmd_rootfs() {                                    # $1 = gnome | server
   # packing runs host-side (mktemp for the loop mount), so keep it in the scratch dir
   as_root env TMPDIR="$TMPDIR" bash "$DISTRO/rootfs/pack-image.sh" "$SCRATCH/rootfs/$tree" \
     "$OUT_DIR" "debian-trixie-sirius-$flavor-$TAG"
+  fix_owner "$OUT_DIR/debian-trixie-sirius-$flavor-$TAG.simg"
 }
 
-cmd_clean() { rm -rf "$SCRATCH"; mkdir -p "$SCRATCH"; }   # build/ 下 img/simg 是交付物，不删
+cmd_clean() {
+  # Interrupted root builds can leave root-owned staging dirs behind.
+  rm -rf "$SCRATCH" 2>/dev/null || sudo rm -rf "$SCRATCH"
+  mkdir -p "$SCRATCH"
+  fix_owner "$SCRATCH"
+}
+
+# Build dirs created by a sudo'd run must be user-owned again, otherwise the
+# next non-root run cannot write its scratch files.  This also heals artifacts
+# left root-owned by older sudo'd builds.
+fix_owner "$OUT_DIR" "$SCRATCH" "$TMPDIR" "$OUT_DIR"/*.img "$OUT_DIR"/*.simg
 
 case "${1:-help}" in
   initrd)        cmd_initrd ;;

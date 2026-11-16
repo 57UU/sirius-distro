@@ -203,7 +203,7 @@ TCP 114.114.114.114:53 → 通
 
 ### 5.2 交给 NetworkManager（正式方案）
 
-日常由 NM 接管，overlay 预置 `etc/NetworkManager/system-connections/cellular.nmconnection`：
+日常由 NM 接管，system 分区的 glue 预置该连接（开机链到 `/run/NetworkManager/system-connections/cellular.nmconnection`）：
 
 ```ini
 [connection]

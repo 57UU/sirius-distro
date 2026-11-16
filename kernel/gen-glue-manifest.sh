@@ -69,6 +69,16 @@ esac
         [ -e "$f" ] || continue
         printf 'run systemd/network network/%s\n' "${f##*/}"
     done
+
+    # Arbitrary runtime config trees: glue/run/<dir under /run>/<file>.
+    if [ -d "$GLUE/run" ]; then
+        ( cd "$GLUE" && find run -type f | LC_ALL=C sort ) | while read -r f; do
+            rel=${f#run/}
+            dest=${rel%/*}
+            [ "$dest" = "$rel" ] && dest="."
+            printf 'run %s %s\n' "$dest" "$f"
+        done
+    fi
 } > "$TMP"
 
 mv -f "$TMP" "$OUT"

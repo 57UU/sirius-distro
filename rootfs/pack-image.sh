@@ -7,6 +7,9 @@ set -e
 TREE=$1; IMGDIR=$2; BASE=$3
 test -n "$TREE" -a -n "$IMGDIR" -a -n "$BASE" || { echo "usage: pack-image.sh <tree-dir> <images-dir> <basename>"; exit 1; }
 test -d "$TREE" || { echo "missing tree $TREE"; exit 1; }
+# Never leave a root-owned 5G f2fs scratch file behind: it would block a retry
+# as the normal user and waste space.
+trap 'rm -f "$IMGDIR/$BASE.f2fs"' EXIT
 mkdir -p "$IMGDIR"
 echo "=== f2fs (5G, label rootfs; auto-expands to full partition on first boot) ==="
 truncate -s 5368709120 "$IMGDIR/$BASE.f2fs"
@@ -18,4 +21,10 @@ sudo umount "$MNT" && rmdir "$MNT"
 fsck.f2fs -f "$IMGDIR/$BASE.f2fs" >/dev/null
 echo "=== simg ==="
 img2simg "$IMGDIR/$BASE.f2fs" "$IMGDIR/$BASE.simg"; rm -f "$IMGDIR/$BASE.f2fs"
+# build.sh runs this script under sudo; hand the artifact (and the images dir,
+# which may have been created by root) back to the invoking user, otherwise
+# later non-root builds, `clean` and fastboot file access break.
+if [ "$(id -u)" -eq 0 ] && [ -n "${SUDO_UID:-}" ]; then
+    chown "$SUDO_UID:${SUDO_GID:-$SUDO_UID}" "$IMGDIR/$BASE.simg" "$IMGDIR" 2>/dev/null || true
+fi
 echo PACK-DONE

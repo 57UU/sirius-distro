@@ -12,7 +12,7 @@ sensor PD (ADSP 内, /dev/fastrpc-adsp-secure)
 hexagonrpcd (glue/bin, -s -R /run/sirius-qcom)
         │  HexagonFS: config / registry / sns_reg.conf / socinfo / dsp
         ▼
-libssc (glue/bin/libssc.so.2)  ← QRTR QMI service "ssc" → SSC service (node 400)
+libssc (glue/lib/libssc.so.2)  ← QRTR QMI service "ssc" → SSC service (node 400)
         ▼
 ssccli（或任何调用 libssc 的程序）
 ```
@@ -30,7 +30,7 @@ audio/root PD。
 | 内容 | 位置 | 来源 |
 |---|---|---|
 | `hexagonrpcd` | `glue/bin/hexagonrpcd` | [linux-msm/hexagonrpc](https://github.com/linux-msm/hexagonrpc) 自编译（glibc，私有库同目录） |
-| 私有库 | `glue/bin/libhexagonrpc.so.0.5`、`libssc.so.2`、`libprotobuf-c.so.1` | hexagonrpc / libssc / Debian protobuf-c |
+| 私有库 | `glue/lib/libhexagonrpc.so.0.5`、`libssc.so.2`、`libprotobuf-c.so.1`（另有 glib/qmi 闭包，见 `glue/lib/README.md`） | hexagonrpc / libssc / Debian trixie |
 | `ssccli` | `glue/bin/ssccli` | [libssc](https://codeberg.org/DylanVanAssche/libssc) 示例 CLI |
 | 厂商 sensor 配置 | `glue/sensors/config/`（27 个 json，含 `config_list.txt`） | 原厂 `vendor.img` 的 `/etc/sensors/config` |
 | `sns_reg.conf` | `glue/sensors/sns_reg.conf` | 原厂 `vendor.img` 的 `/etc/sensors/sns_reg_config`（改名） |
@@ -51,11 +51,11 @@ unit：`glue/units/sirius-sensors.service`（无 `[Install]`，启用关系在
 ## 读数据
 
 ```sh
-# 新 rootfs 里有软链；旧 rootfs 直接用 glue 路径
 sudo ssccli --sensor=accelerometer --timeout=10
 sudo ssccli --sensor=magnetometer  --timeout=10
 sudo ssccli --sensor=compass       --timeout=10
-# 等价：sudo LD_LIBRARY_PATH=/mnt/sysmod/glue/bin /mnt/sysmod/glue/bin/ssccli ...
+# rootfs 不需要建软链，glue 里的依赖库由镜像构建时写入的 RPATH 自动找到；
+# 也可以直接跑 /mnt/sysmod/glue/bin/ssccli。
 ```
 
 `ssccli` 需要访问 `AF_QIPCRTR`（root 下跑最简单）。光感/距感会报 `UNKNOWN`，

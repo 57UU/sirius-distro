@@ -13,9 +13,12 @@
 #   unit <relpath>               unit file to expose (e.g. units/foo.service)
 #   dropin <unit> <relpath>      drop-in for a unit of any origin
 #   wants <target> <unit>        enablement (.wants symlink)
-#   run <dest> <relpath>         runtime config dir (udev/rules.d,
-#                                modules-load.d, modprobe.d, tmpfiles.d,
-#                                systemd/network)
+#   run <dest> <relpath>         symlink into /run/<dest>/<file>.  Used for the
+#                                fixed dirs (udev/rules.d, modules-load.d,
+#                                modprobe.d, tmpfiles.d, systemd/network) and
+#                                for arbitrary trees mirrored from glue/run/
+#                                (e.g. NetworkManager/conf.d, sysctl.d, and
+#                                NetworkManager/system-connections)
 # Unknown record kinds are logged and ignored (forward compatibility).
 #
 # Failure policy: never block boot.  Any error is logged to /dev/kmsg and the
