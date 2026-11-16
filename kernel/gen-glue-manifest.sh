@@ -28,7 +28,8 @@ esac
 {
     printf 'abi %s\n' "$ABI"
 
-    # Unit files.  Drop-in directories (*.d) are handled separately below.
+    # Unit files, including /dev/null symlinks used as systemd unit masks.
+    # Drop-in directories (*.d) are handled separately below.
     UNITS=$(for f in "$GLUE"/units/*; do
         [ -e "$f" ] || continue
         case "${f##*/}" in *.d) continue ;; esac

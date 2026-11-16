@@ -110,7 +110,7 @@ glue/
                          # hexagonrpcd、ssccli）、设备脚本、生成器实现；
                          # 运行库不在本目录，RPATH 指向 ../lib
   lib/                   # 设备层私有运行库闭包（glibc 与 glib 家族由 rootfs 提供），见 glue/lib/README.md
-  units/                 # 与内核/驱动耦合的 systemd unit（含 rmtfs 的 drop-in）
+  units/                 # 与内核/设备耦合的 systemd unit（含 rmtfs 的 drop-in、tmp.mount mask）
   units.enable           # <unit> <target> 列表，构建时转成 manifest 的 wants 行
   udev/rules.d/          # 设备命名/自动恢复规则
   modules-load.d/        # 开机要加载的模块
@@ -199,6 +199,13 @@ persist（`ro`，允许 ext4 在需要时回放日志恢复一致性），读取
 **enablement 与 `[Install]`**：glue unit **故意不写 `[Install]`**，启用关系只由
 `units.enable` → manifest `wants` → generator 表达；首启 preset（§1）负责让 `/etc` 保持干净。
 新增 glue unit 时按 `sirius-*` / `adsprpcd-*` 规范命名即可被 preset 覆盖。
+
+**手机 `/tmp` 使用磁盘**：`glue/units/tmp.mount` 是指向 `/dev/null` 的 unit mask，
+由同一个生成器暴露给 systemd，覆盖发行版自带的 tmpfs mount。两个 flavor 都使用
+userdata 根文件系统上的 `/tmp` 目录，权限和过期清理由发行版 tmpfiles 规则维护。
+更新 `kernel.img` 并重启后生效；不会在线卸载已有 `/tmp`，不改 userdata 的 `/etc`。
+`/run` 仍使用 tmpfs，构建电脑上的 `/tmp` 也不受影响。需要覆盖该默认行为时，
+用户可在 `/etc/systemd/system/tmp.mount` 提供自己的 unit（优先于 generator）。
 
 **权限**：镜像内 glue 全部 `root:root`（打包时 `chown -R`）；`cellular.nmconnection` 额外
 置 0600——NetworkManager 只加载 root 所有且非 group/other 可读的 keyfile。因此 `kernel`

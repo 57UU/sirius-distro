@@ -77,6 +77,16 @@ while read -r kind a b; do
 done < "$FIX/manifest"
 check "at least one unit linked" test "$units" -gt 0
 
+# tmp.mount is masked by the store's /dev/null symlink, so the phone uses
+# the /tmp directory on userdata instead of mounting a memory filesystem.
+check "tmp.mount resolves to a mask" test "$(readlink -f "$OUT/tmp.mount")" = /dev/null
+# --root keeps this read-only query offline; SYSTEMD_UNIT_PATH makes it use
+# the actual generator output without touching the host's system manager.
+if command -v systemctl >/dev/null; then
+    state=$(SYSTEMD_UNIT_PATH="$OUT" systemctl --root=/ is-enabled tmp.mount 2>/dev/null || true)
+    check "systemd recognizes generated tmp.mount mask" test "$state" = masked
+fi
+
 # Every units.enable entry must have produced a .wants link.
 while read -r unit target rest; do
     case "${unit:-}" in ''|\#*) continue ;; esac
