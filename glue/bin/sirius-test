@@ -271,6 +271,17 @@ else
 fi
 
 section "音频 / 显示 / 输入 / 相机"
+if systemctl is-enabled --quiet orbital.service 2>/dev/null; then
+    # Orbital handles short presses itself. Check the daemon's live setting:
+    # a missing/overridden drop-in otherwise silently restores poweroff.
+    power_key=$(busctl get-property org.freedesktop.login1 /org/freedesktop/login1 \
+        org.freedesktop.login1.Manager HandlePowerKey 2>/dev/null || true)
+    if [ "$power_key" = 's "ignore"' ]; then
+        pass "电源键短按交给 Orbital（logind=ignore）"
+    else
+        fail "电源键短按策略错误" "logind=${power_key:-unknown}，预期 ignore"
+    fi
+fi
 check "声卡 card0 存在" test -e /proc/asound/card0
 # find a desktop user (SUDO_USER, else the first uid>=1000 with a runtime dir)
 if [ -z "$TARGET_USER" ]; then
