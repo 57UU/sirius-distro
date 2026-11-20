@@ -1,7 +1,7 @@
 # sirius-distro
 
 小米 8 SE（sirius / sdm710）Linux 发行工程：把内核变成能用的系统。
-内核源码在 [57UU/linux-sirius](https://github.com/57UU/linux-sirius)（分支 `feat/sirius-7.2`），
+内核源码在 [57UU/linux-sirius](https://github.com/57UU/linux-sirius)（分支 `feat/sirius-7.3`），
 
 ```text
 boot/       U-Boot 启动镜像（uboot/sirius-build.sh 打包）以及initrd源码
@@ -9,7 +9,7 @@ firmware/   设备固件
 rootfs/     rootfs 烘焙：overlay（开机会拷进 / 的文件）+ 构建脚本
 src/        自研源码（sirius-remodeset）；第三方源码只留获取说明
 orbital/    上游仪表盘（获取说明，用于server系统的简易管理GUI）
-kernel/     内核区：build-kernel-img.sh（system 分区仓库打包）+ linux-sirius/（上游内核submodule，57UU/linux-sirius feat/sirius-7.2，需git submodule update --init）
+kernel/     内核区：build-kernel-img.sh（system 分区仓库打包）+ linux-sirius/（上游内核submodule，57UU/linux-sirius feat/sirius-7.3，需git submodule update --init）
 glue/       内核/设备耦合 userspace 层（unit/脚本/设备守护二进制/私有运行库/Sensor Core 配置/自检脚本/udev/模块加载/ALSA UCM/运行期配置/manifest）：随 kernel.img 打进 system 分区，升级内核相关服务只刷 system
 docs/       相关文档以及一些修复经验
 ```
