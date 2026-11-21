@@ -64,7 +64,7 @@ default password is 1234.
 | LED          | Working       | notification, rear flash, front fill |
 | Speaker      | Working       |      |
 | Earpiece     | Working       |      |
-| Headphone    | Broken        |      |
+| Headphone    | Working       | Type-C passive analog |
 | Haptics      | Working       |      |
 | Microphone   | Working       | bottom + top |
 | Bluetooth    | Working       |      |

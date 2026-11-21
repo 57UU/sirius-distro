@@ -16,6 +16,7 @@ change分为三大部分：boot,kernel,rootfs，例如 rootfs.gnome: 修复gnome
 - system: **一键硬件自检**：`sudo /mnt/sysmod/glue/bin/sirius-test` 会快速检查系统分区、各设备服务、固件、传感器、音频、显示、输入、WiFi、蓝牙、Modem、电池和 zram 等；`--full` 额外检查依赖外设状态的项目（如 PD 充电器）。
 - kernel: **内置麦克风可用**：启用 LPI 引脚控制器并补齐音频路由，底部与顶部内置麦克风现在可以正常录音。
 - system: **听筒可用**：在 ALSA UCM2 配置中补齐听筒（Earpiece）路由，现在可以通过听筒发声并支持与扬声器切换。
+- kernel: **Type-C 无源模拟耳机自动识别与输出**：修补 PM660 Type-C 驱动支持 `DFP_RA_RA` 音频配件检测并扩展 `gpio-sbu-mux` 切换模拟开关，插上小米原装无源 Type-C 转接线后可自动识别 `Headset Jack` 并通过内置放大器输出立体声。
 
 ### 变更
 

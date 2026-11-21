@@ -18,7 +18,7 @@ Type=oneshot
 # UCM lookup uses the stock /usr/share/alsa/ucm2 path; glue's tmpfiles.d
 # symlinks SE/ there (adding a second config root via ALSA_CONFIG_UCM2 would
 # hide the distro's top-level ucm.conf, so don't).
-ExecStart=/usr/bin/alsaucm -c SE set _verb HiFi set _enadev Speaker set _enadev Mic
+ExecStart=/usr/bin/alsaucm -c SE set _verb HiFi set _enadev Speaker set _enadev Earpiece set _enadev Mic
 # WirePlumber/ACP already probed the card the instant it appeared, while the
 # route above was still off; that probe fails (-EINVAL from snd_pcm_open) and
 # the card is left with only "off"/"pro-audio", i.e. no sink at all (GNOME then
