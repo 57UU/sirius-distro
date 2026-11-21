@@ -8,20 +8,12 @@
 // the device off after its 60 s countdown. See docs/POWER.md.
 //
 // So this helper watches the pmic pwrkey *without* EVIOCGRAB and, per press:
-//   - unlocked + panel awake  -> org.gnome.ScreenSaver.Lock (lock the phone);
-//   - locked + panel awake    -> blank NOW, by cycling the saver:
-//       SetActive(false) -> wait until GetActive()==false -> Lock().
-//       gsd blanks on the false->true ActiveChanged edge
-//       (idle_set_mode(BLANK) -> mutter DisplayConfig PowerSaveMode=3),
-//       so gsd stays the owner of the whole blank/wake state machine and
-//       the wake path afterwards is bit-for-bit the native one.
-//       Cycling is required because with the shield up Lock()/SetActive(true)
-//       are dead ends: ScreenShield._resetLockScreen() early-returns while
-//       _lockScreenState is SHOWN, so Lock() never emits lock-screen-shown
-//       (25 s D-Bus timeout) and SetActive(true) silently no-ops;
-//   - locked + panel blanked  -> do nothing: this press is the wake-up (the
-//     key event reaches mutter as user activity and gsd's became-active
-//     watch restores the panel; nothing grabs the device).
+//   - unlocked + panel awake  -> org.gnome.ScreenSaver.Lock (lock + native blank);
+//   - locked + panel awake    -> PowerSaveMode=3 (instant blank, no SetActive(false)
+//                                so the desktop never flashes and the shield stays up);
+//   - panel blanked           -> PowerSaveMode=0 (guaranteed wake even when blanked
+//                                directly via PowerSaveMode=3, while native gsd wake
+//                                also runs in parallel).
 // Everything else stays native:
 //   - locking is the same path logind's Lock() takes, so LockedHint, the
 //     shield and the idle timer behave as usual;
@@ -48,11 +40,9 @@
 #define KEY_POWER_CODE 116
 #define SYS_DPMS "/sys/class/drm/card0-DSI-1/dpms"
 
-/* gdbus is the only D-Bus client guaranteed in the image; a call is ~40 ms,
-   once per press, so fork+exec is plenty. Children are auto-reaped.
-   arg is an optional extra method argument (NULL = none). */
-static void gdbus(const char *method, const char *arg, int capture,
-		  char *out, size_t outsz)
+static void gdbus_call(const char *dest, const char *path, const char *method,
+		       const char *const args[], int capture,
+		       char *out, size_t outsz)
 {
 	int fds[2] = { -1, -1 };
 	pid_t pid;
@@ -72,6 +62,9 @@ static void gdbus(const char *method, const char *arg, int capture,
 		return;
 	}
 	if (pid == 0) {
+		const char *argv[16];
+		int i = 0, j;
+
 		/* the user manager does not always export the session bus */
 		if (!getenv("DBUS_SESSION_BUS_ADDRESS")) {
 			char addr[64];
@@ -85,16 +78,21 @@ static void gdbus(const char *method, const char *arg, int capture,
 			close(fds[0]);
 			close(fds[1]);
 		}
-		if (arg)
-			execlp("gdbus", "gdbus", "call", "--session",
-			       "--dest", "org.gnome.ScreenSaver",
-			       "--object-path", "/org/gnome/ScreenSaver",
-			       "--method", method, arg, (char *)NULL);
-		else
-			execlp("gdbus", "gdbus", "call", "--session",
-			       "--dest", "org.gnome.ScreenSaver",
-			       "--object-path", "/org/gnome/ScreenSaver",
-			       "--method", method, (char *)NULL);
+		argv[i++] = "gdbus";
+		argv[i++] = "call";
+		argv[i++] = "--session";
+		argv[i++] = "--dest";
+		argv[i++] = dest;
+		argv[i++] = "--object-path";
+		argv[i++] = path;
+		argv[i++] = "--method";
+		argv[i++] = method;
+		if (args) {
+			for (j = 0; args[j] && i < 15; j++)
+				argv[i++] = args[j];
+		}
+		argv[i] = NULL;
+		execvp("gdbus", (char *const *)argv);
 		_exit(127);
 	}
 	if (!capture)
@@ -115,6 +113,22 @@ static void gdbus(const char *method, const char *arg, int capture,
 		out[got] = 0;
 	}
 	close(fds[0]);
+}
+
+static void set_power_save_mode(int mode)
+{
+	char val[16];
+	const char *args[4];
+
+	snprintf(val, sizeof(val), "<int32 %d>", mode);
+	args[0] = "org.gnome.Mutter.DisplayConfig";
+	args[1] = "PowerSaveMode";
+	args[2] = val;
+	args[3] = NULL;
+	gdbus_call("org.gnome.Mutter.DisplayConfig",
+		   "/org/gnome/Mutter/DisplayConfig",
+		   "org.freedesktop.DBus.Properties.Set",
+		   args, 0, NULL, 0);
 }
 
 /* The panel's DPMS state is what tells a wake-up press (locked + blanked)
@@ -139,68 +153,52 @@ static int display_blank(void)
 	return strncmp(buf, "Off", 3) == 0;
 }
 
-/* Deactivate the saver, wait for Active to really flip false, then Lock
-   again. The wait is not cosmetic: gnome-shell only flips _isActive at
-   _completeDeactivate, and re-Locking earlier would hit the SHOWN-state
-   early return in _resetLockScreen, hang the call and leave the session
-   unlocked with the shield down. GetActive answers in ~40 ms per poll;
-   the shell needs ~250-400 ms, so a handful of polls covers it. */
-static void blank_locked(void)
-{
-	char buf[64];
-	int i;
-
-	fprintf(stderr, "sirius-powerkey: blank\n");
-	gdbus("org.gnome.ScreenSaver.SetActive", "false", 0, NULL, 0);
-	for (i = 0; i < 20; i++) {
-		gdbus("org.gnome.ScreenSaver.GetActive", NULL, 1,
-		      buf, sizeof(buf));
-		if (buf[0] && strstr(buf, "(false,"))
-			break;
-	}
-	gdbus("org.gnome.ScreenSaver.Lock", NULL, 0, NULL, 0);
-}
-
 /* Lock() returns once the shield is up, but when the session is *already*
    locked gnome-shell leaves the call hanging until the 25 s D-Bus timeout.
-   So never call it blindly: gate on the saver state, which answers in ~40 ms.
-   (Gating on a "recently called" flag instead would swallow every press for
-   25 s after each wake — the bug users see as "power key dead for a while
-   after unlocking".) */
+   So never call it blindly: gate on the saver state, which answers in ~40 ms. */
 static void on_power_press(void)
 {
-	static double last_toggle_ms;
+	static double last_action_ms;
 	char buf[64];
 	struct timespec now;
 	double now_ms;
+	int blank;
+
+	clock_gettime(CLOCK_MONOTONIC, &now);
+	now_ms = now.tv_sec * 1000.0 + now.tv_nsec / 1e6;
+	if (last_action_ms && now_ms - last_action_ms < 400)
+		return;
+	last_action_ms = now_ms;
+
 	/* Sample the panel state FIRST, before any D-Bus roundtrip: a press
 	   on a blanked lock screen also wakes it natively (key -> gsd -> KMS
 	   commit), and that commit lands within tens of ms. Reading dpms
 	   after GetActive (~40 ms) races the wake and misclassifies the
-	   press, re-blanking it right away. At read time the wake chain
-	   (input -> mutter idle monitor -> gsd -> property -> commit) has
-	   not gotten anywhere, so the value is still the pre-press one. */
-	int blank = display_blank();
+	   press, re-blanking it right away. */
+	blank = display_blank();
 
-	gdbus("org.gnome.ScreenSaver.GetActive", NULL, 1, buf, sizeof(buf));
+	if (blank) {
+		fprintf(stderr, "sirius-powerkey: wake\n");
+		set_power_save_mode(0);
+		return;
+	}
+
+	gdbus_call("org.gnome.ScreenSaver", "/org/gnome/ScreenSaver",
+		   "org.gnome.ScreenSaver.GetActive", NULL, 1,
+		   buf, sizeof(buf));
 	if (!strstr(buf, "(true,")) {
 		/* unlocked: the press means lock */
 		fprintf(stderr, "sirius-powerkey: lock\n");
-		gdbus("org.gnome.ScreenSaver.Lock", NULL, 0, NULL, 0);
+		gdbus_call("org.gnome.ScreenSaver", "/org/gnome/ScreenSaver",
+			   "org.gnome.ScreenSaver.Lock", NULL, 0, NULL, 0);
 		return;
 	}
-	/* locked: panel off (at press time) means this press is the wake-up */
-	if (blank)
-		return;
-	/* locked and awake: blank now. A toggle takes ~1 s of shell
-	   churn; ignore presses inside that window so a double-press
-	   cannot race the deactivate/re-lock cycle. */
-	clock_gettime(CLOCK_MONOTONIC, &now);
-	now_ms = now.tv_sec * 1000.0 + now.tv_nsec / 1e6;
-	if (last_toggle_ms && now_ms - last_toggle_ms < 2000)
-		return;
-	last_toggle_ms = now_ms;
-	blank_locked();
+
+	/* locked and awake: blank directly via mutter PowerSaveMode=3 without
+	   calling SetActive(false), so the lock shield stays up and never
+	   flashes the desktop. */
+	fprintf(stderr, "sirius-powerkey: blank\n");
+	set_power_save_mode(3);
 }
 
 /* event numbers move around; match the device by name instead. */
