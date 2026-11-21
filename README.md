@@ -74,7 +74,7 @@ default password is 1234.
 | Camera       | Partial       | IMX363 rear only, very unstable |
 | Fingerprint  | Broken        |      |
 | Video decode | Working       | H.264 VP8 VP9 HEVC MPEG-2 |
-| Video encode | Partial       | verified via v4l2-ctl, ffmpeg segfaults |
+| Video encode | Working*      | ffmpeg <= 9.1 segfaults on non-32-aligned height (fixed in upstream) |
 | Sleep        | Partial       | s2idle works; deep/S3 unsupported |
 
 ## Sensors
