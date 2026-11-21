@@ -11,6 +11,7 @@ set -u
 
 export XDG_RUNTIME_DIR=/run/user/1000
 
-pw-cli ls Node 2>/dev/null | grep -q 'node.name = "alsa_output' && exit 0
+pw-cli ls Node 2>/dev/null | grep -q 'node.name = "alsa_output' &&
+	pw-cli ls Node 2>/dev/null | grep -q 'node.name = "alsa_input' && exit 0
 
 systemctl --user -M "$(id -un 1000)@.host" restart wireplumber

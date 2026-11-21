@@ -14,6 +14,7 @@ change分为三大部分：boot,kernel,rootfs，例如 rootfs.gnome: 修复gnome
 ### 新增
 
 - system: **一键硬件自检**：`sudo /mnt/sysmod/glue/bin/sirius-test` 会快速检查系统分区、各设备服务、固件、传感器、音频、显示、输入、WiFi、蓝牙、Modem、电池和 zram 等；`--full` 额外检查依赖外设状态的项目（如 PD 充电器）。
+- kernel: **内置麦克风可用**：启用 LPI 引脚控制器并补齐音频路由，底部与顶部内置麦克风现在可以正常录音。
 
 ### 变更
 

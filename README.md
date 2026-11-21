@@ -65,7 +65,7 @@ default password is 1234.
 | Speaker      | Working       |      |
 | Headphone    | Broken        |      |
 | Haptics      | Working       |      |
-| Microphone   | Broken        |      |
+| Microphone   | Working       | bottom + top |
 | Bluetooth    | Working       |      |
 | WiFi         | Working*      | 5GHz high latency with MFP on|
 | Modem/IPA    | Working       | single SIM only |

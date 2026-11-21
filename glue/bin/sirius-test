@@ -306,16 +306,25 @@ fi
 if [ -n "$TARGET_USER" ] && command -v runuser >/dev/null 2>&1; then
     uid=$(id -u "$TARGET_USER" 2>/dev/null || true)
     rt=${XDG_RUNTIME_DIR:-/run/user/$uid}
-    if runuser -u "$TARGET_USER" -- env XDG_RUNTIME_DIR="$rt" \
+    if wp_out=$(runuser -u "$TARGET_USER" -- env XDG_RUNTIME_DIR="$rt" \
             DBUS_SESSION_BUS_ADDRESS="unix:path=$rt/bus" \
-            wpctl status 2>/dev/null | grep -q 'Built-in Audio'; then
-        pass "PipeWire sink：Built-in Audio"
+            wpctl status 2>/dev/null); then
+        if printf '%s\n' "$wp_out" | awk '/├─ Sinks:/,/├─ Sources:/' | grep -q 'Built-in Audio'; then
+            pass "PipeWire sink：Built-in Audio"
+        else
+            fail "PipeWire/Pulse 在跑，但没有 Built-in Audio sink"
+        fi
+        if printf '%s\n' "$wp_out" | awk '/├─ Sources:/,/├─ Filters:/' | grep -q 'Built-in Audio'; then
+            pass "PipeWire source：Built-in Audio (麦克风)"
+        else
+            fail "PipeWire/Pulse 在跑，但没有 Built-in Audio source (麦克风)"
+        fi
     elif runuser -u "$TARGET_USER" -- env XDG_RUNTIME_DIR="$rt" \
             DBUS_SESSION_BUS_ADDRESS="unix:path=$rt/bus" \
             pactl info >/dev/null 2>&1; then
-        fail "PipeWire/Pulse 在跑，但没有 Built-in Audio sink"
+        fail "PipeWire/Pulse 在跑，但 wpctl 无法获取音频设备"
     else
-        skip "PipeWire sink" "$TARGET_USER 的桌面会话/音频服务未运行"
+        skip "PipeWire sink/source" "$TARGET_USER 的桌面会话/音频服务未运行"
     fi
 else
     skip "PipeWire sink" "没有可用的非 root 用户"
