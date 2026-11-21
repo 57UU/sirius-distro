@@ -93,5 +93,5 @@ ping -I qmapmux0.0 223.5.5.5   # 注：运营商网关通常不回 ping
   - `uimsel.c`：libqmi 直发 `ChangeProvisioningSession`（支持 `UIMSEL_AID` / `UIMSEL_ST` / `UIMSEL_DEACT`）。
   - `uimwatch.c`：订阅 UIM 事件（必须 `setbuf(stdout, NULL)` 防管道全缓冲）。
   - 就地编译：`gcc -o <bin> <src>.c $(pkg-config --cflags --libs qmi-glib qrtr-glib glib-2.0 gio-2.0)`（需 `gcc libc6-dev libqmi-glib-dev pkg-config`）。
-- **MM 补丁与测试**：`scripts/build-modemmanager.sh`（见 `scripts/modemmanager/README.md`）；离线回归测试 `python3 scripts/test-modem-uim.py`。
+- **离线回归测试**：`python3 scripts/test-modem-uim.py`。
 - **诊断工具**（`workspace/`，不入库）：`uimrd.c`、`wdsup.c`（参考）、`nonhlos-tool.py`。
