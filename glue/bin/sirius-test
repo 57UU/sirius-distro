@@ -116,13 +116,21 @@ check() {
 GLUE=/mnt/sysmod/glue
 SSCLI=$GLUE/bin/ssccli
 KVER=$(uname -r)
+# initrd puts the store device in the kernel cmdline; fall back to the stock
+# partition instead of hardcoding it in the checks below.
+SYSMOD_PART=$(sed -n 's/.*sysmod_part=\([^ ]*\).*/\1/p' /proc/cmdline 2>/dev/null | head -n 1)
+SYSMOD_PART=${SYSMOD_PART:-mmcblk0p79}
 FAILED_LIST=""
+
+sysmod_backs() {
+    findmnt -no SOURCE "$1" 2>/dev/null | grep -qF -- "$SYSMOD_PART"
+}
 
 section "系统 / system 分区"
 check "cmdline 带 sysmod_part=" grep -q 'sysmod_part=' /proc/cmdline
 check "system 分区挂载为 ro" sh -c 'findmnt -no OPTIONS /mnt/sysmod | grep -q "^ro"'
-check "内核模块来自 system 分区 bind" sh -c "findmnt -no SOURCE /lib/modules/$KVER | grep -q mmcblk0p79"
-check "固件来自 system 分区 bind" sh -c 'findmnt -no SOURCE /lib/firmware | grep -q mmcblk0p79'
+check "内核模块来自 system 分区 bind" sysmod_backs "/lib/modules/$KVER"
+check "固件来自 system 分区 bind" sysmod_backs /lib/firmware
 check "glue ABI=1" sh -c '[ "$(cat /mnt/sysmod/glue/ABI 2>/dev/null)" = 1 ]'
 check "glue manifest 存在" test -s "$GLUE/manifest"
 
@@ -140,7 +148,10 @@ else
     fail "生成 unit 数量不匹配 (manifest $exp_units, generator $got_units)"
 fi
 
-shadow=$(find /etc/systemd/system -maxdepth 1 -lname "$GLUE/*" 2>/dev/null | wc -l)
+# A first-boot preset must not leave enablement behind on userdata: such links
+# live in <target>.wants/ and point at /run/systemd/generator/, not at $GLUE.
+shadow=$(find /etc/systemd/system -type l \
+    \( -lname "$GLUE/*" -o -lname '/run/systemd/generator/*' \) 2>/dev/null | wc -l)
 if [ "$shadow" = 0 ]; then
     pass "/etc 无 glue 影子软链"
 else

@@ -39,6 +39,7 @@ if [ ! -f "$GLUE/manifest" ]; then
 fi
 
 linked=0
+failed=0
 while read -r kind a b; do
     case "${kind:-}" in
         ''|\#*) continue ;;
@@ -49,16 +50,30 @@ while read -r kind a b; do
             fi
             ;;
         unit)
-            ln -sfn "$GLUE/$a" "$NORMAL/${a##*/}"
-            linked=$((linked + 1))
+            if ln -sfn "$GLUE/$a" "$NORMAL/${a##*/}"; then
+                linked=$((linked + 1))
+            else
+                failed=$((failed + 1))
+                log "cannot link unit ${a##*/} -> $GLUE/$a"
+            fi
             ;;
         dropin)
-            mkdir -p "$NORMAL/$a.d"
-            ln -sfn "$GLUE/$b" "$NORMAL/$a.d/${b##*/}"
+            if mkdir -p "$NORMAL/$a.d" &&
+               ln -sfn "$GLUE/$b" "$NORMAL/$a.d/${b##*/}"; then
+                :
+            else
+                failed=$((failed + 1))
+                log "cannot link drop-in $a/${b##*/} -> $GLUE/$b"
+            fi
             ;;
         wants)
-            mkdir -p "$NORMAL/$a.wants"
-            ln -sfn "$NORMAL/$b" "$NORMAL/$a.wants/$b"
+            if mkdir -p "$NORMAL/$a.wants" &&
+               ln -sfn "$NORMAL/$b" "$NORMAL/$a.wants/$b"; then
+                :
+            else
+                failed=$((failed + 1))
+                log "cannot link $a.wants/$b"
+            fi
             ;;
         run)
             # Non-unit configuration belongs to an early boot service, so
@@ -70,5 +85,11 @@ while read -r kind a b; do
     esac
 done < "$GLUE/manifest"
 
-log "linked $linked units from $GLUE (ABI $GLUE_ABI)"
+# Never fail the boot, but never claim success for links that were not created
+# either: dmesg is the documented acceptance check for this generator.
+if [ "$failed" -ne 0 ]; then
+    log "linked $linked units from $GLUE (ABI $GLUE_ABI), $failed link(s) failed"
+else
+    log "linked $linked units from $GLUE (ABI $GLUE_ABI)"
+fi
 exit 0

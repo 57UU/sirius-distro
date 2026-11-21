@@ -48,6 +48,7 @@ test -d "$FIRMWARE" || { echo "missing firmware $FIRMWARE"; exit 1; }
 command -v "$DEPMOD" >/dev/null || { echo "missing depmod"; exit 1; }
 command -v "$MKFS" >/dev/null || { echo "missing mkfs.ext4"; exit 1; }
 command -v patchelf >/dev/null || { echo "missing patchelf (needed for glue RPATH)"; exit 1; }
+command -v file >/dev/null || { echo "missing file (needed to detect ELF for glue RPATH)"; exit 1; }
 # The store must be root-owned inside the image (NetworkManager rejects
 # non-root-owned keyfiles, and mke2fs -d as a user cannot write root-owned
 # inodes), so the last steps need root.  Fail fast: otherwise a passwordless
@@ -133,17 +134,28 @@ chmod 644 "$STAGE"/glue/lib/*.so.* 2>/dev/null || true
 # Rewrite RPATH: glue binaries/libs resolve from glue/lib; glibc and the glib
 # family come from the rootfs.  Binaries: $ORIGIN/../lib; libs: $ORIGIN.
 # Invariant: NEEDED entries other than glibc + glib* must exist in glue/lib.
+_elf=0
+_patched=0
 for _f in "$STAGE"/glue/bin/* "$STAGE"/glue/lib/*; do
     [ -f "$_f" ] || continue
     case "$(file -b "$_f" 2>/dev/null)" in
         *ELF*) ;;
         *) continue ;;
     esac
+    _elf=$((_elf + 1))
     case "$_f" in
-        "$STAGE"/glue/bin/*) patchelf --set-rpath '$ORIGIN/../lib' "$_f" ;;
-        *)                   patchelf --set-rpath '$ORIGIN' "$_f" ;;
+        "$STAGE"/glue/bin/*) patchelf --set-rpath '$ORIGIN/../lib' "$_f" || { echo "patchelf failed: $_f"; exit 1; } ;;
+        *)                   patchelf --set-rpath '$ORIGIN' "$_f" || { echo "patchelf failed: $_f"; exit 1; } ;;
     esac
+    _patched=$((_patched + 1))
 done
+# A silent skip here (missing `file`, failed patchelf, unexpected layout) would
+# ship an image whose glue binaries cannot resolve glue/lib, so fail the build.
+if [ "$_elf" -eq 0 ] || [ "$_patched" -ne "$_elf" ]; then
+    echo "glue RPATH: patched $_patched/$_elf ELF files, expected all"
+    exit 1
+fi
+echo "glue RPATH: patched $_patched/$_elf ELF files"
 chmod 644 "$STAGE"/glue/bin/README.md 2>/dev/null || true
 # NetworkManager only accepts root-owned 0600 keyfiles.
 chmod 600 "$STAGE"/glue/run/NetworkManager/system-connections/*.nmconnection 2>/dev/null || true
