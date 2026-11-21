@@ -143,13 +143,12 @@ system 分区在 ABI 层面只依赖 rootfs 的 glibc（≥2.38）和 glib 家�
 # Acknowledgements
 Thanks many opensource projects:
 
-kernel for sdm710: https://gitlab.com/sdm670-mainline/linux
-initrd: https://gitlab.com/sdm845-mainline/initrd
-orbital(lite panel): https://github.com/AthBe1337/Orbital
-firmware & config: https://wiki.nura.eco/wiki/Xiaomi_Mi_9_Lite_(xiaomi-pyxis)
-uboot: https://gitlab.postmarketos.org/ellyq/u-boot
-
-android reference: https://github.com/Rocky7842/android_kernel_xiaomi_sdm710
+- kernel for sdm710: https://gitlab.com/sdm670-mainline/linux
+- initrd: https://gitlab.com/sdm845-mainline/initrd
+- orbital(lite panel): https://github.com/AthBe1337/Orbital
+- firmware & config: https://wiki.nura.eco/wiki/Xiaomi_Mi_9_Lite_(xiaomi-pyxis)
+- uboot: https://gitlab.postmarketos.org/ellyq/u-boot
+- android reference: https://github.com/Rocky7842/android_kernel_xiaomi_sdm710
 
 ## Other upstream dependencies
 
