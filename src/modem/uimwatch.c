@@ -21,6 +21,7 @@
 #endif
 
 static GMainLoop *loop = NULL;
+static int exit_code = 0;
 
 static void
 on_event (QmiClientUim *client, gpointer output, gpointer user_data)
@@ -71,6 +72,7 @@ client_ready (QmiDevice *device, GAsyncResult *res, gpointer user_data)
     if (!client) {
         fprintf (stderr, "allocate_client: %s\n", error ? error->message : "?");
         if (error) g_error_free (error);
+        exit_code = 1;
         g_main_loop_quit (loop);
         return;
     }
@@ -97,6 +99,7 @@ client_ready (QmiDevice *device, GAsyncResult *res, gpointer user_data)
     if (!qmi_message_uim_register_events_input_set_event_registration_mask (input, mask, &e)) {
         fprintf (stderr, "set mask: %s\n", e ? e->message : "?");
         if (e) g_error_free (e);
+        exit_code = 1;
         g_main_loop_quit (loop);
         return;
     }
@@ -111,6 +114,7 @@ open_ready (QmiDevice *device, GAsyncResult *res, gpointer user_data)
     GError *error = NULL;
     if (!qmi_device_open_finish (device, res, &error)) {
         fprintf (stderr, "open: %s\n", error ? error->message : "?");
+        exit_code = 1;
         g_main_loop_quit (loop);
         return;
     }
@@ -125,6 +129,7 @@ device_ready (GObject *src, GAsyncResult *res, gpointer user_data)
     QmiDevice *device = qmi_device_new_from_node_finish (res, &error);
     if (!device) {
         fprintf (stderr, "device: %s\n", error ? error->message : "?");
+        exit_code = 1;
         g_main_loop_quit (loop);
         return;
     }
@@ -141,12 +146,14 @@ bus_ready (GObject *src, GAsyncResult *res, gpointer user_data)
 
     if (!bus) {
         fprintf (stderr, "bus: %s\n", error ? error->message : "?");
+        exit_code = 1;
         g_main_loop_quit (loop);
         return;
     }
     node = qrtr_bus_get_node (bus, 0);
     if (!node) {
         fprintf (stderr, "no node 0\n");
+        exit_code = 1;
         g_main_loop_quit (loop);
         return;
     }
@@ -159,5 +166,5 @@ int main (void)
     loop = g_main_loop_new (NULL, FALSE);
     qrtr_bus_new (10000, NULL, bus_ready, NULL);
     g_main_loop_run (loop);
-    return 0;
+    return exit_code;
 }

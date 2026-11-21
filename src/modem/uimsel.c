@@ -10,6 +10,7 @@
 
 static GMainLoop *loop = NULL;
 static guint g_slot = 1;
+static int exit_code = 1;
 
 static gboolean
 parse_hex (const char *s, guint8 *out, gsize *out_len)
@@ -51,6 +52,7 @@ change_ready (QmiClientUim *client, GAsyncResult *res, gpointer user_data)
             if (qmi_err) g_error_free (qmi_err);
         } else {
             g_print ("SUCCESS: provisioning session changed\n");
+            exit_code = 0;
         }
     }
     qmi_message_uim_change_provisioning_session_output_unref (out);
@@ -186,5 +188,5 @@ int main (int argc, char **argv)
     loop = g_main_loop_new (NULL, FALSE);
     qrtr_bus_new (10000, NULL, bus_ready, NULL);
     g_main_loop_run (loop);
-    return 0;
+    return exit_code;
 }
