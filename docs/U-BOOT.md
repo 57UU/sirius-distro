@@ -43,4 +43,4 @@ fastboot flash boot build/boot.img && fastboot reboot   # 确认后落盘
 
 - 进入系统后确认：`cat /proc/cmdline` 含 `sysmod_part=mmcblk0p79`，`mount | grep sysmod` 为 p79。
 - **已知限制**：熄屏/电源键在 U-Boot 下无效（卡住长按电源强重启）；`Loading Boot0001 failed` 属正常（无 ESP）。
-- **刷机一律走 ABL fastboot（音量下 + 电源）**：U-Boot 自带 fastboot 存在 `dwc3` `ep1in-bulk` 丢包与 A/B 分区名错配（找 `boot_a`）问题，不可用于刷机；bootmenu（开机 1s 内按音量键进入）内的 `Enable fastboot mode`（`VID_18D1&PID_4EE0`，Windows 需手动选 WinUSB ADB 驱动）仅作调试。
+- **刷机建议**：日常刷机可走 ABL fastboot（音量下 + 电源，~12.8 s）或 U-Boot fastboot（bootmenu 选 `Enable fastboot mode` 或写入 `uboot-fastboot` BCB，已修复 `$fastboot_addr_r`、64 KB USB 缓冲与 100 MHz HS200，刷 384 MB `system` 约 16 s）。
