@@ -1,7 +1,7 @@
 # sirius-distro
 
 小米 8 SE（sirius / sdm710）Linux 发行工程：把内核变成能用的系统。
-内核源码在 [57UU/linux-sirius](https://github.com/57UU/linux-sirius)（分支 `feat/sirius-7.2`），
+内核源码在 [57UU/linux-sirius](https://github.com/57UU/linux-sirius)（分支 `feat/sirius-7.3`），
 
 ```text
 boot/       U-Boot 启动镜像（uboot/sirius-build.sh 打包）以及initrd源码
@@ -9,7 +9,8 @@ firmware/   设备固件
 rootfs/     rootfs 烘焙：overlay（开机会拷进 / 的文件）+ 构建脚本
 src/        自研源码（sirius-remodeset）；第三方源码只留获取说明
 orbital/    上游仪表盘（获取说明，用于server系统的简易管理GUI）
-kernel/     内核区：build-kernel-img.sh（system 分区仓库打包）+ linux-sirius/（上游内核submodule，57UU/linux-sirius feat/sirius-7.2，需git submodule update --init）
+kernel/     内核区：build-kernel-img.sh（system 分区仓库打包）+ linux-sirius/（上游内核submodule，57UU/linux-sirius feat/sirius-7.3，需git submodule update --init）
+glue/       内核/设备耦合 userspace 层（unit/脚本/设备守护二进制/私有运行库/Sensor Core 配置/自检脚本/udev/模块加载/ALSA UCM/运行期配置/manifest）：随 kernel.img 打进 system 分区，升级内核相关服务只刷 system
 docs/       相关文档以及一些修复经验
 ```
 制作过程见：https://blog.57u.tech/2026/03/18/install-linux-on-android-device-mi8se/
@@ -27,12 +28,14 @@ fastboot flash boot boot.img
 
 只换内核时不用重刷 boot，只刷 system 即可。
 
-## step2：刷写 system（kernel.img：内核+模块+固件）
+## step2：刷写 system（kernel.img：内核+模块+固件+内核耦合服务）
 
-内核模块和设备固件在 system 分区，刷入：
+内核模块、设备固件，以及随内核走的 systemd 服务/udev 规则/ALSA UCM（`glue/`）都在 system 分区，刷入：
+
 ```bash
 fastboot flash system kernel.img
 ```
+
 
 ## step3：刷写 rootfs.img
 解压出simg文件
@@ -62,7 +65,7 @@ default password is 1234.
 | Speaker      | Working       |      |
 | Headphone    | Broken        |      |
 | Haptics      | Working       |      |
-| Microphone   | Broken        |      |
+| Microphone   | Working       | bottom + top |
 | Bluetooth    | Working       |      |
 | WiFi         | Working*      | 5GHz high latency with MFP on|
 | Modem/IPA    | Working       | single SIM only |
@@ -118,18 +121,23 @@ charging / battery profile / SMB1355: see `docs/CHARGING.md`.
 ```bash
 ./build.sh initrd        # initramfs  -> workspace/build/initrd.cpio.gz
 ./build.sh boot          # U-Boot     -> build/boot.img
-./build.sh kernel        # 模块+固件  -> build/kernel.img（需先 initrd）
+./build.sh kernel        # 模块+固件+glue -> build/kernel.img（需先 initrd）
 ./build.sh rootfs-gnome  # GNOME rootfs -> build/debian-trixie-sirius-gnome-<日期时间>.simg
 ./build.sh rootfs-server # server rootfs -> build/debian-trixie-sirius-server-<日期时间>.simg
+./build.sh rootfs-gnome --no-tmp # 改用 workspace/build/rootfs/，保留工作树
 ./build.sh all           # initrd -> boot -> kernel -> 两个 rootfs
 ./build.sh clean         # 清 workspace/build/（中间产物；build/ 下的 img/simg 不动）
 ```
 
-产物分两级：**最终产物（`*.img` / `*.simg`）落 `build/`**；其余中间产物（initrd、U-Boot 构建目录、
-rootfs 工作树、SIRIUS_BASE 原始树、临时目录）全部在 `workspace/build/` 下。
+`kernel` 目标需要 `patchelf`、`file` 和 NOPASSWD sudo（镜像里的 glue 必须是 root 所有）。
+system 分区在 ABI 层面只依赖 rootfs 的 glibc（≥2.38）和 glib 家族，见
+[docs/KERNEL-IMG-STORE.md](docs/KERNEL-IMG-STORE.md) §4。
 
-内核 Image/dtb 仍需先在 `kernel/linux-sirius/`（submodule）里 `make` 出来，`build_kernel` 只做
-system 分区镜像的汇编。
+最终产物（`*.img` / `*.simg`）在 `build/`。
+日志始终保存在 `workspace/build/logs/`, base、initrd、U-Boot 等仍在 `workspace/build/`。
+`/tmp` 是 tmpfs 时可减少包安装的同步写盘等待；GNOME 构建和打包同时占用约 8–10 GiB，
+
+内核 Image/dtb 先在 `kernel/linux-sirius/` 里 `make`，`./build.sh kernel` 只做 system 分区镜像。
 
 
 # Acknowledgements
@@ -146,6 +154,6 @@ android reference: https://github.com/Rocky7842/android_kernel_xiaomi_sdm710
 ## Other upstream dependencies
 
 remote proc tools: https://github.com/andersson (pd-mapper, tqftpserv, rmtfs, qrtr)
-base system: Debian trixie (rootfs builds, firmware-qcom-soc / firmware-atheros packages)
+base system: Debian trixie (rootfs builds; device firmware ships in the system-partition store)
 qca-swiss-army-knife
 initrd userspace: busybox

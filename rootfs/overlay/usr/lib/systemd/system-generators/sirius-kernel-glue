@@ -1,0 +1,8 @@
+#!/bin/sh
+# The only rootfs-side glue entry point.  The real generator, its manifest and
+# every kernel-coupled unit/script live on the system partition, so updating
+# them only needs a new system.img — never a rootfs reflash.  This stub is
+# intentionally dumb: it only forwards systemd's generator arguments.
+G=/mnt/sysmod/glue/bin/sirius-kernel-glue
+[ -x "$G" ] || exit 0
+exec "$G" "$@"

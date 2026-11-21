@@ -1,0 +1,147 @@
+--- a/src/mm-shared-qmi.c
++++ b/src/mm-shared-qmi.c
+@@ -4719,6 +4719,8 @@
+     QmiClient *client;
+     glong      indication_id;
+     guint      timeout_id;
++    gboolean   response_received;
++    QmiIndicationLocGetServerOutput *early_indication;
+ } LoadSuplServerContext;
+ 
+ static void
+@@ -4731,6 +4733,8 @@
+             g_signal_handler_disconnect (ctx->client, ctx->indication_id);
+         g_object_unref (ctx->client);
+     }
++    if (ctx->early_indication)
++        qmi_indication_loc_get_server_output_unref (ctx->early_indication);
+     g_slice_free (LoadSuplServerContext, ctx);
+ }
+ 
+@@ -4859,6 +4863,8 @@
+                                        QmiIndicationLocGetServerOutput *output,
+                                        GTask                           *task)
+ {
++    LoadSuplServerContext *ctx = g_task_get_task_data (task);
++
+     QmiLocIndicationStatus  status;
+     const gchar            *url          = NULL;
+     guint32                 ipv4_address = 0;
+@@ -4866,6 +4872,13 @@
+     GError                 *error        = NULL;
+     gchar                  *str          = NULL;
+ 
++    /* Some QRTR modems send the indication before the request response. */
++    if (!ctx->response_received) {
++        if (!ctx->early_indication)
++            ctx->early_indication = qmi_indication_loc_get_server_output_ref (output);
++        return;
++    }
++
+     if (!qmi_indication_loc_get_server_output_get_indication_status (output, &status, &error)) {
+         g_prefix_error (&error, "QMI operation failed: ");
+         goto out;
+@@ -4947,12 +4960,13 @@
+         return;
+     }
+ 
+-    /* The task ownership is shared between signal and timeout; the one which is
+-     * scheduled first will cancel the other. */
+-    ctx->indication_id = g_signal_connect (ctx->client,
+-                                           "get-server",
+-                                           G_CALLBACK (loc_location_get_server_indication_cb),
+-                                           task);
++    ctx->response_received = TRUE;
++    if (ctx->early_indication) {
++        qmi_message_loc_get_server_output_unref (output);
++        loc_location_get_server_indication_cb (client, ctx->early_indication, task);
++        return;
++    }
++
+     ctx->timeout_id = g_timeout_add_seconds (10,
+                                              (GSourceFunc)loc_location_get_server_indication_timed_out,
+                                              task);
+@@ -4983,6 +4997,11 @@
+         (QMI_LOC_SERVER_ADDRESS_TYPE_IPV4 | QMI_LOC_SERVER_ADDRESS_TYPE_URL),
+         NULL);
+ 
++    ctx->indication_id = g_signal_connect (ctx->client,
++                                           "get-server",
++                                           G_CALLBACK (loc_location_get_server_indication_cb),
++                                           task);
++
+     qmi_client_loc_get_server (
+         QMI_CLIENT_LOC (ctx->client),
+         input,
+@@ -6567,6 +6586,8 @@
+     QmiClientLoc *client;
+     glong         indication_id;
+     guint         timeout_id;
++    gboolean      response_received;
++    QmiIndicationLocGetPredictedOrbitsDataSourceOutput *early_indication;
+ } LoadSupportedAssistanceDataContext;
+ 
+ static void
+@@ -6579,6 +6600,8 @@
+             g_signal_handler_disconnect (ctx->client, ctx->indication_id);
+         g_object_unref (ctx->client);
+     }
++    if (ctx->early_indication)
++        qmi_indication_loc_get_predicted_orbits_data_source_output_unref (ctx->early_indication);
+     g_slice_free (LoadSupportedAssistanceDataContext, ctx);
+ }
+ 
+@@ -6617,6 +6640,8 @@
+                                                              QmiIndicationLocGetPredictedOrbitsDataSourceOutput *output,
+                                                              GTask                                              *task)
+ {
++    LoadSupportedAssistanceDataContext *ctx = g_task_get_task_data (task);
++
+     MMSharedQmi            *self;
+     Private                *priv;
+     QmiLocIndicationStatus  status;
+@@ -6624,6 +6649,12 @@
+     GArray                 *server_list = NULL;
+     gboolean                supported = FALSE;
+ 
++    if (!ctx->response_received) {
++        if (!ctx->early_indication)
++            ctx->early_indication = qmi_indication_loc_get_predicted_orbits_data_source_output_ref (output);
++        return;
++    }
++
+     if (!qmi_indication_loc_get_predicted_orbits_data_source_output_get_indication_status (output, &status, &error)) {
+         g_prefix_error (&error, "QMI operation failed: ");
+         goto out;
+@@ -6705,12 +6736,13 @@
+         return;
+     }
+ 
+-    /* The task ownership is shared between signal and timeout; the one which is
+-     * scheduled first will cancel the other. */
+-    ctx->indication_id = g_signal_connect (ctx->client,
+-                                           "get-predicted-orbits-data-source",
+-                                           G_CALLBACK (loc_location_get_predicted_orbits_data_source_indication_cb),
+-                                           task);
++    ctx->response_received = TRUE;
++    if (ctx->early_indication) {
++        qmi_message_loc_get_predicted_orbits_data_source_output_unref (output);
++        loc_location_get_predicted_orbits_data_source_indication_cb (client, ctx->early_indication, task);
++        return;
++    }
++
+     ctx->timeout_id = g_timeout_add_seconds (10,
+                                              (GSourceFunc)loc_location_get_predicted_orbits_data_source_indication_timed_out,
+                                              task);
+@@ -6741,6 +6773,11 @@
+     ctx->client = QMI_CLIENT_LOC (g_object_ref (client));
+     g_task_set_task_data (task, ctx, (GDestroyNotify)load_supported_assistance_data_context_free);
+ 
++    ctx->indication_id = g_signal_connect (ctx->client,
++                                           "get-predicted-orbits-data-source",
++                                           G_CALLBACK (loc_location_get_predicted_orbits_data_source_indication_cb),
++                                           task);
++
+     qmi_client_loc_get_predicted_orbits_data_source (ctx->client,
+                                                      NULL,
+                                                      10,

@@ -221,11 +221,9 @@ inject_loop() {
     echo "########################## inject loop done"
 }
 
-# Read factory WiFi/BT MACs from the persist partition and apply them to the
-# new root. Called after bind_sysmod so the vendor store is already
-# visible. Idempotent: each file is only written when content differs, so a
-# normal boot performs zero writes. Fail-soft: anything unreadable keeps the
-# baked-in LAA addresses.
+# Apply the factory Bluetooth address to the system-store NVM before probe.
+# WiFi MAC configuration is prepared by sirius-glue-setup.service in /run;
+# initrd must not create an /etc .link that shadows the system image.
 # $1 = new-root path (/mnt or /newroot).
 apply_persist_macs() {
 	_root="$1"
@@ -247,53 +245,6 @@ apply_persist_macs() {
 	if [ -z "$_mounted" ]; then
 		echo "persistmac: no persist partition, keeping baked-in MACs" > /dev/kmsg
 		return 0
-	fi
-
-	# --- WiFi: wlan_mac.bin holds text "wlan0=482ca04bc60d" ---
-	_wlan_hex=""
-	if [ -f /persist_ro/wlan_mac.bin ]; then
-		_wlan_hex="$(sed -n 's/^wlan0=\([0-9a-fA-F][0-9a-fA-F]*\).*$/\1/p' /persist_ro/wlan_mac.bin)"
-	fi
-	if [ "${#_wlan_hex}" = 12 ]; then
-		case "$_wlan_hex" in
-		*[!0-9a-fA-F]* | 000000000000)
-			echo "persistmac: bad wlan_mac.bin content, keeping baked-in WiFi MAC" > /dev/kmsg
-			;;
-		*)
-			_first="${_wlan_hex%${_wlan_hex#?}}"
-			case "$_first" in
-			[02468aceACE])
-				_wlan_mac="$(echo "$_wlan_hex" | sed 's/\(..\)/\1:/g;s/:$//')"
-				_link="$_root/etc/systemd/network/10-wlan0.link"
-				mkdir -p "$_root/etc/systemd/network"
-				{
-					echo "[Match]"
-					echo "OriginalName=wlan0"
-					echo ""
-					echo "[Link]"
-					echo "MACAddress=$_wlan_mac"
-				} > "$_stage/wlan0.link.new"
-				if [ ! -s "$_stage/wlan0.link.new" ]; then
-					echo "persistmac: cannot stage link file" > /dev/kmsg
-				elif [ -f "$_link" ] && cmp -s "$_stage/wlan0.link.new" "$_link"; then
-					echo "persistmac: wlan0 already $_wlan_mac" > /dev/kmsg
-				else
-					if cat "$_stage/wlan0.link.new" > "$_link"; then
-						echo "persistmac: wlan0 -> $_wlan_mac" > /dev/kmsg
-					else
-						echo "persistmac: cannot write $_link" > /dev/kmsg
-					fi
-				fi
-				rm -f "$_stage/wlan0.link.new"
-				;;
-			*)
-				echo "persistmac: wlan MAC not unicast, keeping baked-in WiFi MAC" > /dev/kmsg
-				;;
-			esac
-			;;
-		esac
-	else
-		echo "persistmac: no valid wlan_mac.bin, keeping baked-in WiFi MAC" > /dev/kmsg
 	fi
 
 	# --- Bluetooth: wlan_bt/bt.mac holds 6 raw bytes, LSB-first, which is

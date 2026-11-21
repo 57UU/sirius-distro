@@ -1,0 +1,12 @@
+[Unit]
+Description=Watch SIM hotplug and rebuild UIM session (sirius)
+
+[Timer]
+# Fallback only. Normal hotplug is triggered immediately by sirius-modem-uim-watch
+# (subscribes to UIM indications); this only covers lost events, interval 60s.
+# sirius-modem-uim is idempotent: exits after one read-only check when the SIM is
+# absent or a session already exists.
+OnBootSec=30s
+OnUnitActiveSec=60s
+AccuracySec=1s
+Unit=sirius-modem-uim.service

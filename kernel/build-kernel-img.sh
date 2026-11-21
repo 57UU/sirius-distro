@@ -5,8 +5,18 @@
 # rootfs. Layout inside the image:
 #   lib/modules/<uname -r>/   modules + depmod db, from a built kernel tree
 #   lib/firmware/...          device blobs (same mapping as sirius_firmware_pre)
+#   boot/                     Image, dtb, initrd, extlinux.conf (U-Boot payload)
+#   glue/                     kernel/device-coupled userspace layer: units,
+#                             helper scripts, prebuilt device daemons
+#                             (adsprpcd/pd-mapper/uimsel/uimwatch, see
+#                             glue/bin/README.md), udev rules, module-load/
+#                             modprobe/tmpfiles config, ALSA UCM, plus the
+#                             generated `manifest` consumed by the rootfs-side
+#                             generator stub.
+#                             See docs/KERNEL-IMG-STORE.md (glue section).
 #
-# Run on the kernel build host (needs the kernel tree already built).
+# Run on the kernel build host (needs the kernel tree already built, patchelf,
+# and root for the final chown/mkfs steps: passwordless sudo or run as root).
 # Host arch is auto-detected: aarch64 builds natively (empty CROSS_COMPILE),
 # anything else (x86_64) uses the aarch64 cross toolchain.
 #   ./build-kernel-img.sh
@@ -37,8 +47,22 @@ test -d "$KERNEL_SRC" || { echo "missing kernel tree $KERNEL_SRC"; exit 1; }
 test -d "$FIRMWARE" || { echo "missing firmware $FIRMWARE"; exit 1; }
 command -v "$DEPMOD" >/dev/null || { echo "missing depmod"; exit 1; }
 command -v "$MKFS" >/dev/null || { echo "missing mkfs.ext4"; exit 1; }
+command -v patchelf >/dev/null || { echo "missing patchelf (needed for glue RPATH)"; exit 1; }
+command -v file >/dev/null || { echo "missing file (needed to detect ELF for glue RPATH)"; exit 1; }
+# The store must be root-owned inside the image (NetworkManager rejects
+# non-root-owned keyfiles, and mke2fs -d as a user cannot write root-owned
+# inodes), so the last steps need root.  Fail fast: otherwise a passwordless
+# sudo problem only shows up after modules_install + the whole staging step.
+if [ "$(id -u)" -ne 0 ] && ! sudo -n true 2>/dev/null; then
+    echo "kernel image needs root: rerun as 'sudo ./build.sh kernel' or configure"
+    echo "passwordless sudo (the script chowns the staging tree and runs mke2fs as root)"
+    exit 1
+fi
 STAGE="$(mktemp -d)"
-trap 'rm -rf "$STAGE"' EXIT
+cleanup_stage() {
+    rm -rf "$STAGE" 2>/dev/null || sudo -n rm -rf "$STAGE" 2>/dev/null || true
+}
+trap cleanup_stage EXIT
 echo "=== modules_install from $KERNEL_SRC ==="
 make -C "$KERNEL_SRC" ARCH="$ARCH" CROSS_COMPILE="$CROSS_COMPILE" \
   INSTALL_MOD_PATH="$STAGE" modules_install
@@ -76,17 +100,70 @@ cp -f $FIRMWARE/qca/crnv21.bin.sirius $FW/qca/crnv21.bin
 chmod 644 $FW/qcom/sdm710/pyxis/a615_zap.mbn $FW/qcom/a630_sqe.fw $FW/qcom/a630_gmu.bin \
   $FW/st_fts_v521.ftb $FW/ath10k/WCN3990/hw1.0/firmware-5.bin $FW/ath10k/WCN3990/hw1.0/wlanmdsp.mbn \
   $FW/ath10k/WCN3990/hw1.0/board-2.bin $FW/qca/crnv21.bin
+# Wireless regulatory database: the rootfs ships none (and it would be
+# shadowed by the firmware bind mount anyway) and the kernel only trusts
+# upstream wireless-regdb signatures, so ship the upstream-signed variant.
+# APs advertise a country IE (e.g. CN) which cfg80211 adopts on association.
+cp -f $FIRMWARE/regdb/regulatory.db $FW/regulatory.db
+cp -f $FIRMWARE/regdb/regulatory.db.p7s $FW/regulatory.db.p7s
+chmod 644 $FW/regulatory.db $FW/regulatory.db.p7s
+
 check_md5() { test "$(md5sum < "$1" | cut -d " " -f1)" = "$2" || { echo "md5 mismatch: $1"; exit 1; }; }
 check_md5 $FW/ath10k/WCN3990/hw1.0/firmware-5.bin d16e3444f68ee48c548a891b9f9279e1
 check_md5 $FW/ath10k/WCN3990/hw1.0/wlanmdsp.mbn 259b4f9e4aef57a5051f27a201653262
 check_md5 $FW/qcom/a630_sqe.fw 9f2540d789d9fd4699a566d97fcabded
 check_md5 $FW/qcom/a630_gmu.bin ab20135f7adf48e0f344282a37da80e4
-check_md5 $FW/qca/crnv21.bin 3947c734ced07630d9c2c4ba48f72157
 check_md5 $FW/ath10k/WCN3990/hw1.0/board-2.bin 63bb8000fe1f64cdecee79076c6d5bc0
 check_md5 $FW/qca/crbtfw21.tlv a590087df8f7ba34053956e9b5243bc9
 check_md5 $FW/qcom/sdm710/pyxis/venus.mbn 9ca486b43f891d38ccb68e72ee40bfab
 check_md5 $FW/qcom/sdm710/pyxis/ipa_fws.mbn 4f3c8cac8e681948b1a3235163a3fa9f
 check_md5 $FW/qcom/sdm710/pyxis/cdsp.mbn d0e3a4a90d75d5600b90adeb218595da
+check_md5 $FW/qca/crnv21.bin 3947c734ced07630d9c2c4ba48f72157
+
+echo "=== glue: kernel-coupled userspace layer ==="
+GLUE=${GLUE:-$DISTRO/glue}
+test -d "$GLUE" || { echo "missing glue source $GLUE"; exit 1; }
+mkdir -p "$STAGE/glue"
+cp -a "$GLUE/." "$STAGE/glue/"
+# Fresh checkouts may lack exec bits (repo index stores 644 for portability,
+# same caveat as the initrd/build scripts).
+chmod 755 "$STAGE"/glue/bin/* 2>/dev/null || true
+# Device-layer private libs are stored as real files under their runtime
+# names (SONAME), so no symlinks are needed.
+chmod 644 "$STAGE"/glue/lib/*.so.* 2>/dev/null || true
+# Rewrite RPATH: glue binaries/libs resolve from glue/lib; glibc and the glib
+# family come from the rootfs.  Binaries: $ORIGIN/../lib; libs: $ORIGIN.
+# Invariant: NEEDED entries other than glibc + glib* must exist in glue/lib.
+_elf=0
+_patched=0
+for _f in "$STAGE"/glue/bin/* "$STAGE"/glue/lib/*; do
+    [ -f "$_f" ] || continue
+    case "$(file -b "$_f" 2>/dev/null)" in
+        *ELF*) ;;
+        *) continue ;;
+    esac
+    _elf=$((_elf + 1))
+    case "$_f" in
+        "$STAGE"/glue/bin/*) patchelf --set-rpath '$ORIGIN/../lib' "$_f" || { echo "patchelf failed: $_f"; exit 1; } ;;
+        *)                   patchelf --set-rpath '$ORIGIN' "$_f" || { echo "patchelf failed: $_f"; exit 1; } ;;
+    esac
+    _patched=$((_patched + 1))
+done
+# A silent skip here (missing `file`, failed patchelf, unexpected layout) would
+# ship an image whose glue binaries cannot resolve glue/lib, so fail the build.
+if [ "$_elf" -eq 0 ] || [ "$_patched" -ne "$_elf" ]; then
+    echo "glue RPATH: patched $_patched/$_elf ELF files, expected all"
+    exit 1
+fi
+echo "glue RPATH: patched $_patched/$_elf ELF files"
+chmod 644 "$STAGE"/glue/bin/README.md 2>/dev/null || true
+# NetworkManager only accepts root-owned 0600 keyfiles.
+chmod 600 "$STAGE"/glue/run/NetworkManager/system-connections/*.nmconnection 2>/dev/null || true
+chmod 644 "$STAGE"/glue/units/*.service "$STAGE"/glue/units/*.timer \
+         "$STAGE"/glue/units/*.d/*.conf "$STAGE"/glue/ABI 2>/dev/null || true
+bash "$DISTRO/kernel/gen-glue-manifest.sh" "$GLUE" "$STAGE/glue/manifest"
+chmod 644 "$STAGE/glue/manifest"
+du -sh "$STAGE/glue"
 
 echo "=== boot payload for U-Boot (vendor /boot) ==="
 PAYLOAD=$STAGE/boot
@@ -110,10 +187,32 @@ while IFS= read -r line; do
 done < "$DISTRO/boot/extlinux.conf" > "$PAYLOAD/extlinux/extlinux.conf"
 chmod 644 $PAYLOAD/Image $PAYLOAD/efi/BOOTAA64.EFI $PAYLOAD/dtb/*.dtb $PAYLOAD/initrd.cpio.gz $PAYLOAD/extlinux/extlinux.conf
 
+# All files in the system store must be owned by root: some consumers
+# (NetworkManager keyfiles) reject connections from non-root-owned files.
+if [ "$(id -u)" -eq 0 ]; then
+    chown -R 0:0 "$STAGE"
+else
+    sudo -n chown -R 0:0 "$STAGE" 2>/dev/null || { echo "failed to chown $STAGE (need root)"; exit 1; }
+fi
+
 echo "=== mkfs $OUT ($IMG_SIZE) ==="
 mkdir -p "$(dirname "$OUT")"
-"$MKFS" -d "$STAGE" -L "$IMG_LABEL" "$OUT" "$IMG_SIZE" >/dev/null
-e2fsck -n -f "$OUT" >/dev/null
+# The staging tree is root-owned (see chown above), so mkfs must run as root
+# too; mke2fs -d as a user refuses to write root-owned inodes.
+if [ "$(id -u)" -eq 0 ]; then
+    "$MKFS" -d "$STAGE" -L "$IMG_LABEL" "$OUT" "$IMG_SIZE" >/dev/null
+    e2fsck -n -f "$OUT" >/dev/null
+else
+    sudo -n "$MKFS" -d "$STAGE" -L "$IMG_LABEL" "$OUT" "$IMG_SIZE" >/dev/null
+    sudo -n e2fsck -n -f "$OUT" >/dev/null
+    sudo -n chown "$(id -u):$(id -g)" "$OUT"
+fi
+# When the build was started through sudo, hand the artifact back to the
+# invoking user: a root-owned image in build/ blocks later non-root builds,
+# `build.sh clean` and tools that open it as the normal user.
+if [ "$(id -u)" -eq 0 ] && [ -n "${SUDO_UID:-}" ]; then
+    chown "$SUDO_UID:${SUDO_GID:-$SUDO_UID}" "$OUT" 2>/dev/null || true
+fi
 md5sum "$OUT"
 ls -lh "$OUT"
 echo KERNEL-IMG-DONE

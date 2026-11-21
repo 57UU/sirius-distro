@@ -15,11 +15,8 @@ mkdir -p /newroot
 # fall back to rootfs files when the store is missing anything.
 # The store lives on mmcblk0p79 (system partition, 3GB ext4);
 # override with kernel cmdline sysmod_part= if the layout ever changes.
-# (Historical: the store once lived on the vendor partition and was called
-# "vendormod"; it moved back to the system partition on 2026-10-14.)
 find_sysmod_dev() {
     _o="$(get_cmdline_param sysmod_part)"
-    [ -n "$_o" ] || _o="$(get_cmdline_param vendor_part)"  # legacy name, pre-rename images
     echo "/dev/${_o:-mmcblk0p79}"
 }
 bind_sysmod() {

@@ -1,106 +1,46 @@
-# sirius U-Boot 启动链（v2.0 起唯一启动方式）
+# sirius U-Boot 启动链（v2.0+）
 
-> 2026-10-14 定稿，已上机验证。U-Boot 源码见 `../uboot`（57UU/u-boot `sirius/v2.0`），一键构建 `../uboot/sirius-build.sh`。
+U-Boot 源码见 `../uboot`（`57UU/u-boot` `sirius/v2.0`），构建入口 `./build.sh boot`（产物 `build/boot.img`，中间目录 `workspace/build/uboot/`）。
 
 ## 1. 启动链
 
 ```text
-PBL（ROM）→ XBL → ABL（官 fastboot 仍在，只做下载/启动跳转）
-  └─ boot 分区：U-Boot（`boot.img`）
-      ├─ EFI 直启（默认）：load `/boot/efi/BOOTAA64.EFI` + initrd + dtb → bootefi
-      └─ EFI 失败回落 sysboot 直读 system 分区（mmcblk0p79，U-Boot 视角 `mmc 0:4f`）
-          `/boot/extlinux/extlinux.conf` → `/boot/Image` + `/boot/initrd.cpio.gz` + `/boot/dtb/*.dtb`
-              └─ Linux（root=/dev/mmcblk0p81 userdata）
+PBL → XBL → ABL（官方 fastboot）
+  └─ boot 分区：U-Boot（boot.img）
+       ├─ EFI 直启（默认）：/boot/efi/BOOTAA64.EFI + initrd + dtb → bootefi
+       └─ 回落 sysboot：mmc 0:4f（p79 system）→ /boot/extlinux/extlinux.conf
+            → /boot/Image + initrd.cpio.gz + dtb → Linux（root=/dev/mmcblk0p81）
 ```
 
-- ABL 直启已退役（`boot/build_boot.sh` 已删）；dtbo 分区必须清空 `fastboot erase dtbo`（留 stock dtbo 起不来）。
-- vendor 分区（mmcblk0p80）清空为 spare；仓库住 system 分区，见 `KERNEL-IMG-STORE.md`。
+- ABL 直启已退役；**`dtbo` 分区必须清空**（`fastboot erase dtbo`），否则留存的 stock dtbo 会阻断启动。
 
-## 2. 构建（`uboot/sirius-build.sh`）
-
-统一入口：`./build.sh boot`（等价于 `uboot/sirius-build.sh`；中间件落 `workspace/build/uboot/`，
-产物 `build/boot.img`）。
-
-配方：
+## 2. 构建配方（`uboot/sirius-build.sh`）
 
 ```bash
 make O=$OUT qcom_defconfig qcom-phone.config sirius.config
 make O=$OUT -j$JOBS DEVICE_TREE=qcom/sdm710-xiaomi-sirius \
-     CONFIG_ENV_DEFAULT_ENV_TEXT_FILE=<boot/bootargs 生成的 env 副本>
+     CONFIG_ENV_DEFAULT_ENV_TEXT_FILE=<由 boot/bootargs 渲染的 env 副本>
 gzip -c u-boot-nodtb.bin > u-boot-nodtb.bin.gz
 cat u-boot-nodtb.bin.gz sdm710-xiaomi-sirius.dtb > uboot-payload
 mkbootimg --kernel_offset 0x00008000 --pagesize 4096 --kernel uboot-payload -o boot.img
 ```
 
-- `qcom_defconfig + qcom-phone.config`：带 `PANIC_HANG`、console record、`FASTBOOT_BUF_ADDR=0x1A000000`、`BUTTON_REMAP_PHONE_KEYS`；勿用手写 `xiaomi-sirius_defconfig`（已删，缺这些）。
-- `sirius.config`（`board/xiaomi/sirius/`）：比上游多三行 `BLKMAP`、`CMD_BLKMAP`、`ENV_DEFAULT_ENV_TEXT_FILE`→`sirius.env`。
-- payload 必须 `gzip(nodtb)+dtb`；用 `u-boot.bin` 当 kernel → `fastboot boot` 回 OKAY 但没起。
-- `mkbootimg` 参数照抄参考；`ARCH=arm64` **不要传**（源码无 `arch/arm64` → `asm/config.h` 报错）；`CROSS_COMPILE` 按主机架构自适应（x86_64 主机用 `aarch64-linux-gnu-`，aarch64 主机留空走原生）。
+- 勿传 `ARCH=arm64`（会报 `asm/config.h` 错）；`CROSS_COMPILE` 在 x86_64 主机用 `aarch64-linux-gnu-`。
+- payload 必须为 `gzip(nodtb) + dtb`（直接用 `u-boot.bin` 会导致 `fastboot boot` 返回 OKAY 但黑屏不启）。
+- **cmdline 单一来源**：`boot/bootargs` 同时渲染进 U-Boot `efi_args` 与 `boot/extlinux.conf` 的 `@BOOTARGS@`，改分区参数只改一处。
 
-## 3. 环境变量（`board/xiaomi/sirius/sirius.env`）
+## 3. 环境变量与设备树要点
 
-```text
-preboot=scsi scan; mmc rescan; usb start      # 缺 mmc rescan 则 bootflow 啥也扫不到
-kernel_addr_r=0x80080000                       # Image（37M）
-ramdisk_addr_r=0x83000000                      # initrd
-fdt_addr_r=0x82a00000                            # dtb
-scriptaddr=0x82800000                            # extlinux.conf 加载地址
-efi_args=setenv bootargs ...                     # 由 boot/bootargs 生成，见下
-efi_load=load ... /boot/efi/BOOTAA64.EFI; load initrd; load dtb
-try_efi=run efi_args; run efi_load; bootefi ${kernel_addr_r}:${efi_size} ...
-do_boot=run try_efi; sysboot mmc 0:4f any ${scriptaddr} /boot/extlinux/extlinux.conf; bootefi bootmgr
-bootcmd=run check_bcb; run do_boot
-```
+- **`sirius.env`**：`preboot=scsi scan; mmc rescan; usb start`（缺 `mmc rescan` 则扫不到盘）；`mmc 0:4f` 为**十六进制**（`0x4f` = 79）；不用 `bootflow scan -b`（`MAX_PART_PER_BOOTDEV=30` 写死，扫不到 p79/p81）。
+- **设备树（`sdm710-xiaomi-sirius.dts`，基于 pyxis）**：framebuffer `1080×2240`；eMMC `sdhc_1` 开 `HS400`（`vmmc=l8b_3p3`、`vqmmc=l5b_1p8`，**必须 1.8V**）；关闭 `UFS` 与 `SDHC_2`。
 
-- `mmc 0:4f`：分区号**十六进制**，`4f`=79=system；写 `0:80` 被当成 `0x80`=128 → `Invalid partition 128`。
-- 不用 `bootflow scan -b`：每盘只扫前 30 分区（`MAX_PART_PER_BOOTDEV=30` 写死），p79/p80 扫不到；`qcom_defconfig` 的 `BOOTDEV_*` 只有 ETH、无 MMC hunter。sysboot 直指分区最稳。
-- **内核命令行单一来源：`boot/bootargs`。** EFI 路径的 `efi_args` 由 `build.sh boot` 替换进一份 scratch 里的 env 副本
-  （`ENV_FILE` → `CONFIG_ENV_DEFAULT_ENV_TEXT_FILE` 覆盖，不动子模块源码）；extlinux 的 `APPEND` 由
-  `build-kernel-img.sh` 把 `extlinux.conf` 里的 `@BOOTARGS@` 替换掉。改 `root=`/分区参数只改 `boot/bootargs`。
-- `extlinux.conf` 源在主库 `boot/extlinux.conf`（模板，`@BOOTARGS@`），`build-kernel-img.sh` 连同 Image/dtb/initrd 打进 system 镜像 `/boot`。
-
-## 4. 设备树（`dts/upstream/src/arm64/qcom/`）
-
-- `sdm710.dtsi + sdm710-xiaomi-pyxis.dts`：搬自 `https://gitlab.postmarketos.org/ellyq/u-boot` 分支 `release/v2026.04` commit `545daab1`。
-- `sdm710-xiaomi-sirius.dts`（pyxis 改）：framebuffer `1080x2240`（pyxis 是 2340）；eMMC 在 `sdhc_1` 开 `HS400`（`vmmc=l8b_3p3`、`vqmmc=l5b_1p8`，pyxis 那路 LDO5 是 2.95V、sirius 必须 1.8V）；`UFS` 关（sirius 无 UFS 硬件）；`SDHC_2`（MicroSD）保持关。
-
-## 5. 上机测试流程
-
-1. `fastboot boot boot.img`（只进内存、不刷机、挂了重启即回）。
-2. 屏幕即日志：U-Boot 输出打屏（vidconsole），`sysboot` 打印读 conf + 加载三件套，成功进内核 earlycon。
-3. `cat /proc/cmdline` 有 `sysmod_part=mmcblk0p79` 即走 U-Boot/extlinux；`mount | grep sysmod` 应为 p79。
-4. 确认后落盘：`fastboot flash boot boot.img && fastboot reboot`（eMMC 慢，写完等一会儿）。
-
-失败屏幕即诊断器：`Invalid partition 128`→分区号进制错；`bootflow ... efi_mgr ... failed`→没扫到盘；UFS 报错→dts 没关干净；`Loading Boot0001 failed`→`bootefi bootmgr` 找不到 ESP，正常。
-
-## 6. 已知限制
-
-- `bootflow scan` 扫不到 30 号以后的分区。
-- 熄屏/电源键在 U-Boot 下不管用，卡住长按电源强制重启（boot 没刷坏就还能进原系统；刷坏进 fastboot 重刷）。
-
-## 7. U-Boot fastboot（不建议使用）
-
-U-Boot 自带 fastboot（`CONFIG_USB_FUNCTION_FASTBOOT` + `FASTBOOT_FLASH`），**不可用于刷机**，其 USB gadget 初始化不稳定，实测会卡在 U-Boot（屏幕停在 `autoboot: 0`，Windows 也枚举不到设备），只能长按电源冷启动恢复。**刷机一律走 ABL fastboot（音量下 + 电源）。**
-
-`sirius-reboot` 整个脚本已在 2.1 移除（它只是用 BCB 帮 U-Boot 选模式，价值不大）。现在进 bootmenu 的方式是开机 1 秒内按音量键打断 autoboot（`BOOTDELAY=1` + `button-kbd`），进 fastboot 的方式只剩 bootmenu 第 2 项 `Enable fastboot mode`，仅供调试。
-
-屏看着像"冻住"属正常：fastboot 模式静默（不打屏），停在 `autoboot: 0` 一帧；设备管理器出现 `USB download gadget` 即已进入。若几分钟内始终不出现该设备，就是真的卡住了，长按电源冷启动恢复。
-
-Windows 驱动：gadget 是 `VID_18D1&PID_4EE0`，Google 驱动只认 ABL 的 `D00D`。手动装：设备管理器 → USB download gadget → 更新驱动 → 浏览我的电脑 → 从列表选取 → 选 **WinUSB 厂商的 ADB 设备**（装完 `fastboot devices` 出设备、`getvar version` 回 `0.4`）。
-
-结论（2026-10-16 起验证冻结、不再试刷）：
-
-- `fastboot flash boot`（596KB）失败：`AdbWriteEndpointSync failed (121)`、host 超时、gadget 挂死、`getvar` 不回。
-- 屏上刷屏 `dwc3-generic-peripheral usb@a600000: request ... was not queued to ep1in-bulk`（IN 回包队列丢包，偶发变必现）。
-- 更下层 `Bad device specification mmc boot_a` / `Couldn't find partition mmc boot_a`：U-Boot fastboot 按 A/B 找 `boot_a`，本机 GPT 用无后缀名（boot/system/userdata）。
-- 疑似诱因：`FASTBOOT_BUF_ADDR=0x1A000000` 可能不可写；dwc3 gadget 不稳。
-- 屏上半截 MI logo + 花屏；恢复：长按电源硬重启（BCB 为空则正常进系统）。
-
-告警：`ep1in-bulk` 丢包，小包（`getvar`）连打 8 次全过，大包（256MB system）未验证；刷完务必重启验 md5/功能。
-
-刷机
+## 4. 测试与刷机
 
 ```bash
-fastboot flash system kernel.img && fastboot reboot
-fastboot flash userdata xxxx.simg && fastboot reboot
+fastboot boot build/boot.img                            # 仅进内存试跑（vidconsole 输出日志）
+fastboot flash boot build/boot.img && fastboot reboot   # 确认后落盘
 ```
+
+- 进入系统后确认：`cat /proc/cmdline` 含 `sysmod_part=mmcblk0p79`，`mount | grep sysmod` 为 p79。
+- **已知限制**：熄屏/电源键在 U-Boot 下无效（卡住长按电源强重启）；`Loading Boot0001 failed` 属正常（无 ESP）。
+- **刷机一律走 ABL fastboot（音量下 + 电源）**：U-Boot 自带 fastboot 存在 `dwc3` `ep1in-bulk` 丢包与 A/B 分区名错配（找 `boot_a`）问题，不可用于刷机；bootmenu（开机 1s 内按音量键进入）内的 `Enable fastboot mode`（`VID_18D1&PID_4EE0`，Windows 需手动选 WinUSB ADB 驱动）仅作调试。

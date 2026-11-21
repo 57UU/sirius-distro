@@ -1,15 +1,10 @@
 #!/bin/bash
 # sirius-device.sh: shared device bring-up for all rootfs flavors.
-# Sourced (not executed) by build-*.sh. Requires caller to set:
-#   R         target tree being built
-#   FIRMWARE  $DISTRO/firmware
-#   DSP_BIN   $DISTRO/rootfs/dsp-bin
-#   Kernel modules + firmware live in the system-partition store
-#   (kernel/build-kernel-img.sh), not in the rootfs tree.
-# Flavor-specific bits (desktop packages, DM login, service enables)
-# stay in each build-*.sh chroot section.
-
-
+# Sourced (not executed) by build-*.sh; the caller sets R (target rootfs tree)
+# and DISTRO (repo root). Device/kernel-coupled files live in glue/ and are
+# packed into the system image, so the rootfs only gets rootfs/overlay/ plus
+# the 4-line systemd generator stub.
+# Flavor-specific bits stay in each build-*.sh chroot section.
 
 # Default device user baked into every flavor (device-lab convention).
 # Override at build time: sudo SIRIUS_USER=foo SIRIUS_PASS=bar ./build-server.sh
@@ -55,18 +50,19 @@ export SIRIUS_MESA_BACKPORTS SIRIUS_MESA_PKGS SIRIUS_MESA_SEL
 # `apt-get install -y $SIRIUS_BASE_PKGS` first, then its flavor-only extras
 # (server: evtest/rfkill/auditd/kbd + Qt runtime; gnome:
 # gnome-core/gdm3/firmware). Flavor lines must not repeat these.
-SIRIUS_BASE_PKGS=${SIRIUS_BASE_PKGS:-"sudo openssh-server network-manager nano wpasupplicant bluez rmtfs tqftpserv qrtr-tools libbsd0 wireless-tools pipewire wireplumber modemmanager libqmi-utils mobile-broadband-provider-info $SIRIUS_AUDIO_PKGS $SIRIUS_VULKAN_PKGS $SIRIUS_MESA_SEL systemd-timesyncd systemd-resolved util-linux-extra e2fsprogs"}
+SIRIUS_BASE_PKGS=${SIRIUS_BASE_PKGS:-"sudo openssh-server network-manager nano wpasupplicant bluez rmtfs tqftpserv qrtr-tools libbsd0 wireless-tools pipewire wireplumber modemmanager libqmi-utils mobile-broadband-provider-info iw $SIRIUS_AUDIO_PKGS $SIRIUS_VULKAN_PKGS $SIRIUS_MESA_SEL systemd-timesyncd systemd-resolved util-linux-extra e2fsprogs"}
 export SIRIUS_BASE_PKGS
 
 # Shared service enables for every flavor: each build-*.sh runs
 # `systemctl enable $SIRIUS_BASE_UNITS <flavor-extra>` (server: orbital;
 # gnome: gdm). Flavor lines must not repeat these.
-SIRIUS_BASE_UNITS=${SIRIUS_BASE_UNITS:-"ssh systemd-networkd systemd-resolved rmtfs tqftpserv pd-mapper adsprpcd-rootpd adsprpcd-audiopd adsprpcd-sensorspd wifi-shutdown bluetooth bt-addr systemd-timesyncd NetworkManager ModemManager sirius-modem-uim sirius-modem-uim.timer sirius-modem-uim-watch sirius-bt-auto sirius-bt-watch sirius-wifi-auto.timer sirius-zram.service sirius-audio-init"}
+SIRIUS_BASE_UNITS=${SIRIUS_BASE_UNITS:-"ssh systemd-networkd systemd-resolved rmtfs tqftpserv bluetooth systemd-timesyncd NetworkManager ModemManager"}
 export SIRIUS_BASE_UNITS
 # Common device base for every flavor. Static files live in rootfs/overlay/
-# (edit there, not here); this only copies them in, fixes exec bits, and
-# creates the rmtfs partlabel symlinks (kept in code so re-bakes always
-# track the current partlabel names).
+# (edit there, not here); this only copies them in and fixes exec bits.
+# Kernel/device-coupled files live in glue/ and are packed into the system
+# image; flavor policy (e.g. logind power-key handling) stays in the overlay of
+# each build-*.sh so one system image works for both flavors.
 # Requires: R, DISTRO. OVERLAY defaults to $DISTRO/rootfs/overlay.
 sirius_overlay() {
   OVERLAY=${OVERLAY:-$DISTRO/rootfs/overlay}
@@ -74,46 +70,18 @@ sirius_overlay() {
   # Overlay checkout is user-owned; plain cp -a would stamp that owner onto every
   # shipped dir (phone / once ended up u57u, apt refused it). Copy as root instead.
   cp -a --no-preserve=ownership $OVERLAY/. $R/
-  # NetworkManager 只加载属主 root 且权限 600 的 keyfile，overlay 里带过来的
-  # 权限不符合就会被静默忽略（表现为 gsm 连接不存在）。
+  # NetworkManager 只加载属主 root 且权限 600 的 keyfile；蜂窝连接的 keyfile 在
+  # system 分区 glue/run 里（由打包脚本置 600），这里只兜底 rootfs 自带的。
   chmod 600 $R/etc/NetworkManager/system-connections/*.nmconnection 2>/dev/null || true
-  cp -f $DSP_BIN/pd-mapper $R/usr/local/bin/pd-mapper
-  chmod 755 $R/usr/local/bin/pd-mapper
-  cp -f $DSP_BIN/adsprpcd $R/usr/local/bin/adsprpcd
-  chmod 755 $R/usr/local/bin/adsprpcd
-  # 蜂窝 bring-up 工具（预编译随仓库走，做法同 rootfs/powerd-pkg；
-  # 源码在 src/modem/）。缺了它们 sirius-modem-uim 会因找不到命令而失效。
-  MODEM_PKG=${MODEM_PKG:-$DISTRO/rootfs/modem-pkg}
-  # 用 -f 而不是 -x：仓库在 Windows/NTFS 上检出时可能丢掉可执行位，
-  # 真正的权限由下面的 chmod 755 决定。
-  test -f $MODEM_PKG/uimsel   || { echo "missing $MODEM_PKG/uimsel"; exit 1; }
-  test -f $MODEM_PKG/uimwatch || { echo "missing $MODEM_PKG/uimwatch"; exit 1; }
-  cp -f $MODEM_PKG/uimsel $MODEM_PKG/uimwatch $R/usr/local/bin/
-  chmod 755 $R/usr/local/bin/uimsel $R/usr/local/bin/uimwatch
-  mkdir -p $R/usr/local/lib
-  cp -f $DSP_BIN/libadsp_default_listener.so.1.0.0 $DSP_BIN/libadsprpc.so.1.0.0 $R/usr/local/lib/
-  chmod 644 $R/usr/local/lib/libadsp_default_listener.so.1.0.0 $R/usr/local/lib/libadsprpc.so.1.0.0
-  ln -sf libadsp_default_listener.so.1.0.0 $R/usr/local/lib/libadsp_default_listener.so.1
-  ln -sf libadsp_default_listener.so.1 $R/usr/local/lib/libadsp_default_listener.so
-  ln -sf libadsprpc.so.1.0.0 $R/usr/local/lib/libadsprpc.so.1
-  ln -sf libadsprpc.so.1 $R/usr/local/lib/libadsprpc.so
-  # libyaml is a private dependency of libadsprpc, not a system library: keep
-  # it out of /usr/local/lib (which ldconfig scans) and let the adsprpcd units
-  # find it via LD_LIBRARY_PATH instead.
-  DSP_LIB=$R/usr/local/lib/sirius-dsp
-  mkdir -p $DSP_LIB
-  cp -f $DSP_BIN/libyaml-0.so.2.0.9 $DSP_LIB/
-  chmod 644 $DSP_LIB/libyaml-0.so.2.0.9
-  ln -sf libyaml-0.so.2.0.9 $DSP_LIB/libyaml-0.so.2
-  # overlay 里的脚本在 git 里存的是 644（Windows 检出会丢可执行位），
-  # 统一在这里补 755。新增 overlay 脚本记得加进这个列表，否则 systemd
-  # 启动时会报 Permission denied。
-  chmod 755 $R/usr/local/sbin/sirius-screen $R/usr/local/sbin/sirius-remodeset $R/usr/local/sbin/sirius-bt-auto $R/usr/local/sbin/sirius-bt-watch $R/usr/local/sbin/sirius-wifi-add $R/usr/local/sbin/safe-reboot $R/usr/local/bin/wifi-shutdown $R/usr/local/sbin/sirius-otg $R/usr/local/sbin/sirius-bt-addr $R/usr/local/sbin/sirius-wifi-auto $R/usr/local/sbin/sirius-zram $R/usr/local/bin/sirius-modem-uim $R/usr/local/sbin/sirius-audio-refresh
-  mkdir -p $R/var/lib/rmtfs
-  ln -sf /dev/disk/by-partlabel/modemst1 $R/var/lib/rmtfs/modem_fs1
-  ln -sf /dev/disk/by-partlabel/modemst2 $R/var/lib/rmtfs/modem_fs2
-  ln -sf /dev/disk/by-partlabel/fsc $R/var/lib/rmtfs/modem_fsc
-  ln -sf /dev/disk/by-partlabel/fsg $R/var/lib/rmtfs/modem_fsg
+  # preset/unit 在 git 里保持 0644，打包前再确认一次。
+  chmod 644 $R/etc/systemd/system-preset/*.preset 2>/dev/null || true
+  # overlay 里的 CLI 脚本在 git 里是 644，打包前统一补 755；
+  # 新增 overlay 脚本要加进这个列表，否则 systemd 启动会报 Permission denied。
+  chmod 755 $R/usr/local/sbin/sirius-screen $R/usr/local/sbin/sirius-remodeset $R/usr/local/sbin/sirius-wifi-add $R/usr/local/sbin/safe-reboot $R/usr/local/sbin/sirius-otg
+  # 4 行 generator stub；实现在 system 分区（见 docs/KERNEL-IMG-STORE.md）。
+  GLUE_STUB=$R/usr/lib/systemd/system-generators/sirius-kernel-glue
+  test -f "$GLUE_STUB" || { echo "missing glue generator stub $GLUE_STUB"; exit 1; }
+  chmod 755 "$GLUE_STUB"
   # Empty authorized_keys for the default user (uid/gid fixed at 1000 in the
   # build scripts) so a public key can be dropped in over ssh right after
   # first boot. Runs outside chroot, so chown by number works before the user
@@ -137,13 +105,6 @@ sirius_overlay() {
   mkdir -p $R/var/lib/systemd/linger
   touch $R/var/lib/systemd/linger/$SIRIUS_USER
 }
-
-# Old name kept as an alias (build scripts call sirius_overlay now).
-sirius_helpers_units() {
-  sirius_overlay
-}
-
-
 sirius_netconf() {
   echo "sirius" > $R/etc/hostname
   cat > $R/etc/hosts <<'EOF2'

@@ -6,8 +6,9 @@
 #
 # External inputs (fail fast if missing):
 #   SIRIUS_BASE  pristine debian-trixie arm64 tree (e.g. linuxcontainers rootfs)
-#   Kernel modules + firmware are NOT baked here; they live in the system-partition
-#   store built by kernel/build-kernel-img.sh (see docs/KERNEL-IMG-STORE.md).
+#   Kernel modules + firmware + device glue (units/scripts/udev/UCM) are NOT
+#   baked here; they live in the system-partition store built by
+#   kernel/build-kernel-img.sh (see docs/KERNEL-IMG-STORE.md).
 #   SIRIUS_WORK  scratch/output dir for the tree (default: <distro>/workspace/build/rootfs)
 # Run on x86_64 (qemu-user + binfmt) or aarch64 Linux (native, no qemu); needs sudo:
 #   sudo SIRIUS_BASE=/path/to/base ./build-server.sh
@@ -16,7 +17,6 @@
 # SIRIUS_PASS, device-lab convention). Change the password on first boot.
 set -e
 DISTRO="$(cd "$(dirname "$0")/.." && pwd)"
-DSP_BIN=$DISTRO/rootfs/dsp-bin
 OVERLAY=$DISTRO/rootfs/overlay
 ORBITAL_PKG=$DISTRO/rootfs/orbital-pkg
 WORK=${SIRIUS_WORK:-${SCRATCH:-$DISTRO/workspace/build}/rootfs}
@@ -58,6 +58,11 @@ ln -sf /usr/share/zoneinfo/Asia/Shanghai /etc/localtime
 echo "Asia/Shanghai" > /etc/timezone
 systemctl set-default multi-user.target
 systemctl enable $SIRIUS_BASE_UNITS orbital || true
+# Device firmware lives on the system partition and is bind-mounted over
+# /lib/firmware at boot.  The distro firmware pulled in as Recommends
+# (wireless-regdb <- network-manager, alsa-topology-conf <- alsa/pipewire)
+# is shadowed by it and unused; drop it so the rootfs ships no firmware.
+apt-get purge -y wireless-regdb alsa-topology-conf || true
 ldconfig
 apt-get clean
 # resolv.conf is finalized host-side by sirius_chroot_end (stub symlink);

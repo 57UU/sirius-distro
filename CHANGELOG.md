@@ -9,18 +9,27 @@ change分为三大部分：boot,kernel,rootfs，例如 rootfs.gnome: 修复gnome
 本文档格式基于 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.0.0/)，
 本项目遵循[语义化版本规范](https://semver.org/spec/v2.0.0.html)。
 
-## [Unreleased]
+## [Unreleased](https://github.com/57UU/sirius-distro/compare/v2.1...HEAD)
 
-### 修复
+### 新增
 
-- rootfs: **开机后没有声音、只剩「Dummy Output」**：声卡出现得比开机音频脚本早，系统音频服务在喇叭通路打开前就探测了声卡，失败后又不会自己重试。现在喇叭通路打开后会强制重新探测一次，开机即有正常扬声器输出。
-- kernel: **电量校准优化**：内核会读电池上的 batt-id 电阻，自动选择 ATL（68kΩ）或 Coslight（100kΩ）电芯对应的电池曲线并加载，电量百分比和充放电估算更准确。
+- system: **一键硬件自检**：`sudo /mnt/sysmod/glue/bin/sirius-test` 会快速检查系统分区、各设备服务、固件、传感器、音频、显示、输入、WiFi、蓝牙、Modem、电池和 zram 等；`--full` 额外检查依赖外设状态的项目（如 PD 充电器）。
+- kernel: **内置麦克风可用**：启用 LPI 引脚控制器并补齐音频路由，底部与顶部内置麦克风现在可以正常录音。
 
 ### 变更
 
-- kernel: **内核升级到 7.3.4**：底座从 Linux 7.3 更新到 7.3.4，包含多项安全性与 Bug 修复。
+- kernel: **内核升级到 7.3.5**：包含多项安全性与 Bug 修复。
+- system: **内核/设备相关服务移入 system 分区**：音频、蓝牙、WiFi、Modem、zram、传感器等随内核走的服务与配置改由 system 分区提供，rootfs 更干净。以后内核/驱动相关更新只需重刷 system；**本次升级需要一次性重刷 rootfs + system**。
+- rootfs: **镜像瘦身**：GNOME 版不再携带约 394M 的重复设备固件，固件统一由 system 分区提供。
+- system: **无线管制数据库内置**：开机加载后 WiFi 按实际国家码工作。
 
-## [2.1] - 2026-10-23
+### 修复
+
+- system: **传感器恢复**：加速度计、磁力计、指南针恢复可读；光线和距离传感器仍不可用（硬件/Sensor Core 未注册）。
+- rootfs: **开机后没有声音、只剩「Dummy Output」**：声卡出现得比开机音频脚本早，系统音频服务在喇叭通路打开前就探测了声卡，失败后又不会自己重试。现在喇叭通路打开后会强制重新探测一次，开机即有正常扬声器输出。
+- kernel: **电量校准优化**：内核会读电池上的 batt-id 电阻，自动选择 ATL（68kΩ）或 Coslight（100kΩ）电芯对应的电池曲线并加载，电量百分比和充放电估算更准确。
+
+## [2.1](https://github.com/57UU/sirius-distro/compare/v2.0...v2.1) - 2026-10-23
 
 ### 新增
 
@@ -52,7 +61,7 @@ change分为三大部分：boot,kernel,rootfs，例如 rootfs.gnome: 修复gnome
 - kernel: **NFC 支持已移除**：确认 sirius 没有这颗设备，删掉了设备树里的 NFC 节点。
 - rootfs: 删掉了用户态的「伪自动」USB 角色跟随（`sirius-usb-bind` 及其 systemd 服务、udev 规则）。现在内核自己认线，它留着只会和内核抢角色、抢 OTG 供电。
 - rootfs: `sirius-otg` 的 `on`/`off`/`auto` 一并删除 ——角色和 OTG 供电都由内核按线缆状态自动处理，脚本只剩 `status`/`watch` 两个只读诊断命令。
-- rootfs: **移除 `sirius-reboot`**：它的 fastboot 模式进的是 U-Boot 自带 fastboot，USB 支持不完善，很容易卡在 U-Boot 里，只能长按电源冷启动恢复。刷机请用「音量下 + 电源」进原厂 fastboot；需要启动菜单时开机按音量键打断 autoboot。
+- rootfs: **移除** **`sirius-reboot`**：它的 fastboot 模式进的是 U-Boot 自带 fastboot，USB 支持不完善，很容易卡在 U-Boot 里，只能长按电源冷启动恢复。刷机请用「音量下 + 电源」进原厂 fastboot；需要启动菜单时开机按音量键打断 autoboot。
 
 ### 修复
 
@@ -62,7 +71,7 @@ change分为三大部分：boot,kernel,rootfs，例如 rootfs.gnome: 修复gnome
 - **USB-C 充电电流跟随协商结果**：充电器不再自己按「普通 USB 口」猜一个 500mA 限流，而是按谈下来的电流充。
 - gnome version:锁屏状态下按电源键现在会立即息屏，息屏后触摸屏不再误触界面，锁屏界面唤醒后不再黑屏。
 
-## [2.0] - 2026-10-17
+## [2.0](https://github.com/57UU/sirius-distro/compare/v1.3.2...v2.0) - 2026-10-17
 
 > 本次更新重做了引导方式，**升级必须换刷机流程**，请先读完「变更」中的破坏性变更条目。
 
@@ -94,7 +103,7 @@ change分为三大部分：boot,kernel,rootfs，例如 rootfs.gnome: 修复gnome
 
 - 移除 ABL 直启方案及其构建脚本。
 - vendor 分区不再用于存放内核模块与固件。
-- 移除 snd_soc_sm8250 的 modprobe 黑名单（实际声卡驱动是 sdm660-int，黑名单打空）。
+- 移除 snd\_soc\_sm8250 的 modprobe 黑名单（实际声卡驱动是 sdm660-int，黑名单打空）。
 
 ### 修复
 
@@ -109,7 +118,3 @@ change分为三大部分：boot,kernel,rootfs，例如 rootfs.gnome: 修复gnome
 ### known issue
 
 GNOME Version: 目前的电源键方案有点别扭，体验也不是很好
-
-[Unreleased]: https://github.com/57UU/sirius-distro/compare/v2.1...HEAD
-[2.1]: https://github.com/57UU/sirius-distro/compare/v2.0...v2.1
-[2.0]: https://github.com/57UU/sirius-distro/compare/v1.3.2...v2.0

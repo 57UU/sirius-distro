@@ -1,0 +1,11 @@
+# Glue unit enablement is generated at boot from the system-partition manifest
+# (see docs/KERNEL-IMG-STORE.md), never from /etc.  systemd's first-boot
+# "populated /etc with preset unit settings" step scans the generator output
+# and would otherwise link these units into /etc/systemd/system, leaving
+# shadow enablement state on userdata.  Disable them here so first boot leaves
+# /etc clean; the generator's runtime wants are unaffected.
+disable adsprpcd-*
+disable bt-addr.service
+disable pd-mapper.service
+disable wifi-shutdown.service
+disable sirius-*

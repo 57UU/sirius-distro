@@ -3,11 +3,15 @@
 # Device base (WiFi/BT bake + screen/power stack) comes from overlay/
 # via sirius-device.sh sirius_overlay (shared by all flavors);
 # this script only adds: GNOME packages, default user, GDM autologin, enables.
+# Device firmware is NOT installed here: it ships in the system-partition
+# store (kernel.img) and is bind-mounted over /lib/firmware at boot; the
+# distro firmware packages would only be shadowed dead weight.
 #
 # External inputs (fail fast if missing):
 #   SIRIUS_BASE  pristine debian-trixie arm64 tree (e.g. linuxcontainers rootfs)
-#   Kernel modules + firmware are NOT baked here; they live in the system-partition
-#   store built by kernel/build-kernel-img.sh (see docs/KERNEL-IMG-STORE.md).
+#   Kernel modules + firmware + device glue (units/scripts/udev/UCM) are NOT
+#   baked here; they live in the system-partition store built by
+#   kernel/build-kernel-img.sh (see docs/KERNEL-IMG-STORE.md).
 #   SIRIUS_WORK  scratch/output dir for the tree (default: <distro>/workspace/build/rootfs)
 # Run on x86_64 (qemu-user + binfmt) or aarch64 Linux (native, no qemu); needs sudo:
 #   sudo SIRIUS_BASE=/path/to/base ./build-gnome.sh
@@ -16,7 +20,6 @@
 # SIRIUS_PASS, device-lab convention). Change the password on first boot.
 set -e
 DISTRO="$(cd "$(dirname "$0")/.." && pwd)"
-DSP_BIN=$DISTRO/rootfs/dsp-bin
 OVERLAY=$DISTRO/rootfs/overlay
 POWERKEY_PKG=$DISTRO/rootfs/powerkey-pkg
 WORK=${SIRIUS_WORK:-${SCRATCH:-$DISTRO/workspace/build}/rootfs}
@@ -41,6 +44,8 @@ mkdir -p $R/usr/local/bin $R/etc/systemd/user
 cp -f $POWERKEY_PKG/sirius-powerkey $R/usr/local/bin/sirius-powerkey
 cp -f $POWERKEY_PKG/sirius-powerkey.service $R/etc/systemd/user/sirius-powerkey.service
 chmod 755 $R/usr/local/bin/sirius-powerkey
+# logind 的电源键策略是 flavor 私有：overlay 里的 server 版（按键归 Orbital）
+# 在这里换成 GNOME 版；两份都留 rootfs，system 分区镜像保持 flavor 中立。
 rm -f $R/etc/systemd/logind.conf.d/sirius-server.conf
 cat > $R/etc/systemd/logind.conf.d/sirius-gnome.conf <<'EOF2'
 [Login]
@@ -57,7 +62,7 @@ chroot $R /bin/bash <<'CHROOT_EOF'
 set -e
 export DEBIAN_FRONTEND=noninteractive
 apt-get update
-apt-get install -y $SIRIUS_BASE_PKGS gnome-core gdm3 firmware-atheros firmware-qcom-soc
+apt-get install -y $SIRIUS_BASE_PKGS gnome-core gdm3
 useradd -m -u 1000 -U -G sudo -s /bin/bash "$SIRIUS_USER" || true
 echo "$SIRIUS_USER:$SIRIUS_PASS" | chpasswd
 printf '%s ALL=(ALL) NOPASSWD:ALL\n' "$SIRIUS_USER" > /etc/sudoers.d/"$SIRIUS_USER"
@@ -93,6 +98,10 @@ lock-enabled=true
 idle-activation-enabled=true
 EOF3
 glib-compile-schemas /usr/share/glib-2.0/schemas/
+# Drop the distro firmware that Recommends pulled in (and any firmware
+# package a future dependency might add): device firmware comes from the
+# system partition, everything here would be shadowed by the bind mount.
+apt-get purge -y firmware-atheros firmware-qcom-soc wireless-regdb alsa-topology-conf || true
 ldconfig
 apt-get clean
 # resolv.conf is finalized host-side by sirius_chroot_end (stub symlink);

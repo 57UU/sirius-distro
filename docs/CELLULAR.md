@@ -1,209 +1,39 @@
-# 蜂窝 bringup（基带 + SIM + LTE 数据，2026-10-18 打通）
+# 蜂窝 bringup（基带 + SIM + LTE 数据）
 
-状态：**LTE 信令与数据均可用**。中国电信卡实测注册 CHN-CT、bearer 拿到 `10.150.136.161/30`，`ping -I` 外网 17~48ms。
+状态：**LTE 信令与单卡数据均可用**（电信卡实测注册 CHN-CT、`qmapmux0.0` 拿 IP 正常）。检查命令：`sudo mmcli -m any | grep -E 'state|access tech|operator|packet service'`。
 
-## 1. 结论速览
+## 1. 启动链路
 
-| 环节 | 状态 | 说明 |
+```text
+modem 分区 mmcblk0p76（192M FAT，NON-HLOS 固件包）
+  └── remoteproc2 (q6v5-mss, 4080000) ← /lib/firmware/qcom/sdm710/pyxis/（与原厂 NON-HLOS md5 一致）
+        ├── rmtfs      ← /var/lib/rmtfs/ 4 项软链（modem_fs1/fs2/fsc/fsg → modemst1/2, fsc, fsg）
+        ├── tqftpserv  ← PD 文件传输
+        └── pd-mapper  ← PD 域映射
+              ↓
+ModemManager（qcom-soc 插件，需 /dev/qrtr0 节点 + UIM provisioning session）
+  └── NetworkManager（cellular.nmconnection）→ Bearer → qmapmux0.0（QMAP mux over rmnet_ipa0）
+```
+
+- **rmtfs 已知噪音**：`request for unknown partition '/boot/modem_fsg_oem_1', rejecting` 属正常（分区表硬编码），勿修。
+- **IPA 限制**：主线 `ipa_modem.c` 无 mux 层，手工 `ip link add ... type rmnet` 不通，多路 mux 仅走 ModemManager 的 QMAP。
+
+## 2. 必踩的坑与边界
+
+| 问题 | 根因 | 处理方式 |
 |---|---|---|
-| 基带固件 | ✅ | mpss 正常加载，IMEI 可读 |
-| 射频 | ✅ | LTE RSRP -90 dBm / RSSI -60 dBm |
-| SIM 卡识别 | ✅ | 需手工建 provisioning session，见 §4.2 |
-| LTE 注册 | ✅ | `registered` / `PS attached` / operator 46011 CHN-CT |
-| 数据连接 | ✅ | NetworkManager 按运营商自动选 APN，bearer 由 ModemManager 建 |
+| `SimFileNotFound` | 套用了通用 USIM AID 模板（第 12 字节 `FF`） | 先跑 `qmicli --uim-get-card-status` 抄真实 `Application ID`（如电信卡第 12 字节为 `03`） |
+| `sim-missing` / `GW primary session index unknown` | 卡上电后仅 `detected`，MM 不会建 provisioning session；`qmicli --uim-change-provisioning-session` 先 power-off 报 `QMI error 3 'Internal'` | 用 `uimsel` 直调 libqmi 跳过 power-off：`sudo env UIMSEL_AID=<AID> UIMSEL_ST=0 uimsel 1`（`ST=0` Primary GW；`ST=1` 1X；`DEACT=1` 撤销） |
+| MM 放弃 modem（`No modems were found`） | MM 初始化检查 `/dev/qrtr0`，而 QRTR 走 socket 无设备节点 | `sudo ln -sf /dev/null /dev/qrtr0 && sudo systemctl restart ModemManager` |
+| 纯 `qmicli` 拉不起数据面 | libqmi 1.36 缺 `WDS BindSubscription`，且 `--client-cid` 不可跨进程 | 走 ModemManager，勿用纯 qmicli |
+| **双卡不工作（不支）** | UIM 可认双卡，但 MM `qcom-soc` 在双 active slot 下反复 `enabled → disabling` 重建 | **只插单卡**；拔到单卡后 `sirius-modem-uim` 自动恢复 |
+| 物联网卡 `searching` 循环 | 归属 PLMN（如 46015）无小区被拒，卡死搜网 | 临时指定网络：`sudo mmcli -m 0 --3gpp-register-in-operator=46000`（勿固化进 NM 配置） |
 
-```sh
-sudo mmcli -m any | grep -E 'state|access tech|operator|packet service'
-```
+## 3. 正式方案：NetworkManager + 自动脚本
 
-## 2. 启动链路（基带视角）
+### NetworkManager 配置
 
-```
-modem 分区 mmcblk0p76（192M，FAT）
-  └── image/{mba.mbn, modem.b00..b29, modem.mdt}   ← 整包 NON-HLOS 内容
-        │ rmtfs 按需供给（EFS 读写在 modemst1/2、fsg）
-        v
-remoteproc2 (q6v5-mss, 4080000)  ← 固件实际取自 /lib/firmware/qcom/sdm710/pyxis/
-  ├── MBA booted → loading mpss → "modem running event"（IPA 侧）
-  ├── QRTR 服务齐（UIM 50 / DMS 21 / NAS / WDS / IPA 49 …）
-  ├── rmtfs      ← modem 通过 /boot/modem_fs{1,2,c,g} 读写 EFS
-  ├── tqftpserv  ← PD 文件传输
-  └── pd-mapper  ← PD 域映射
-        v
-ModemManager（qcom-soc 插件）
-  ├── 需要 /dev/qrtr0 存在，否则放弃 modem（§4.3）
-  ├── 需要 UIM 已有 provisioning session，否则判 sim-missing（§4.2）
-  └── simple-connect → Bearer → qmapmux0.0（QMAP mux over rmnet_ipa0）
-        v
-手动配 IP / 路由 → 公网可达
-```
-
-## 3. 固件与分区事实
-
-- `pyxis` 目录名只是沿用同平台机型路径；`/lib/firmware/qcom/sdm710/pyxis/` 的 `mba.mbn`、`modem.b00..b29`、`modem.mbn` 与 sirius 原厂 `NON-HLOS.bin` 提取物 **md5 完全一致**，不是用错固件。
-- `modem` 分区（p76）是 FAT，内容就是 NON-HLOS 固件包本体，**不是 EFS**；EFS 在 `fsg`(p57) / `modemst1`(p59) / `modemst2`(p60)。
-- rmtfs 存储映射在 `/var/lib/rmtfs/`，只需四项软链：`modem_fs1→modemst1`、`modem_fs2→modemst2`、`modem_fsc→fsc`、`modem_fsg→fsg`。
-- rmtfs 日志 `request for unknown partition '/boot/modem_fsg_oem_1', rejecting` **正常，不要修**：分区表编译期硬编码，只认 `modem_fs1/fs2/fsc/fsg`（及 OnePlus 几项）；stock Android vendor 映射同样只有这四项。
-- 主线 sdm670 的 IPA 支持是本地补丁（`sdm670.dtsi` + `ipa_main.c` 复用 `ipa_data_v3_5_1`），但 `ipa_modem.c` **没有 mux 层**，只维护单个 `rmnet_ipa%d`；手工 `ip link add ... type rmnet mux_id N` 走不通，多 mux 只能靠 ModemManager 的 QMAP mux。
-
-## 4. 必须知道的坑
-
-### 4.1 UIM 的 AID 必须用卡上真实值，不能套模板
-
-通用 USIM AID 模板（第 12 字节 `FF`）：
-
-```
-A0:00:00:00:87:10:02:FF:86:FF:FF:89:FF:FF:FF:FF
-```
-
-本机电信卡真值（第 12 字节 `03`）：
-
-```
-A0:00:00:00:87:10:02:FF:86:FF:03:89:FF:FF:FF:FF
-```
-
-用模板去 `--uim-open-logical-channel` 会得到 `SimFileNotFound`，易误判成"卡没有 USIM 应用"。**正确做法：先 `qmicli --uim-get-card-status`，从输出抄 `Application ID`。**
-
-单卡时卡状态有时只报第一个应用（csim），插双卡后才列出 `usim`；判定卡类型别只看一眼。
-
-### 4.2 provisioning session 必须手工建，MM 自己不会建
-
-卡上电后 `Application state` 停在 `detected`、`Primary GW: session doesn't exist`，MM 报 `GW primary session index unknown` 并把 modem 判成 sim-missing。
-
-qmicli 的 `--uim-change-provisioning-session` 走不通：它先 power-off SIM，这步固定返回 `QMI error 3 'Internal'`。绕过办法是直接用 libqmi 发请求（不经 power-off），工具见 §7 的 `uimsel`：
-
-```sh
-# 电信卡：用 card status 里抄出来的 usim AID
-sudo env UIMSEL_AID=A0000000871002FF86FF0389FFFFFFFF UIMSEL_ST=0 uimsel 1
-#   UIMSEL_ST=0  Primary GW provisioning（LTE/GSM 鉴权，必须）
-#   UIMSEL_ST=1  Primary 1X provisioning（仅 CSIM 卡/老卡才用得上）
-#   UIMSEL_DEACT=1  撤销
-```
-
-成功标志：
-
-```
-Primary GW:   slot '1', application '2'
-Application state: 'ready'      PIN1 state: 'disabled'
-```
-
-随后十几秒内应出现 `Registration state: 'registered'` 与 `PS: 'attached'`。
-
-### 4.3 ModemManager 需要 /dev/qrtr0 存在
-
-MM 的 qcom-soc 插件初始化时 `g_file_query_info("/dev/qrtr0")`，文件不存在就打
-
-```
-couldn't reset QMI port 'qrtr0' with data interface 'rmnet_ipa0':
-Couldn't query file info: ... No such file or directory
-```
-
-然后**放弃 modem**（`enabled → disabling → disabled`，最终 `No modems were found`）。QRTR 的 QMI 走 socket 本就没有 /dev 节点，给个假节点即可：
-
-```sh
-sudo ln -sf /dev/null /dev/qrtr0
-sudo systemctl restart ModemManager
-```
-
-### 4.4 libqmi 1.36 缺 bind_subscription，纯 qmicli 路线到不了数据面
-
-绕开 MM 直接用 qmicli 建数据连接会连续撞墙：
-
-| 尝试 | 结果 |
-|---|---|
-| `--wds-bind-mux-data-port`（ep 0~8、mux 0/1/128） | `QMI error 3 'Internal'` |
-| 跳过绑定直接 `--wds-start-network` | `QMI error 70 'InvalidOperation'` |
-| `--wds-start-network="3gpp-profile=1"`（profile 1 = ctnet 已存在） | 同样 `InvalidOperation` |
-| `--wds-set-autoconnect-settings=enabled` | 同样 `InvalidOperation` |
-| `--wds-set-default-profile-number=3gpp,1` 后再 start | 仍 `InvalidOperation` |
-| `--wds-reset` 后再 start | 仍 `InvalidOperation` |
-| `--wds-bind-data-port=1` | `25 'DeviceUnsupported'`（USB 专用命令） |
-
-根因：WDS 客户端缺 **BindSubscription**，libqmi 1.36 未实现该消息（`qmi-wds.h` 搜不到）。单卡双卡都一样。
-
-> 另一陷阱：`--client-cid=N` 不能跨进程复用（进程退出即失效，报 `Unknown client N for service wds`），而一次调用又不允许两个 WDS 动作（`too many WDS actions requested`）——"先 bind 再 start"的脚本写不出来，只能自己写程序（`wdsup`）或走 ModemManager。
-
-### 4.5 双卡：UIM 层能认两张，MM 层不工作（已接受，不做支持）
-
-2026-10-18 实测双卡（槽 1 移动 + 槽 2 电信）：**本机只保证单卡可用**，排障先确认只插一张卡。
-
-- `--uim-get-slot-status`：两个 physical slot 均 `present` + `active`，槽 2 能读完整 ICCID（槽 1 的 ICCID 只报前 6 位，属固件上报行为，别当 bug 修）。
-- `--uim-get-card-status`：槽 1 USIM `ready`，槽 2 是 csim+usim 双应用卡（`detected`）。
-- provisioning session 正常建在槽 1（`Primary GW: slot '1', application '1'`）。
-
-卡在 MM 层：
-
-```
-[modem0] state changed (enabling -> enabled)
-[modem0] state changed (enabled -> disabling)      ← enable 成功后 1 秒内被放弃
-[modem4] port 'qrtr0' no longer controllable, reprobing
-```
-
-modem 对象每 20~30 秒重建一轮（modem0 → modem1 → …），enable 后随即 disable，最终 `No modems were found`；`sirius-modem-uim` 每 60 秒重启 MM 也救不回来。debug 日志只多出 `couldn't build device ids: Unknown device subsystem`（单卡同样出现，无害）。判定为 modem 固件/MM qcom-soc 插件在双 active slot 下的固有限制，**不再投入**。
-
-> 排障提示：遇到"之前好好的，现在 No modems were found"，先问是不是插了两张卡；拔到单卡，`sirius-modem-uim` 事件链路会自动恢复。
-
-### 4.6 物联网卡：searching 循环与强制注册
-
-实测卡（ICCID 898600 开头）是**物联网卡，归属 PLMN 46015**，多数位置无可用小区：自动选网先试归属网被拒（`network rejection error: no-cells-in-location-area, operator id 46015`）→ 卡在 `registration: searching`，NM 停在 connecting。信号、SIM 状态、provisioning session 全正常，别往软件方向查。
-
-恢复一条命令（注册到标准移动网 46000，实测立即 connected）：
-
-```sh
-sudo mmcli -m 0 --3gpp-register-in-operator=46000
-```
-
-只对这张卡生效，**不要**把 network-id 写进 cellular.nmconnection 固化——换普通卡不需要它，固化反而挡住别的卡。该卡行为不稳定属常态。
-
-## 5. 操作步骤
-
-### 5.1 手工拉起（排障用）
-
-```sh
-# 0) 基础服务（应由 systemd 拉起，确认即可）
-systemctl is-active qrtr-ns rmtfs tqftpserv pd-mapper
-
-# 1) MM 的必需品
-sudo ln -sf /dev/null /dev/qrtr0
-
-# 2) 基带置 online（若停在 shutting-down，多半是 MM 上次失败后关的）
-sudo qmicli -d qrtr://0 --dms-set-operating-mode=online
-
-# 3) 建 provisioning session（AID 从 card status 抄）
-sudo env UIMSEL_AID=<卡上的 usim AID> UIMSEL_ST=0 uimsel 1
-
-# 4) 重启 MM，确认它认下 modem
-sudo systemctl restart ModemManager
-sudo mmcli -m any | grep -E 'state|access tech|operator|packet service'
-#  期望：registered / lte / CHN-CT / attached
-
-# 5) 建数据连接（必须 root，普通用户会被 polkit 拦）
-sudo mmcli -m any --simple-connect=apn=ctnet,ip-type=ipv4
-sudo mmcli -b 1        # 记下 address / prefix / gateway / dns / mtu
-
-# 6) 配接口（MM 只建 bearer，不配 IP）
-sudo ip addr add <address>/<prefix> dev qmapmux0.0
-sudo ip link set qmapmux0.0 up mtu 1410
-sudo ip route replace default via <gateway> dev qmapmux0.0 metric 700
-
-# 7) 验证
-ping -I qmapmux0.0 223.5.5.5
-```
-
-实测样例：
-
-```
-interface: qmapmux0.0   address: 10.150.136.161/30
-gateway: 10.150.136.162   dns: 218.6.200.139, 61.139.2.69   mtu: 1410
-ping 223.5.5.5 → 3/3, 17~48ms
-TCP 114.114.114.114:53 → 通
-```
-
-判读：**运营商网关不响应 ping**（10.150.136.162 打不通正常）；`223.5.5.5:80` 不提供 HTTP，别用它验 HTTP。
-
-### 5.2 交给 NetworkManager（正式方案）
-
-日常由 NM 接管，overlay 预置 `etc/NetworkManager/system-connections/cellular.nmconnection`：
+`glue/run/NetworkManager/system-connections/cellular.nmconnection`（开机链到 `/run/NetworkManager/system-connections/`，**必须 `root:0600`** 否则 NM 静默忽略）：
 
 ```ini
 [connection]
@@ -212,7 +42,7 @@ type=gsm
 interface-name=qrtr0
 
 [gsm]
-auto-config=true          # 关键：不写死 APN
+auto-config=true          # 按 MCC/MNC 查 mobile-broadband-provider-info，换卡免改
 
 [ipv4]
 method=auto
@@ -220,73 +50,48 @@ method=auto
 method=auto
 ```
 
-`auto-config=true` 让 NM 按卡上 MCC/MNC 查 `mobile-broadband-provider-info` 取 APN，**换卡不用改配置**：
-
-| 运营商 | MCC/MNC | 自动得到的 APN |
-|---|---|---|
-| 中国移动 | 46000/46002/46004/46007/46008 | CMNET |
-| 中国电信 | 46003/46011/46012 | CTNET |
-| 中国联通 | 46001/46006/46009 | 3GNET |
-
-实测：插电信卡得 CTNET、换移动卡得 CMNET，都直接可用。
-
-1. **keyfile 必须 root:600**，否则 NM 静默忽略（连接"不存在"）；overlay 拷进去是 644，由 `sirius_overlay()` 统一 `chmod 600`。
-2. **别用电信卡的 APN 跑别的卡**：实测移动网络对 `ctnet` 也放行，但那是宽容而非规范，自动查表更稳。
-
-### 5.3 自动化：谁在什么时候动手
-
-三个单元围绕同一个幂等脚本 `sirius-modem-uim`：
+### 自动化单元（围绕幂等脚本 `sirius-modem-uim`）
 
 | 单元 | 触发时机 | 职责 |
 |---|---|---|
-| `sirius-modem-uim.service` | 开机（`Before=ModemManager`）、timer、事件 | 读卡 → 取 AID → 建 primary-gw 会话 → 必要时异步重启 MM |
-| `sirius-modem-uim.timer` | 每 60 秒 | 兜底：事件丢失时仍能补上 |
-| `sirius-modem-uim-watch` | 常驻（`Restart=always`） | 订阅 UIM 的 `card-status`/`slot-status`，有变化就触发上面那个 service |
+| `sirius-modem-uim.service` | 开机（`Before=ModemManager`） | 读卡 → 取 AID → 建 primary-gw 会话 → 按需恢复 MM |
+| `sirius-modem-uim.timer` | 每 60s | 事件丢失兜底 |
+| `sirius-modem-uim-watch` | 常驻（`Restart=always`） | 订阅 UIM `card-status`/`slot-status`，变化时直接 exec 同一脚本 |
 
-- **顺序**：`qrtr-ns`/`rmtfs` → `sirius-modem-uim` → `ModemManager` → `NetworkManager`；service 必须早于 MM，否则 MM 因 `GW primary session index unknown` 判 sim-missing 并放弃 modem。
-- **modem 起不来时**等待上限 40 秒（`qmicli` 轮询），会拖住 MM/NM 启动——刻意换"MM 一次启动成功"（反过来让 MM 先失败再重启更慢，它停止要等 QMI 收尾）。
-- **互斥**：脚本开头有 `flock`。三条触发路径中 watch 是**直接 exec**（绕过 systemd），一次拔插产生十几条事件，没锁会并发十几个实例同时发 QMI。
-- **重启 MM 要冷却**：记 `/run/sirius-modem-uim.stamp`，60 秒内不重复重启，防"重启 → 新事件 → 再重启"循环。
-- **"无卡"和"卡还没读完"是两件事**：卡 present 但应用列表为空时重试最多 10 秒（实测插卡后 2~6 秒应用才出现）；卡真 absent 立即退出。
+- **并发与时序**：脚本入口带 `flock` 防拔插并发；卡 `present` 但应用列表为空时重试最多 10s；开机等 modem 最多 40s（单调时间）。
+- **MM 恢复与冷却**：MM 取得总线名后有 90s 宽限等待导出 modem 对象；仅在已有有效 SIM 会话但报 `sim-missing` 或宽限超时仍无对象时重启 MM（60s 冷却记 `/run/sirius-modem-uim.monotonic`）。
 
-## 6. 会让整机冻死的操作（务必避让）
+## 4. 手工拉起（排障用）
 
-| 操作 | 后果 |
+```sh
+systemctl is-active qrtr-ns rmtfs tqftpserv pd-mapper
+sudo ln -sf /dev/null /dev/qrtr0
+sudo qmicli -d qrtr://0 --dms-set-operating-mode=online
+sudo env UIMSEL_AID=<卡上的 usim AID> UIMSEL_ST=0 uimsel 1
+sudo systemctl restart ModemManager
+sudo mmcli -m any --simple-connect=apn=ctnet,ip-type=ipv4
+sudo mmcli -b 1   # 查 address / prefix / gateway / mtu
+sudo ip addr add <address>/<prefix> dev qmapmux0.0
+sudo ip link set qmapmux0.0 up mtu 1410
+sudo ip route replace default via <gateway> dev qmapmux0.0 metric 700
+ping -I qmapmux0.0 223.5.5.5   # 注：运营商网关通常不回 ping
+```
+
+## 5. 危险操作（会导致整机硬死机）
+
+| 禁止操作 | 后果 |
 |---|---|
 | `systemctl restart rmtfs`（modem 运行中） | 系统冻死，只能长按电源 |
 | `echo stop > /sys/class/remoteproc/remoteproc2/state` | 系统冻死 |
-| 基带运行时挂载/遍历 `modem` 分区 | AP 与基带同时访问存储，硬挂死 |
+| 基带运行时挂载/遍历 `modem` 分区（`p76`） | AP 与基带争抢存储，硬挂死 |
 
-要重启基带就整机重启；系统还活着（SSH 可用）时自己 `sync && reboot -f`——`-f` 跳过服务停止，绕开 rmtfs 的已知 stop hang。
+重启基带只能整机重启（SSH 可用时执行 `sync && reboot -f` 绕开 rmtfs stop hang）。
 
-## 7. 工具
+## 6. 工具与构建
 
-**生产组件（随镜像发布）**：源码在 `src/modem/`，产物在 `rootfs/modem-pkg/`，由 `rootfs/sirius-device.sh` 的 `sirius_overlay()` 装进 `/usr/local/bin/`（同 `rootfs/powerd-pkg`）。
-
-| 文件 | 用途 |
-|---|---|
-| `uimsel.c` | 直接用 libqmi 发 ChangeProvisioningSession，跳过 qmicli 内部会失败的 power-off。支持 `UIMSEL_AID` / `UIMSEL_ST` / `UIMSEL_DEACT` |
-| `uimwatch.c` | 常驻订阅 UIM 的 `card-status` / `slot-status`；**必须自己 `setbuf(stdout, NULL)`**，否则 qmicli 那套走管道会全缓冲、事件读不出来 |
-
-arm64 设备就地编译：
-
-```sh
-gcc -o uimsel uimsel.c     $(pkg-config --cflags --libs qmi-glib qrtr-glib glib-2.0 gio-2.0)
-gcc -o uimwatch uimwatch.c $(pkg-config --cflags --libs qmi-glib qrtr-glib glib-2.0 gio-2.0)
-```
-
-依赖：`gcc libc6-dev libqmi-glib-dev pkg-config`。
-
-运行时依赖（`SIRIUS_BASE_PKGS` 已含）：`modemmanager`（含 libqmi-glib/libqrtr-glib/libmbib-glib）、`libqmi-utils`（提供脚本调用的 `qmicli`）、`rmtfs`、`tqftpserv`、`qrtr-tools`。对应 systemd 单元在 `SIRIUS_BASE_UNITS` 里 enable：`ModemManager`、`sirius-modem-uim`、`sirius-modem-uim.timer`、`sirius-modem-uim-watch`。
-
-**诊断工具（`workspace/`，不入库）**：
-
-| 文件 | 用途 |
-|---|---|
-| `uimrd.c` | 直接读 SIM 透明文件（指定 session 类型），验证卡内文件 |
-| `wdsup.c` | 尝试 bind mux + start network + 读 IP 的完整 WDS 程序。**当前路线失败**，留作 libqmi 补齐后的参考 |
-| `nonhlos-tool.py` | 纯 Python 解析 `NON-HLOS.bin`（FAT 镜像），`list` / `ls IMAGE` / `extract <outdir> <prefix> IMAGE` |
-
-## 8. 真因（排查结论）
-
-真因：session 未建（§4.2）+ MM 缺 `/dev/qrtr0`（§4.3）+ libqmi 缺 `bind_subscription`（§4.4）。曾排除：基带挂、固件版本不对、卡坏/只有 CSIM、rmtfs 映射缺失、MM 干扰（停掉它基带仍不建会话，但它是 shutting-down 的制造者）。
+- **生产组件**（`src/modem/` → 预编译在 `glue/bin/`）：
+  - `uimsel.c`：libqmi 直发 `ChangeProvisioningSession`（支持 `UIMSEL_AID` / `UIMSEL_ST` / `UIMSEL_DEACT`）。
+  - `uimwatch.c`：订阅 UIM 事件（必须 `setbuf(stdout, NULL)` 防管道全缓冲）。
+  - 就地编译：`gcc -o <bin> <src>.c $(pkg-config --cflags --libs qmi-glib qrtr-glib glib-2.0 gio-2.0)`（需 `gcc libc6-dev libqmi-glib-dev pkg-config`）。
+- **MM 补丁与测试**：`scripts/build-modemmanager.sh`（见 `scripts/modemmanager/README.md`）；离线回归测试 `python3 scripts/test-modem-uim.py`。
+- **诊断工具**（`workspace/`，不入库）：`uimrd.c`、`wdsup.c`（参考）、`nonhlos-tool.py`。
