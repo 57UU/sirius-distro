@@ -24,6 +24,7 @@ change分为三大部分：boot,kernel,rootfs，例如 rootfs.gnome: 修复gnome
 - system: **内核/设备相关服务移入 system 分区**：音频、蓝牙、WiFi、Modem、zram、传感器等随内核走的服务与配置改由 system 分区提供，rootfs 更干净。以后内核/驱动相关更新只需重刷 system；**本次升级需要一次性重刷 rootfs + system**。
 - rootfs: **镜像瘦身**：GNOME 版不再携带约 394M 的重复设备固件，固件统一由 system 分区提供。
 - system: **无线管制数据库内置**：开机加载后 WiFi 按实际国家码工作。
+- system: **默认无线监管域锁定为 CN**：开机即默认启用中国区无线信道与功率规则，无需等连上路由器后再切换。
 
 ### 修复
 
