@@ -63,6 +63,7 @@ default password is 1234.
 | Battery      | Working       |      |
 | LED          | Working       | notification, rear flash, front fill |
 | Speaker      | Working       |      |
+| Earpiece     | Working       |      |
 | Headphone    | Broken        |      |
 | Haptics      | Working       |      |
 | Microphone   | Working       | bottom + top |
