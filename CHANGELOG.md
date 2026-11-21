@@ -29,6 +29,7 @@ change分为三大部分：boot,kernel,rootfs，例如 rootfs.gnome: 修复gnome
 - rootfs: **开机后没有声音、只剩「Dummy Output」**：声卡出现得比开机音频脚本早，系统音频服务在喇叭通路打开前就探测了声卡，失败后又不会自己重试。现在喇叭通路打开后会强制重新探测一次，开机即有正常扬声器输出。
 - kernel: **电量校准优化**：内核会读电池上的 batt-id 电阻，自动选择 ATL（68kΩ）或 Coslight（100kΩ）电芯对应的电池曲线并加载，电量百分比和充放电估算更准确。
 - rootfs.gnome: **电源键锁屏/灭屏更稳定**：修复锁屏界面按电源键会先闪一下桌面、以及连按后偶尔无法再次锁屏的问题。
+- kernel: **视频硬编 EOS 收尾修复**：修复 Venus 编码器驱动拦截零地址 EOS 包导致 `ffmpeg` 在 drain 收尾阶段卡死的问题（非 32 对齐高度如 720p 在 `ffmpeg` 侧仍需加 `-vf pad` 补齐）。
 
 ## [2.1](https://github.com/57UU/sirius-distro/compare/v2.0...v2.1) - 2026-10-23
 
