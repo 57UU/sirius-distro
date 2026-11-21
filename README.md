@@ -36,7 +36,6 @@ fastboot flash boot boot.img
 fastboot flash system kernel.img
 ```
 
-以后内核/驱动相关的升级只需重刷这一项，不用重刷 rootfs；但**首次引入 glue 的版本需要同时重刷下面的 rootfs**（rootfs 里只保留一个 4 行转发 stub，详见 `docs/KERNEL-IMG-STORE.md`）。
 
 ## step3：刷写 rootfs.img
 解压出simg文件
@@ -134,12 +133,10 @@ charging / battery profile / SMB1355: see `docs/CHARGING.md`.
 system 分区在 ABI 层面只依赖 rootfs 的 glibc（≥2.38）和 glib 家族，见
 [docs/KERNEL-IMG-STORE.md](docs/KERNEL-IMG-STORE.md) §4。
 
-最终产物（`*.img` / `*.simg`）在 `build/`。rootfs 默认在 `/tmp/sirius-rootfs.XXXXXX/`
-构建和打包，成功后清理；失败时保留工作树并打印路径。`--no-tmp` 改用
-`workspace/build/rootfs/`（或 `SIRIUS_WORK`），`--tmp` 显式启用默认行为，参数可放在目标前后。
-日志始终保存在 `workspace/build/logs/`；base、initrd、U-Boot 等仍在 `workspace/build/`。
+最终产物（`*.img` / `*.simg`）在 `build/`。
+日志始终保存在 `workspace/build/logs/`, base、initrd、U-Boot 等仍在 `workspace/build/`。
 `/tmp` 是 tmpfs 时可减少包安装的同步写盘等待；GNOME 构建和打包同时占用约 8–10 GiB，
-内存较少或需要保留构建树时可用 `--no-tmp`。
+
 内核 Image/dtb 先在 `kernel/linux-sirius/` 里 `make`，`./build.sh kernel` 只做 system 分区镜像。
 
 
