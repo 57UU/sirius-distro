@@ -13,7 +13,7 @@ kernel/     内核区：build-kernel-img.sh（system 分区仓库打包）+ linu
 glue/       内核/设备耦合 userspace 层（unit/脚本/设备守护二进制/私有运行库/Sensor Core 配置/自检脚本/udev/模块加载/ALSA UCM/运行期配置/manifest）：随 kernel.img 打进 system 分区，升级内核相关服务只刷 system
 docs/       相关文档以及一些修复经验
 ```
-制作过程见：https://blog.57u.tech/2026/03/18/install-linux-on-android-device-mi8se/
+制作过程：https://blog.57u.tech/2026/03/18/install-linux-on-android-device-mi8se/
 
 # 刷机指南
 在Release中下载boot,kernel.img以及rootfs(debian-xxx)镜像。
@@ -26,16 +26,15 @@ fastboot flash boot boot.img
 ```
 需要清空dtbo，启动连才会加载boot中的设备树
 
-只换内核时不用重刷 boot，只刷 system 即可。
+## step2：刷写 system（kernel.img）
 
-## step2：刷写 system（kernel.img：内核+模块+固件+内核耦合服务）
-
-内核模块、设备固件，以及随内核走的 systemd 服务/udev 规则/ALSA UCM（`glue/`）都在 system 分区，刷入：
+内核模块、设备固件，以及随内核走的设备耦合层都在 system 分区，刷入：
 
 ```bash
 fastboot flash system kernel.img
 ```
 
+以后升级只需要刷写 kernel.img 即可。
 
 ## step3：刷写 rootfs.img
 解压出simg文件
@@ -75,7 +74,7 @@ default password is 1234.
 | Camera       | Partial       | IMX363 rear only, very unstable |
 | Fingerprint  | Broken        |      |
 | Video decode | Working       | H.264 VP8 VP9 HEVC MPEG-2 |
-| Video encode | Working*      | ffmpeg <= 9.1 segfaults on non-32-aligned height (fixed in upstream) |
+| Video encode | Working      | ffmpeg <= 9.1 segfaults on non-32-aligned height (fixed in upstream) |
 | Sleep        | Partial       | s2idle works; deep/S3 unsupported |
 
 ## Sensors
@@ -94,7 +93,7 @@ default password is 1234.
 Uboot with UEFI support.
 
 
-## 自制服务速查（`/usr/local/sbin`，需 root）
+## 自制服务（`/usr/local/sbin`）
 
 ```bash
 sudo sirius-otg status|watch  # 只读诊断：角色归属、power/data role、boost、usb0（角色本身由内核自动管）
@@ -106,8 +105,7 @@ sudo safe-reboot                     # 一次性：sysrq 安全重启（sync→r
 sirius-remodeset                     # 手动救援：无头启动显示卡住时跑一次（DSI modeset 解卡）
 ```
 
-开机自启、无需手动（以下默认全开）：`sirius-bt-auto` + `sirius-bt-addr`（蓝牙上电+固定地址）、
-`wifi-shutdown`（关机前干净下线 WiFi 卸载驱动）。
+开机自启、无需手动、默认全开。
 
 # Extra Content
 
@@ -134,8 +132,10 @@ charging / battery profile / SMB1355: see `docs/CHARGING.md`.
 system 分区在 ABI 层面只依赖 rootfs 的 glibc（≥2.38）和 glib 家族，见
 [docs/KERNEL-IMG-STORE.md](docs/KERNEL-IMG-STORE.md) §4。
 
-最终产物（`*.img` / `*.simg`）在 `build/`。
-日志始终保存在 `workspace/build/logs/`, base、initrd、U-Boot 等仍在 `workspace/build/`。
+- 最终产物在 `build/`。
+- 日志在 `workspace/build/logs/`
+- base、initrd、U-Boot 在 `workspace/build/`
+
 `/tmp` 是 tmpfs 时可减少包安装的同步写盘等待；GNOME 构建和打包同时占用约 8–10 GiB，
 
 内核 Image/dtb 先在 `kernel/linux-sirius/` 里 `make`，`./build.sh kernel` 只做 system 分区镜像。
