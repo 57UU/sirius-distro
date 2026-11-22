@@ -14,8 +14,8 @@ Type=simple
 # Private libraries (libhexagonrpc/libssc/libprotobuf-c) live in
 # /mnt/sysmod/glue/lib; RPATH written at image build time finds them, so the
 # rootfs only needs the distro glibc.
-ExecStartPre=/mnt/sysmod/glue/bin/sirius-sensors-setup
+ExecStartPre=/mnt/sysmod/glue/scripts/sirius-sensors-setup
 ExecStart=/mnt/sysmod/glue/bin/hexagonrpcd -f /dev/fastrpc-adsp-secure -s -R /run/sirius-qcom
-ExecStopPost=/mnt/sysmod/glue/bin/sirius-sensors-setup --teardown
+ExecStopPost=/mnt/sysmod/glue/scripts/sirius-sensors-setup --teardown
 Restart=on-failure
 RestartSec=3

@@ -11,5 +11,5 @@ Conflicts=shutdown.target
 [Service]
 Type=oneshot
 RemainAfterExit=yes
-ExecStart=/mnt/sysmod/glue/bin/sirius-glue-setup
+ExecStart=/mnt/sysmod/glue/scripts/sirius-glue-setup
 TimeoutStartSec=30

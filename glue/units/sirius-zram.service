@@ -7,5 +7,5 @@ Description=Sirius zram swap (lz4, 50 percent of RAM)
 Type=oneshot
 RemainAfterExit=yes
 TimeoutStartSec=30
-ExecStart=/mnt/sysmod/glue/bin/sirius-zram start
-ExecStop=/mnt/sysmod/glue/bin/sirius-zram stop
+ExecStart=/mnt/sysmod/glue/scripts/sirius-zram start
+ExecStop=/mnt/sysmod/glue/scripts/sirius-zram stop

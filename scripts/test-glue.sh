@@ -9,8 +9,8 @@ set -euo pipefail
 
 DISTRO=$(cd "$(dirname "$0")/.." && pwd)
 GENMAN=$DISTRO/kernel/gen-glue-manifest.sh
-GEN=$DISTRO/glue/bin/sirius-kernel-glue
-SETUP=$DISTRO/glue/bin/sirius-glue-setup
+GEN=$DISTRO/glue/scripts/sirius-kernel-glue
+SETUP=$DISTRO/glue/scripts/sirius-glue-setup
 mkdir -p "$DISTRO/workspace/build/tmp"
 TMP=$(mktemp -d "${TMPDIR:-$DISTRO/workspace/build/tmp}/test-glue.XXXXXX")
 trap 'rm -rf "$TMP"' EXIT
@@ -27,7 +27,7 @@ check() {
 # ---- fixture: copy of the real glue tree, manifest generated for it --------
 FIX=$TMP/glue
 cp -a "$DISTRO/glue/." "$FIX/"
-chmod 755 "$FIX"/bin/*
+chmod 755 "$FIX"/bin/* "$FIX"/scripts/*
 bash "$GENMAN" "$FIX" "$FIX/manifest" >/dev/null
 check "manifest generated" test -s "$FIX/manifest"
 

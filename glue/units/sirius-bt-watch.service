@@ -10,4 +10,4 @@ After=bluetooth.service multi-user.target
 Type=simple
 Restart=always
 RestartSec=5
-ExecStart=/mnt/sysmod/glue/bin/sirius-bt-watch
+ExecStart=/mnt/sysmod/glue/scripts/sirius-bt-watch

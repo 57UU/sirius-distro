@@ -1,13 +1,13 @@
 # 测试：一键硬件/迁移自检
 
-`sudo /mnt/sysmod/glue/bin/sirius-test` 会跑完一整套即时检查并给出 PASS/FAIL/SKIP
+`sudo /mnt/sysmod/glue/scripts/sirius-test` 会跑完一整套即时检查并给出 PASS/FAIL/SKIP
 汇总。脚本本身随 glue 层打进 **system 分区**，升级只刷 system。默认**快速模式**只包含：现在就能得到
 结果、且不依赖外部条件的检查。
 
 ```sh
-sudo /mnt/sysmod/glue/bin/sirius-test          # 快速模式（默认，约 30s）
-sudo /mnt/sysmod/glue/bin/sirius-test --full   # 额外跑依赖外部条件的检查
-sudo /mnt/sysmod/glue/bin/sirius-test --no-wait # 不等开机就绪（已有代码会用这个）
+sudo /mnt/sysmod/glue/scripts/sirius-test          # 快速模式（默认，约 30s）
+sudo /mnt/sysmod/glue/scripts/sirius-test --full   # 额外跑依赖外部条件的检查
+sudo /mnt/sysmod/glue/scripts/sirius-test --no-wait # 不等开机就绪（已有代码会用这个）
 ```
 
 脚本开头会做一次 **preflight**：如果刚开机、systemd/glue 服务还没起来，会先等
@@ -43,10 +43,10 @@ QRTR modem 和 uim-watch 就绪（最多 120s）。已就绪时零等待，避�
 
 ## 部署
 
-脚本源码/内容在 `glue/bin/sirius-test`，由 `./build.sh kernel` 打进 `kernel.img`
+脚本源码/内容在 `glue/scripts/sirius-test`，由 `./build.sh kernel` 打进 `kernel.img`
 的 system 分区；rootfs 不建软链，直接运行上面的 system 路径。临时使用可：
 
 ```sh
-scp glue/bin/sirius-test u57u@172.16.42.1:/tmp/
+scp glue/scripts/sirius-test u57u@172.16.42.1:/tmp/
 ssh u57u@172.16.42.1 'sudo chmod 755 /tmp/sirius-test && sudo /tmp/sirius-test'
 ```

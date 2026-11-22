@@ -59,7 +59,7 @@ kernel (cmdline root=mmcblk0p81)
   -EINVAL（machine driver startup 依赖该路由），ACP 探测失败后把唯一的 `output:stereo-fallback` profile
   丢掉，只剩 off / pro-audio；WirePlumber 的 find-best-profile 又会跳过 pro-audio，于是选中 off ——
   设备在、sink 没有，GNOME 就显示 Dummy Output。ACP 不会自己重探，重启用户 wireplumber 才能重建设备。
-  修法：audio-init 末尾加 `ExecStartPost=/mnt/sysmod/glue/bin/sirius-audio-refresh`（无硬件 sink 时重启
+  修法：audio-init 末尾加 `ExecStartPost=/mnt/sysmod/glue/scripts/sirius-audio-refresh`（无硬件 sink 时重启
   wireplumber 让它重探）。验证手法：`wpctl status` 看 Audio→Sinks 是否只有 auto_null；route 关掉后
   `systemctl --user restart wireplumber` 必现 Dummy，route 打开后再 restart 即出现 stereo-fallback。
 

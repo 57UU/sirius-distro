@@ -75,9 +75,8 @@ sirius_overlay() {
   chmod 600 $R/etc/NetworkManager/system-connections/*.nmconnection 2>/dev/null || true
   # preset/unit 在 git 里保持 0644，打包前再确认一次。
   chmod 644 $R/etc/systemd/system-preset/*.preset 2>/dev/null || true
-  # overlay 里的 CLI 脚本在 git 里是 644，打包前统一补 755；
-  # 新增 overlay 脚本要加进这个列表，否则 systemd 启动会报 Permission denied。
-  chmod 755 $R/usr/local/sbin/sirius-screen $R/usr/local/sbin/sirius-remodeset $R/usr/local/sbin/sirius-wifi-add $R/usr/local/sbin/safe-reboot $R/usr/local/sbin/sirius-otg
+  # /usr/local/sbin/* 现在是指向 /mnt/sysmod/glue/{bin,scripts}/ 的软链，不在这里 chmod
+  # （host 侧软链目标不存在会报错，权限由 system 分区打包脚本统一置 755）。
   # 4 行 generator stub；实现在 system 分区（见 docs/KERNEL-IMG-STORE.md）。
   GLUE_STUB=$R/usr/lib/systemd/system-generators/sirius-kernel-glue
   test -f "$GLUE_STUB" || { echo "missing glue generator stub $GLUE_STUB"; exit 1; }

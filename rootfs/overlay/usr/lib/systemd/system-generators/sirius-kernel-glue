@@ -3,6 +3,6 @@
 # every kernel-coupled unit/script live on the system partition, so updating
 # them only needs a new system.img — never a rootfs reflash.  This stub is
 # intentionally dumb: it only forwards systemd's generator arguments.
-G=/mnt/sysmod/glue/bin/sirius-kernel-glue
+G=/mnt/sysmod/glue/scripts/sirius-kernel-glue
 [ -x "$G" ] || exit 0
 exec "$G" "$@"

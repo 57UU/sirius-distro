@@ -6,9 +6,9 @@
 # no audio playback, ...).  Things that depend on what the phone is plugged into
 # or what is inserted are either skipped or only run with --full.
 #
-# Usage:  sudo /mnt/sysmod/glue/bin/sirius-test            # fast (default)
-#         sudo /mnt/sysmod/glue/bin/sirius-test --full     # + conditional checks
-#         sudo /mnt/sysmod/glue/bin/sirius-test --no-wait  # do not wait for boot readiness
+# Usage:  sudo /mnt/sysmod/glue/scripts/sirius-test            # fast (default)
+#         sudo /mnt/sysmod/glue/scripts/sirius-test --full     # + conditional checks
+#         sudo /mnt/sysmod/glue/scripts/sirius-test --no-wait  # do not wait for boot readiness
 #
 # Exit code: 0 all checks passed (skips are fine), 1 if any FAIL.
 set -u

@@ -9,4 +9,4 @@ After=NetworkManager.service ModemManager.service rmtfs.service tqftpserv.servic
 Type=oneshot
 RemainAfterExit=yes
 ExecStart=/bin/true
-ExecStop=/mnt/sysmod/glue/bin/wifi-shutdown
+ExecStop=/mnt/sysmod/glue/scripts/wifi-shutdown

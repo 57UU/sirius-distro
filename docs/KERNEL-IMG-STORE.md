@@ -22,7 +22,7 @@
 
 镜像层面接口极窄（`manifest` 与生成器实现全在 `system` 内部）；运行期则通过稳定契约双向协作：
 
-1. **唯一执行入口**：`/usr/lib/systemd/system-generators/sirius-kernel-glue`（4 行 stub，转发 `$@` 到 `/mnt/sysmod/glue/bin/sirius-kernel-glue`）。
+1. **唯一执行入口**：`/usr/lib/systemd/system-generators/sirius-kernel-glue`（4 行 stub，转发 `$@` 到 `/mnt/sysmod/glue/scripts/sirius-kernel-glue`）。
 2. **挂载点**：initrd 将 `system` 分区 `ro` 挂到 `/mnt/sysmod`，并 bind `lib/modules/<uname -r>`、`lib/firmware` 进新根（缺失时回落 rootfs 空目录）。
 3. **运行库 ABI 下限**：rootfs 提供 `glibc >= 2.38`（trixie 2.41 可用，bookworm 2.36 不可）及 `GLib 2.x` 家族（`libglib-2.0`/`libgio-2.0`/`libgobject-2.0`/`libgmodule-2.0`）。
 4. **首启 preset**：`/etc/systemd/system-preset/50-sirius-glue.preset`（`disable adsprpcd-* / sirius-* / bt-addr.service / pd-mapper.service / wifi-shutdown.service`），防止 systemd 首启将 generator 单元固化进 `/etc`。
@@ -41,7 +41,8 @@
 glue/
   ABI                    # 当前 "1"（manifest schema 版本）
   manifest               # 构建时由 kernel/gen-glue-manifest.sh 生成
-  bin/                   # adsprpcd、pd-mapper、uimsel/uimwatch、hexagonrpcd、ssccli、脚本、生成器
+  bin/                   # adsprpcd、pd-mapper、uimsel/uimwatch、hexagonrpcd、ssccli、sirius-remodeset
+  scripts/               # 设备脚本、生成器（sirius-kernel-glue）、sirius-glue-setup、CLI 工具
   lib/                   # 私有运行库闭包（~7.6M），来源见 glue/lib/README.md
   units/                 # 设备 systemd unit（含 rmtfs drop-in、tmp.mount mask）
   units.enable           # <unit> <target> 列表
@@ -102,5 +103,5 @@ systemctl cat sirius-sensors | head         # FragmentPath 在 /run/systemd/gene
 ls -l /var/lib/rmtfs                        # 4 项 partlabel 软链在位
 nmcli con show | grep -i cellular           # 从 /run 读到蜂窝 profile
 ldd /mnt/sysmod/glue/bin/* 2>/dev/null | grep 'not found'   # 期望为空
-sudo /mnt/sysmod/glue/bin/sirius-test       # 一键硬件自检（--full 加外设项）
+sudo /mnt/sysmod/glue/scripts/sirius-test   # 一键硬件自检（--full 加外设项）
 ```

@@ -6,4 +6,4 @@ Wants=NetworkManager.service
 [Service]
 Type=oneshot
 TimeoutStartSec=120
-ExecStart=/mnt/sysmod/glue/bin/sirius-wifi-auto
+ExecStart=/mnt/sysmod/glue/scripts/sirius-wifi-auto

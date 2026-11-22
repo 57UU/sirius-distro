@@ -127,7 +127,7 @@ mkdir -p "$STAGE/glue"
 cp -a "$GLUE/." "$STAGE/glue/"
 # Fresh checkouts may lack exec bits (repo index stores 644 for portability,
 # same caveat as the initrd/build scripts).
-chmod 755 "$STAGE"/glue/bin/* 2>/dev/null || true
+chmod 755 "$STAGE"/glue/bin/* "$STAGE"/glue/scripts/* 2>/dev/null || true
 # Device-layer private libs are stored as real files under their runtime
 # names (SONAME), so no symlinks are needed.
 chmod 644 "$STAGE"/glue/lib/*.so.* 2>/dev/null || true

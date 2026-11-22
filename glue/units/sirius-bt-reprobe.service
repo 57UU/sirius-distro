@@ -5,4 +5,4 @@ Description=Re-apply BT public address after hci0 re-probe (sirius)
 # job); this one exists so udev can fire it at any moment with --no-block.
 [Service]
 Type=oneshot
-ExecStart=/mnt/sysmod/glue/bin/sirius-bt-addr
+ExecStart=/mnt/sysmod/glue/scripts/sirius-bt-addr

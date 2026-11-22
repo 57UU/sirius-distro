@@ -8,7 +8,7 @@
 DT &uart6 (898000.serial) → qcom,wcn3990-bt (3.2M)
   └─ hci_uart_qca / btqca：115200 握手 → 3.2M → 下发 crbtfw21.tlv + crnv21.bin
        └─ hci0（默认 HCI_UNCONFIGURED）
-            ├─ bt-addr.service（glue/bin/sirius-bt-addr）：从 persist wlan_bt/bt.mac 校验/下发地址
+            ├─ bt-addr.service（glue/scripts/sirius-bt-addr）：从 persist wlan_bt/bt.mac 校验/下发地址
             │    （读不到退回 02:57:55:08:5E:02；NVM 正常自带出厂地址，不一致才下发）
             ├─ udev 70-sirius-bt.rules：hci0 re-probe 时拉起 sirius-bt-reprobe 重设地址
             └─ bluetooth.service → sirius-bt-auto（上电）+ sirius-bt-watch（崩溃硬复位）

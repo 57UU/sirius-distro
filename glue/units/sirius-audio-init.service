@@ -25,7 +25,7 @@ ExecStart=/usr/bin/alsaucm -c SE set _verb HiFi set _enadev Speaker set _enadev 
 # shows "Dummy Output" — see docs/AUDIO-BRINGUP.md §6). ACP never re-probes, so
 # re-create the device now that the route is in place. Harmless when a sink
 # already exists or nobody is logged in.
-ExecStartPost=-/mnt/sysmod/glue/bin/sirius-audio-refresh
+ExecStartPost=-/mnt/sysmod/glue/scripts/sirius-audio-refresh
 RemainAfterExit=yes
 # Card probes late (ADSP + userspace PDs take ~30s); first-boot run may hit
 # "no soundcards found". Retry with backoff until the UCM route sticks.

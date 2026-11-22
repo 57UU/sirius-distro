@@ -17,7 +17,7 @@
  * kernel.img), so the path is a compile-time constant.  Override with
  * -DSIRIUS_MODEM_UIM=... for local testing (e.g. a /usr/local/bin copy). */
 #ifndef SIRIUS_MODEM_UIM
-#define SIRIUS_MODEM_UIM "/mnt/sysmod/glue/bin/sirius-modem-uim"
+#define SIRIUS_MODEM_UIM "/mnt/sysmod/glue/scripts/sirius-modem-uim"
 #endif
 
 static GMainLoop *loop = NULL;

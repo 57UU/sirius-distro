@@ -8,7 +8,7 @@ import tempfile
 import unittest
 
 REPO = Path(__file__).resolve().parents[1]
-SCRIPT = REPO / "glue/bin/sirius-modem-uim"
+SCRIPT = REPO / "glue/scripts/sirius-modem-uim"
 SCRATCH = REPO / "workspace/build/tmp"
 
 MOCK = r'''#!/usr/bin/env python3

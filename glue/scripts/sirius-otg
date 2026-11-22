@@ -1,0 +1,59 @@
+#!/bin/sh
+# sirius-otg: read-only USB-C status for xiaomi-sirius.
+#
+# Roles and OTG power are handled by the kernel: the PM660 Type-C port
+# controller (TCPM, driver qcom_smb2_tcpm) follows the CC lines and drives
+# the dwc3 role switch plus the 5V boost.  Plug a host (PC) and the port is a
+# device; plug an OTG adapter and it becomes a host.  There is nothing to
+# switch by hand any more, so this script only reports what the kernel did.
+#
+#   status = role owner, power/data role, partner, boost, cable, usb0
+#   watch  = repeat status, default every 1s, Ctrl-C stops
+#
+# For kernel-level debugging the role can still be forced directly:
+#   echo host   | sudo tee /sys/class/usb_role/a600000.usb-role-switch/role
+#   echo device | sudo tee /sys/class/usb_role/a600000.usb-role-switch/role
+# TCPM re-asserts the cable-derived role on the next cable event.
+MODE=/sys/kernel/debug/usb/a600000.usb/mode
+UDC=/sys/kernel/config/usb_gadget/g1/UDC
+CHG=/sys/bus/platform/devices/c440000.spmi:pmic@0:charger@1000
+TYPEC=/sys/class/typec/port0
+ROLE_SW=/sys/class/usb_role/a600000.usb-role-switch/role
+
+do_status() {
+	if [ -d "$TYPEC" ]; then
+		echo "role-source=typec(TCPM)"
+		echo -n "power_role="; cat "$TYPEC/power_role" 2>/dev/null
+		echo -n "data_role="; cat "$TYPEC/data_role" 2>/dev/null
+		echo -n "partner="; [ -d /sys/class/typec/port0-partner ] && echo present || echo none
+	else
+		echo "role-source=none (qcom_smb2_tcpm not loaded?)"
+		echo -n "mode="; cat "$MODE" 2>/dev/null
+	fi
+	echo -n "role="; cat "$ROLE_SW" 2>/dev/null || echo "?"
+	echo -n "UDC="; cat "$UDC" 2>/dev/null
+	echo -n "boost="; cat "$CHG/otg_boost" 2>/dev/null
+	echo -n "cable="; cat "$CHG/otg_cable" 2>/dev/null
+	ip -br link show usb0 2>/dev/null || echo "usb0: absent"
+}
+
+do_watch() {
+	interval=${1:-1}
+	while true; do
+		date "+%F %T"
+		do_status
+		echo "---"
+		sleep "$interval" || exit 0
+	done
+}
+
+case "$1" in
+	""|status) do_status ;;
+	watch) do_watch "$2" ;;
+	on|off|auto)
+		echo "sirius-otg: '$1' was removed - roles and OTG power follow the" >&2
+		echo "            Type-C cable now (TCPM); nothing to switch by hand." >&2
+		exit 2
+		;;
+	*) echo "usage: $0 [status] | watch [seconds]" >&2; exit 2 ;;
+esac

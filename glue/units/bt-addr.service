@@ -13,4 +13,4 @@ Type=oneshot
 RemainAfterExit=yes
 TimeoutStartSec=45
 ExecStartPre=-/usr/bin/pkill -9 -x btmgmt
-ExecStart=/mnt/sysmod/glue/bin/sirius-bt-addr
+ExecStart=/mnt/sysmod/glue/scripts/sirius-bt-addr

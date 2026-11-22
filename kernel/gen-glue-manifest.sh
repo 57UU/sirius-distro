@@ -14,7 +14,7 @@ OUT=${2:?usage: gen-glue-manifest.sh <glue-src-dir> <output-manifest>}
 
 test -d "$GLUE" || { echo "missing glue source dir $GLUE"; exit 1; }
 test -f "$GLUE/ABI" || { echo "missing $GLUE/ABI"; exit 1; }
-test -f "$GLUE/bin/sirius-kernel-glue" || { echo "missing $GLUE/bin/sirius-kernel-glue"; exit 1; }
+test -f "$GLUE/scripts/sirius-kernel-glue" || { echo "missing $GLUE/scripts/sirius-kernel-glue"; exit 1; }
 test -f "$GLUE/units.enable" || { echo "missing $GLUE/units.enable"; exit 1; }
 
 TMP="$OUT.tmp.$$"

@@ -36,7 +36,7 @@ audio/root PD。
 | `sns_reg.conf` | `glue/sensors/sns_reg.conf` | 原厂 `vendor.img` 的 `/etc/sensors/sns_reg_config`（改名） |
 | 校准 registry | **运行时**从 persist 分区只读复制 | `/persist/sensors/registry/registry` |
 
-`glue/bin/sirius-sensors-setup`（unit 的 `ExecStartPre`）负责组装运行时根：
+`glue/scripts/sirius-sensors-setup`（unit 的 `ExecStartPre`）负责组装运行时根：
 
 1. `/run/sirius-qcom/sensors/config` ← glue 里的厂商配置；
 2. `/run/sirius-qcom/sensors/sns_reg.conf` ← glue；
