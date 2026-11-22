@@ -9,7 +9,9 @@ change分为三大部分：boot,kernel,rootfs，例如 rootfs.gnome: 修复gnome
 本文档格式基于 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.0.0/)，
 本项目遵循[语义化版本规范](https://semver.org/spec/v2.0.0.html)。
 
-## [Unreleased](https://github.com/57UU/sirius-distro/compare/v2.1...HEAD)
+## [Unreleased](https://github.com/57UU/sirius-distro/compare/v3.0...HEAD)
+
+## [3.0](https://github.com/57UU/sirius-distro/compare/v2.1...v3.0) - 2026-11-22
 
 ### 新增
 
