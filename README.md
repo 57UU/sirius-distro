@@ -93,16 +93,23 @@ default password is 1234.
 Uboot with UEFI support.
 
 
-## 自制服务（`/usr/local/sbin`）
+# 自制服务与工具
+
+## 服务脚本（`/mnt/sysmod/glue/scripts`）
 
 ```bash
-sudo sirius-otg status|watch  # 只读诊断：角色归属、power/data role、boost、usb0（角色本身由内核自动管）
-sudo sirius-wifi-auto on|off|status # 默认 on（开机即看门狗，timer 每 5 分钟一轮）：开/关/看状态
-sudo sirius-zram start|stop|status  # 默认 on（开机即有 1.7G swap）：lz4，50% 内存
-sudo sirius-screen off|on|toggle|status  # 默认亮屏（只动背光，不碰 SoC/WiFi/BT/SSH）
-sudo sirius-wifi-add SSID [PASSWORD] # 一次性：无头加 WiFi 配置
-sudo safe-reboot                     # 一次性：sysrq 安全重启（sync→remount-ro→reboot）
-sirius-remodeset                     # 手动救援：无头启动显示卡住时跑一次（DSI modeset 解卡）
+sudo sirius-otg status|watch            # 只读诊断：角色归属、power/data role、boost、usb0（角色本身由内核自动管）
+sudo sirius-wifi-auto on|off|status     # 默认 on（开机即看门狗，timer 每 5 分钟一轮）：开/关/看状态
+sudo sirius-zram start|stop|status      # 默认 on（开机即有 swap）：lz4，50% 内存
+sudo sirius-screen off|on|toggle|status # 默认亮屏（只动背光，不碰 SoC/WiFi/BT/SSH）
+sudo sirius-wifi-add SSID [PASSWORD]    # 一次性：无头加 WiFi 配置
+sudo safe-reboot                        # 一次性：sysrq 安全重启（sync→remount-ro→reboot）
+```
+
+## 二进制工具（`/mnt/sysmod/glue/bin`）
+
+```bash
+sudo sirius-remodeset                   # 手动救援：无头启动显示卡住时跑一次（DSI modeset 解卡）
 ```
 
 开机自启、无需手动、默认全开。
