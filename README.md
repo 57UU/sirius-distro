@@ -164,3 +164,15 @@ remote proc tools: https://github.com/andersson (pd-mapper, tqftpserv, rmtfs, qr
 base system: Debian trixie (rootfs builds; device firmware ships in the system-partition store)
 qca-swiss-army-knife
 initrd userspace: busybox
+
+# License
+
+本仓库本身是一个系统集成与构建编排工程（mere aggregation）。
+
+- **本仓库原创内容（MIT License）**：  
+  仓库中原创的构建脚本（`build.sh`、`rootfs/`、`kernel/build-kernel-img.sh`）、自研工具与脚本（`src/`、`glue/scripts/`）、systemd units、配置文件及文档（`docs/`、`README.md`）均采用 [MIT License](LICENSE) 开源。本仓库仅对各组件进行镜像打包与编排，不与 GPL 组件构成代码级派生关系，因此本仓库原创部分按 MIT 独立授权。
+- **子模块与第三方开源组件（遵循各自原许可证）**：  
+  - `kernel/linux-sirius/`（GPL-2.0）、`uboot/`（GPL-2.0+）、`orbital/orbital-src/`、`boot/initrd/` 等子项目及第三方源码均保留并遵循其原有的开源许可证。
+  - `boot/` 与 `glue/bin/`、`glue/lib/` 中包含的第三方预编译二进制/运行库（以及 Release 镜像中的 Debian rootfs 软件包）各自受其上游许可证（如 GPL/LGPL/BSD 等）约束；对应源码可通过本仓库 submodules 或上文 Acknowledgements 中的上游仓库获取。
+- **设备固件（`firmware/`）**：  
+  高通 / 小米设备专有固件二进制文件归原版权方所有，不适用 MIT 协议，仅作为设备驱动运行所需的固件随系统分发。
